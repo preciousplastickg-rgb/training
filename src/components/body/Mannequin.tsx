@@ -179,6 +179,8 @@ function SideFigure({ p, fill, gid }: { p: SidePose; fill: MuscleFill; gid: stri
       <path d={capsule(knee, hip, 14, thighW)} fill={body} {...OUTLINE} />
       <M m="quads" d={muscleStrip(knee, hip, thighW, 1, 0.12, 0.8, frontOf(aThigh))} />
       <M m="hamstrings" d={muscleStrip(knee, hip, thighW, -1, 0.12, 0.8, frontOf(aThigh))} />
+      <circle cx={knee.x} cy={knee.y} r={6.2} fill="var(--body-a)" {...OUTLINE} />
+      <circle cx={ankle.x} cy={ankle.y} r={4.2} fill="var(--body-a)" {...OUTLINE} />
     </g>
   );
 
@@ -191,6 +193,7 @@ function SideFigure({ p, fill, gid }: { p: SidePose; fill: MuscleFill; gid: stri
         <M m="biceps" d={muscleStrip(p.shoulder, elbow, ua, 1, 0.25, 0.85, front)} />
         <M m="triceps" d={muscleStrip(p.shoulder, elbow, ua, -1, 0.25, 0.85, front)} />
         <path d={capsule(elbow, wrist, fa, fa - 2)} fill={body} {...OUTLINE} />
+        <circle cx={elbow.x} cy={elbow.y} r={4.6} fill="var(--body-a)" {...OUTLINE} />
         <circle cx={wrist.x} cy={wrist.y} r={4} fill={body} {...OUTLINE} />
         <M m="front_delt" d={capsule(mov(p.shoulder, front, 2.5), mov(mov(p.shoulder, dir(aUa), 9), front, 2.5), 7, 4)} />
         <M m="rear_delt" d={capsule(mov(p.shoulder, front, -2.5), mov(mov(p.shoulder, dir(aUa), 9), front, -2.5), 7, 4)} />
@@ -207,7 +210,7 @@ function SideFigure({ p, fill, gid }: { p: SidePose; fill: MuscleFill; gid: stri
       {hasB && leg(p.hip, p.kneeB!, p.ankleB!, p.heelB!, p.toeB!, p.a.thighB!, p.a.shinB!, true)}
       {leg(p.hip, p.knee, p.ankle, p.heel, p.toe, p.a.thigh, p.a.shin, false)}
       {/* таз в шортах */}
-      <circle cx={p.hip.x} cy={p.hip.y} r={13} fill="var(--body-line)" />
+      <circle cx={p.hip.x} cy={p.hip.y} r={13} fill="var(--m-outline)" {...OUTLINE} />
       <M m="glutes" d={capsule(mov(p.hip, torsoFront, -6), mov(mov(p.hip, torsoFront, -6), dir(p.a.pelvis), -5), 12, 9)} />
       {/* корпус */}
       <path d={capsule(p.hip, torsoTop, 24, 30)} fill={body} {...OUTLINE} />
@@ -237,8 +240,9 @@ function FrontFigure({ p, fill, gid }: { p: FrontPose; fill: MuscleFill; gid: st
       <M m="biceps" d={capsule(mov(s, sub(e, s), 0.3), mov(s, sub(e, s), 0.85), 6, 5)} />
       <path d={capsule(e, w, 9, 7)} fill={body} {...OUTLINE} />
       <circle cx={w.x} cy={w.y} r={4} fill={body} {...OUTLINE} />
-      <M m="side_delt" d={capsule({ x: s.x + side * 2, y: s.y - 1 }, mov(s, sub(e, s), 0.3), 11, 8)} />
-      <M m="front_delt" d={capsule({ x: s.x, y: s.y }, mov(s, sub(e, s), 0.22), 8, 6)} />
+      <M m="side_delt" d={capsule({ x: s.x + side * 1, y: s.y - 1 }, mov(s, sub(e, s), 0.32), 15, 11)} />
+      <M m="front_delt" d={capsule({ x: s.x - side * 2, y: s.y + 1 }, mov(s, sub(e, s), 0.22), 11, 8)} />
+      <circle cx={e.x} cy={e.y} r={4.8} fill="var(--body-a)" {...OUTLINE} />
     </g>
   );
   const legs = (h: Pt, k: Pt, a: Pt) => (
@@ -254,7 +258,7 @@ function FrontFigure({ p, fill, gid }: { p: FrontPose; fill: MuscleFill; gid: st
     <g>
       {legs(p.hipL, p.kneeL, p.ankleL)}
       {legs(p.hipR, p.kneeR, p.ankleR)}
-      <path d={`M${p.hipL.x + 7} ${p.hipL.y - 6}L${p.hipR.x - 7} ${p.hipR.y - 6}L${p.hipR.x - 8} ${p.hipR.y + 9}L${p.hipL.x + 8} ${p.hipL.y + 9}Z`} fill="var(--body-line)" />
+      <path d={`M${p.hipL.x + 7} ${p.hipL.y - 6}L${p.hipR.x - 7} ${p.hipR.y - 6}L${p.hipR.x - 8} ${p.hipR.y + 9}L${p.hipL.x + 8} ${p.hipL.y + 9}Z`} fill="var(--m-outline)" {...OUTLINE} />
       <path d={torso} fill={body} {...OUTLINE} />
       <M m="upper_back" d={`M${p.neck.x - 4} ${p.neck.y + 4}L${p.shoulderR.x + 2} ${p.shoulderR.y - 2}L${p.neck.x - 3} ${p.neck.y + 10}Z M${p.neck.x + 4} ${p.neck.y + 4}L${p.shoulderL.x - 2} ${p.shoulderL.y - 2}L${p.neck.x + 3} ${p.neck.y + 10}Z`} />
       <M m="chest" d={capsule({ x: p.pelvis.x - 9, y: p.shoulderL.y + 7 }, { x: p.pelvis.x + 9, y: p.shoulderL.y + 7 }, 12, 12)} />
