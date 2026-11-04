@@ -1,0 +1,137 @@
+@import 'tailwindcss';
+
+/* Токены — SPEC 9. Тема: системная по умолчанию, data-theme на <html> её переопределяет.
+   .theme-dark — принудительно тёмная палитра (режим тренировки). */
+
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --ink: #15171a;
+  --muted: #5b6170;
+  --primary: #172554;
+  --on-primary: #ffffff;
+  --progress: #0b7a4b;
+  --energy: #c2410c;
+  --protein: #2448d6;
+  --warn: #b45309;
+  --line: rgb(21 23 26 / 0.1);
+  --track: rgb(21 23 26 / 0.08);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0b1226;
+    --surface: #131c36;
+    --ink: #eef1f8;
+    --muted: #a3acc2;
+    --primary: #3b5bdb;
+    --on-primary: #ffffff;
+    --progress: #34d399;
+    --energy: #fb923c;
+    --protein: #7c9cff;
+    --warn: #fbbf24;
+    --line: rgb(238 241 248 / 0.1);
+    --track: rgb(238 241 248 / 0.08);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'],
+.theme-dark {
+  --bg: #0b1226;
+  --surface: #131c36;
+  --ink: #eef1f8;
+  --muted: #a3acc2;
+  --primary: #3b5bdb;
+  --on-primary: #ffffff;
+  --progress: #34d399;
+  --energy: #fb923c;
+  --protein: #7c9cff;
+  --warn: #fbbf24;
+  --line: rgb(238 241 248 / 0.1);
+  --track: rgb(238 241 248 / 0.08);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-progress: var(--progress);
+  --color-energy: var(--energy);
+  --color-protein: var(--protein);
+  --color-warn: var(--warn);
+  --color-line: var(--line);
+  --color-track: var(--track);
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 2px solid var(--protein);
+  outline-offset: 2px;
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-sheet-in {
+  animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.animate-fade-in {
+  animation: fade-in 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
