@@ -10,7 +10,10 @@ import { DEFAULT_SETTINGS, updateSettings } from '../db/db';
 import { resetProgram, updateSlot } from '../db/repo';
 import type { ProgramSlot, Settings, Theme } from '../db/types';
 import { formatKg, formatScaled, parseKg } from '../domain/format';
-import { useSlots } from '../hooks/useData';
+import { Trash2 } from 'lucide-react';
+import { useAdjustments, useSlots } from '../hooks/useData';
+import { db } from '../db/db';
+import { formatDayMonth } from '../domain/format';
 import { BackupSection } from './settings/BackupSection';
 import { FoodsSection } from './settings/FoodsSection';
 
@@ -121,7 +124,9 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
           </div>
         </Section>
 
-        <Section title="Калории фазы 3 (с 1 марта)">
+        <Section title="Калории">
+          <AdjustmentsList />
+          <p className="mt-3 mb-2 text-sm text-muted">Фаза 3 (с 1 марта)</p>
           <div className="grid grid-cols-2 gap-2">
             <Chip active={settings.phase3Mode !== 'maintenance'} onClick={() => void updateSettings({ phase3Mode: 'deficit' })} className="justify-center">
               Дефицит (как сейчас)
@@ -312,5 +317,30 @@ function SlotSheet({ slot, onClose }: { slot: ProgramSlot; onClose: () => void }
         </div>
       </div>
     </Sheet>
+  );
+}
+
+function AdjustmentsList() {
+  const adjustments = useAdjustments();
+  if (adjustments.length === 0) {
+    return <p className="text-sm text-muted">Корректировок пока нет. Приложение предложит их по понедельникам с 3-й недели.</p>;
+  }
+  return (
+    <ul className="divide-y divide-line">
+      {adjustments.map((a) => (
+        <li key={a.id} className="flex min-h-12 items-center gap-2 text-sm">
+          <span className="flex-1">
+            <b className={a.deltaKcal < 0 ? 'text-energy' : 'text-accent'}>
+              {a.deltaKcal > 0 ? '+' : '−'}
+              {Math.abs(a.deltaKcal)} ккал
+            </b>{' '}
+            с {formatDayMonth(a.date)}
+          </span>
+          <button type="button" aria-label="Отменить корректировку" onClick={() => void db.adjustments.delete(a.id)} className="flex h-11 w-11 items-center justify-center text-muted">
+            <Trash2 size={16} aria-hidden />
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
