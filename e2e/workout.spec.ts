@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { skipOnboarding } from './helpers';
 
 test('подход 1 тапом, таймер от endsAt, восстановление после закрытия', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-06T09:00:00+06:00') });
+  await skipOnboarding(page);
   await page.goto('./#/workout');
   await page.getByRole('button', { name: /Пробная тренировка/ }).click();
   await expect(page.getByRole('heading', { name: 'Гоблет-присед' })).toBeVisible();

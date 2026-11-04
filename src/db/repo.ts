@@ -2,7 +2,7 @@
 
 import { SEED_FOODS } from '../data/foods';
 import { SEED_SLOTS } from '../data/program';
-import { today } from '../domain/dates';
+import { appToday as today } from '../app/clock';
 import type { HistoryEntry } from '../domain/progression';
 import { db, ensureSettings, updateSettings, type AppDB } from './db';
 import type {

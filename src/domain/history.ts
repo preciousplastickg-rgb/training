@@ -60,3 +60,24 @@ export function lastSessionSets(exerciseId: string, sets: readonly SetLog[], ses
 export function sessionDates(sessions: readonly WorkoutSession[]): Map<string, LocalDate> {
   return new Map(sessions.filter((s) => s.finishedAt !== undefined).map((s) => [s.id, s.date]));
 }
+
+/** Базовые упражнения для правила «сила падает» (SPEC 5.6). */
+export const BASE_LIFTS = ['goblet_squat', 'barbell_squat', 'bench_press', 'barbell_rdl', 'db_row', 'lat_pulldown', 'db_shoulder_press'];
+
+/** Рабочий вес (максимум) базовых упражнений по датам, без разгрузок и пробной. */
+export function strengthSeries(sets: readonly SetLog[], sessions: readonly WorkoutSession[], ids: readonly string[] = BASE_LIFTS) {
+  const ok = new Map(sessions.filter((s) => s.finishedAt !== undefined && !s.isDeload && !s.isCalibration).map((s) => [s.id, s.date]));
+  const out: Record<string, { date: LocalDate; weight: number }[]> = {};
+  const best = new Map<string, number>();
+  for (const s of sets) {
+    if (s.kind !== 'work' || !ids.includes(s.exerciseId) || !ok.has(s.sessionId)) continue;
+    const key = `${s.exerciseId}|${s.sessionId}`;
+    best.set(key, Math.max(best.get(key) ?? 0, s.weight));
+  }
+  for (const [key, weight] of best) {
+    const [ex, sid] = key.split('|') as [string, string];
+    (out[ex] ??= []).push({ date: ok.get(sid)!, weight });
+  }
+  for (const v of Object.values(out)) v.sort((a, b) => a.date.localeCompare(b.date));
+  return out;
+}

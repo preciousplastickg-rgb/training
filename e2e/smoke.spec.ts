@@ -1,4 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { skipOnboarding } from './helpers';
+
+test.beforeEach(async ({ page }) => {
+  await skipOnboarding(page);
+});
 
 test('оболочка: меню, переходы, «+», настройки', async ({ page }) => {
   await page.goto('./');
@@ -17,9 +22,9 @@ test('оболочка: меню, переходы, «+», настройки', 
   await nav.getByRole('button', { name: 'Добавить запись' }).click();
   const sheet = page.getByRole('dialog', { name: 'Добавить' });
   await expect(sheet).toBeVisible();
-  await expect(sheet.getByText('Еда')).toBeVisible();
-  await expect(sheet.getByText('Вес')).toBeVisible();
-  await expect(sheet.getByText('Бассейн')).toBeVisible();
+  for (const name of ['Еда', 'Вес', 'Бассейн']) {
+    await expect(sheet.getByText(name, { exact: true })).toBeVisible();
+  }
   await page.keyboard.press('Escape');
   await expect(sheet).toBeHidden();
 
