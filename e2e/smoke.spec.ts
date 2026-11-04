@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('оболочка: меню, переходы, «+», настройки', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('./');
   const nav = page.getByRole('navigation', { name: 'Основное меню' });
   await expect(nav).toBeVisible();
 
@@ -29,7 +29,7 @@ test('оболочка: меню, переходы, «+», настройки', 
 });
 
 test('тема из настроек сохраняется после перезагрузки', async ({ page }) => {
-  await page.goto('/#/settings');
+  await page.goto('./#/settings');
   await page.getByRole('radio', { name: 'Тёмная' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.reload();
@@ -38,7 +38,7 @@ test('тема из настроек сохраняется после пере�
 });
 
 test('зоны нажатия в меню не меньше 44 × 44', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('./');
   const buttons = page.getByRole('navigation', { name: 'Основное меню' }).getByRole('button');
   await expect(buttons).toHaveCount(5);
   for (const b of await buttons.all()) {
@@ -49,8 +49,8 @@ test('зоны нажатия в меню не меньше 44 × 44', async ({ 
 });
 
 test('PWA: манифест standalone и офлайн-запуск из кэша', async ({ page, context }) => {
-  await page.goto('/');
-  const manifest = await (await page.request.get('/manifest.webmanifest')).json();
+  await page.goto('./');
+  const manifest = await (await page.request.get('manifest.webmanifest')).json();
   expect(manifest.display).toBe('standalone');
   expect(manifest.lang).toBe('ru');
 
