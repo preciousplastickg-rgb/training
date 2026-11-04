@@ -1,0 +1,227 @@
+// Бэкап и импорт — SPEC 8. JSON всех таблиц, кроме фото; фото — отдельно zip с JPEG.
+
+import { z } from 'zod';
+import { appToday } from '../app/clock';
+import { db, type AppDB } from './db';
+
+export const BACKUP_APP = 'training-pwa';
+export const BACKUP_VERSION = 1;
+
+const localDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const int = z.number().int();
+
+const session = z.object({
+  id: z.string(), date: localDate, workout: z.enum(['A', 'B']), startedAt: z.number(), finishedAt: z.number().optional(),
+  isDeload: z.boolean(), isCalibration: z.boolean(), note: z.string().optional(),
+});
+const set = z.object({
+  id: z.string(), sessionId: z.string(), exerciseId: z.string(), slotId: z.string(), setIndex: int, kind: z.enum(['warmup', 'work']),
+  weight: int, reps: int, rir: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(), doneAt: z.number(),
+});
+const pool = z.object({ id: z.string(), date: localDate, minutes: int, meters: int.optional(), feel: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(), note: z.string().optional() });
+const body = z.object({ date: localDate, weight: int.optional(), waist: int.optional(), neck: int.optional(), steps: int.optional() });
+const per100 = z.object({ kcal: int, p: int, f: int, c: int });
+const food = z.object({
+  id: z.string(), name: z.string(), aliases: z.array(z.string()), per100, unitName: z.string().optional(), unitGrams: int.optional(),
+  source: z.enum(['seed', 'user', 'recipe']), approx: z.boolean(), archived: z.boolean(),
+});
+const recipe = z.object({ foodId: z.string(), items: z.array(z.object({ foodId: z.string(), grams: int })), cookedWeight: int });
+const foodLog = z.object({
+  id: z.string(), date: localDate, meal: z.enum(['breakfast', 'lunch', 'dinner', 'snack']), foodId: z.string().optional(), grams: int.optional(),
+  quick: z.object({ name: z.string(), kcal: int, p: int }).optional(), createdAt: z.number(),
+});
+const adjustment = z.object({ id: z.string(), date: localDate, deltaKcal: int, reason: z.string() });
+const slot = z.object({
+  id: z.string(), workout: z.enum(['A', 'B']), order: int, exerciseId: z.string(), altExerciseIds: z.array(z.string()),
+  sets: int, repMin: int, repMax: int, step: int, rest: z.union([z.literal('long'), z.literal('short'), int]),
+  supersetWith: z.string().optional(), fromPhase: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  toPhase: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+});
+const settings = z.object({
+  id: z.literal('main'), heightCm: z.number(), startDate: localDate, startWeight: int, targetWeight: int, targetBodyFat: z.number(),
+  restLong: int, restShort: int, barWeight: int, plates: z.array(int), sound: z.boolean(), theme: z.enum(['light', 'dark', 'system']),
+  substitutions: z.record(z.string(), z.string()), lastBackupAt: z.number().optional(),
+  phase3Mode: z.enum(['maintenance', 'deficit']).optional(), onboarded: z.boolean().optional(),
+});
+const kv = z.object({ key: z.string(), value: z.unknown() });
+
+export const backupSchema = z.object({
+  app: z.literal(BACKUP_APP),
+  version: z.literal(BACKUP_VERSION),
+  exportedAt: z.number(),
+  tables: z.object({
+    sessions: z.array(session),
+    sets: z.array(set),
+    pool: z.array(pool),
+    body: z.array(body),
+    foods: z.array(food),
+    foodLog: z.array(foodLog),
+    adjustments: z.array(adjustment),
+    recipes: z.array(recipe),
+    slots: z.array(slot),
+    settings: z.array(settings),
+    kv: z.array(kv),
+  }),
+});
+
+export type Backup = z.infer<typeof backupSchema>;
+export type TableName = keyof Backup['tables'];
+
+/** Служебные ключи, которые не переносим (таймер отдыха, состояние анимаций). */
+const KV_SKIP = new Set(['restTimer', 'silhouette:last']);
+
+export async function exportBackup(database: AppDB = db): Promise<Backup> {
+  const [sessions, sets, pool, bodyT, foods, foodLogT, adjustments, recipes, slots, settingsT, kvT] = await Promise.all([
+    database.sessions.toArray(), database.sets.toArray(), database.pool.toArray(), database.body.toArray(),
+    database.foods.toArray(), database.foodLog.toArray(), database.adjustments.toArray(), database.recipes.toArray(),
+    database.slots.toArray(), database.settings.toArray(), database.kv.toArray(),
+  ]);
+  return {
+    app: BACKUP_APP,
+    version: BACKUP_VERSION,
+    exportedAt: Date.now(),
+    tables: {
+      sessions, sets, pool, body: bodyT, foods, foodLog: foodLogT, adjustments, recipes, slots,
+      settings: settingsT, kv: kvT.filter((r) => !KV_SKIP.has(r.key)),
+    } as Backup['tables'],
+  };
+}
+
+export type ParseResult = { ok: true; backup: Backup; counts: Record<TableName, number> } | { ok: false; error: string };
+
+export function parseBackup(text: string): ParseResult {
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return { ok: false, error: 'Файл не похож на JSON' };
+  }
+  const r = backupSchema.safeParse(json);
+  if (!r.success) {
+    const issue = r.error.issues[0];
+    return { ok: false, error: `Файл не похож на бэкап приложения${issue ? `: ${issue.path.join('.')} — ${issue.message}` : ''}` };
+  }
+  const counts = Object.fromEntries(Object.entries(r.data.tables).map(([k, v]) => [k, v.length])) as Record<TableName, number>;
+  return { ok: true, backup: r.data, counts };
+}
+
+/** «Заменить всё»: все таблицы, кроме фото, очищаются и заполняются из бэкапа. */
+export async function replaceAll(backup: Backup, database: AppDB = db): Promise<void> {
+  const t = backup.tables;
+  await database.transaction(
+    'rw',
+    [database.sessions, database.sets, database.pool, database.body, database.foods, database.foodLog, database.adjustments, database.recipes, database.slots, database.settings, database.kv],
+    async () => {
+      await Promise.all([
+        database.sessions.clear(), database.sets.clear(), database.pool.clear(), database.body.clear(), database.foods.clear(),
+        database.foodLog.clear(), database.adjustments.clear(), database.recipes.clear(), database.slots.clear(), database.settings.clear(), database.kv.clear(),
+      ]);
+      await database.sessions.bulkAdd(t.sessions);
+      await database.sets.bulkAdd(t.sets);
+      await database.pool.bulkAdd(t.pool);
+      await database.body.bulkAdd(t.body);
+      await database.foods.bulkAdd(t.foods);
+      await database.foodLog.bulkAdd(t.foodLog);
+      await database.adjustments.bulkAdd(t.adjustments);
+      await database.recipes.bulkAdd(t.recipes);
+      await database.slots.bulkAdd(t.slots);
+      await database.settings.bulkAdd(t.settings);
+      await database.kv.bulkAdd(t.kv.map((r) => ({ key: r.key, value: r.value })));
+      // seed не должен перезаписать импортированные программу и продукты
+      await database.kv.put({ key: 'seed:slots', value: 1 });
+      await database.kv.put({ key: 'seed:foods', value: 1 });
+    },
+  );
+}
+
+export function backupFileName(date: string = appToday()): string {
+  return `fitness-backup-${date}.json`;
+}
+
+// ---------- Отдача файла ----------
+
+/** «Сохранить в Файлы» через navigator.share; если нельзя — обычная загрузка. */
+export async function shareOrDownload(blob: Blob, name: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
+  const file = new File([blob], name, { type: blob.type });
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: name });
+      return 'shared';
+    } catch (e) {
+      if ((e as DOMException)?.name === 'AbortError') return 'cancelled';
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return 'downloaded';
+}
+
+// ---------- Zip (STORE, без сжатия) ----------
+
+const CRC = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+export function crc32(data: Uint8Array): number {
+  let c = 0xffffffff;
+  for (let i = 0; i < data.length; i++) c = CRC[(c ^ data[i]!) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/** Минимальный zip: файлы без сжатия (JPEG и так сжат). */
+export function makeZip(files: { name: string; data: Uint8Array }[]): Blob {
+  const enc = new TextEncoder();
+  const parts: Uint8Array[] = [];
+  const central: Uint8Array[] = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name);
+    const crc = crc32(f.data);
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);
+    local.setUint16(4, 20, true);
+    local.setUint16(6, 0x0800, true); // UTF-8 имена
+    local.setUint16(8, 0, true);
+    local.setUint32(14, crc, true);
+    local.setUint32(18, f.data.length, true);
+    local.setUint32(22, f.data.length, true);
+    local.setUint16(26, name.length, true);
+    parts.push(new Uint8Array(local.buffer), name, f.data);
+    const cd = new DataView(new ArrayBuffer(46));
+    cd.setUint32(0, 0x02014b50, true);
+    cd.setUint16(4, 20, true);
+    cd.setUint16(6, 20, true);
+    cd.setUint16(8, 0x0800, true);
+    cd.setUint32(16, crc, true);
+    cd.setUint32(20, f.data.length, true);
+    cd.setUint32(24, f.data.length, true);
+    cd.setUint16(28, name.length, true);
+    cd.setUint32(42, offset, true);
+    central.push(new Uint8Array(cd.buffer), name);
+    offset += 30 + name.length + f.data.length;
+  }
+  const cdSize = central.reduce((a, b) => a + b.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, files.length, true);
+  end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true);
+  end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)] as BlobPart[], { type: 'application/zip' });
+}
+
+export async function exportPhotosZip(database: AppDB = db): Promise<Blob | null> {
+  const photos = await database.photos.orderBy('date').toArray();
+  if (photos.length === 0) return null;
+  const files = await Promise.all(
+    photos.map(async (p, i) => ({ name: `${p.date}-${p.pose}-${i + 1}.jpg`, data: new Uint8Array(await p.blob.arrayBuffer()) })),
+  );
+  return makeZip(files);
+}
