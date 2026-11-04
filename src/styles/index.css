@@ -1,72 +1,131 @@
 @import 'tailwindcss';
 
-/* Токены — SPEC 9. Тема: системная по умолчанию, data-theme на <html> её переопределяет.
-   .theme-dark — принудительно тёмная палитра (режим тренировки). */
+/* Токены — SPEC 9 (светлая палитра: белый, серый, серебристый, светло-зелёный акцент).
+   Тема: системная по умолчанию, data-theme на <html> её переопределяет.
+   .theme-dark — принудительно тёмная (графитовая) палитра для режима тренировки. */
 
 :root {
   --bg: #f4f5f7;
   --surface: #ffffff;
-  --ink: #15171a;
-  --muted: #5b6170;
-  --primary: #172554;
-  --on-primary: #ffffff;
-  --progress: #0b7a4b;
-  --energy: #c2410c;
-  --protein: #2448d6;
-  --warn: #b45309;
-  --line: rgb(21 23 26 / 0.1);
-  --track: rgb(21 23 26 / 0.08);
+  --surface-2: #eceef1;
+  --ink: #1b1e22;
+  --muted: #6b7280;
+  --line: #e1e4e8;
+  --track: #eef0f3;
+  --primary: #9fe2b5;
+  --on-primary: #0f3d24;
+  --accent: #1b7f45;
+  --progress: #34b36b;
+  --energy: #f0883e;
+  --protein: #5b8def;
+  --warn: #c27c0e;
+  --danger: #d64545;
+  --guide: #5b8def;
+  /* Карта мышц, манекен, силуэт (SPEC 6.7) */
+  --m-primary: #2fb36a;
+  --m-secondary: #a9e4bf;
+  --m-idle: #dadde2;
+  --m-outline: #c3c8cf;
+  --m-glow: rgb(47 179 106 / 0.5);
+  --body-a: #a9b1bb;
+  --body-b: #dde1e6;
+  --body-line: #8c96a2;
+  --strength-a: #cdd2d8;
+  --strength-b: #34b36b;
+  --load-1: #d6f1df;
+  --load-2: #93ddaf;
+  --load-3: #2fb36a;
+  --load-4: #f2b33d;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #0b1226;
-    --surface: #131c36;
-    --ink: #eef1f8;
-    --muted: #a3acc2;
-    --primary: #3b5bdb;
-    --on-primary: #ffffff;
-    --progress: #34d399;
-    --energy: #fb923c;
-    --protein: #7c9cff;
-    --warn: #fbbf24;
-    --line: rgb(238 241 248 / 0.1);
-    --track: rgb(238 241 248 / 0.08);
+    --bg: #131518;
+    --surface: #1c1f23;
+    --surface-2: #262a2f;
+    --ink: #f1f3f5;
+    --muted: #9aa3ae;
+    --line: #2c3036;
+    --track: #262a2f;
+    --primary: #8edba8;
+    --on-primary: #0e2a19;
+    --accent: #8edba8;
+    --progress: #5ed493;
+    --energy: #f5a05f;
+    --protein: #8fb0ff;
+    --warn: #f2c14e;
+    --danger: #f07070;
+    --guide: #8fb0ff;
+    --m-primary: #5ed493;
+    --m-secondary: #3e7a58;
+    --m-idle: #33383f;
+    --m-outline: #464c54;
+    --m-glow: rgb(94 212 147 / 0.55);
+    --body-a: #4a5059;
+    --body-b: #737b86;
+    --body-line: #2a2f36;
+    --strength-a: #4a5058;
+    --strength-b: #5ed493;
+    --load-1: #2a4a37;
+    --load-2: #3e8a5e;
+    --load-3: #5ed493;
+    --load-4: #f2c14e;
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'],
 .theme-dark {
-  --bg: #0b1226;
-  --surface: #131c36;
-  --ink: #eef1f8;
-  --muted: #a3acc2;
-  --primary: #3b5bdb;
-  --on-primary: #ffffff;
-  --progress: #34d399;
-  --energy: #fb923c;
-  --protein: #7c9cff;
-  --warn: #fbbf24;
-  --line: rgb(238 241 248 / 0.1);
-  --track: rgb(238 241 248 / 0.08);
+  --bg: #131518;
+  --surface: #1c1f23;
+  --surface-2: #262a2f;
+  --ink: #f1f3f5;
+  --muted: #9aa3ae;
+  --line: #2c3036;
+  --track: #262a2f;
+  --primary: #8edba8;
+  --on-primary: #0e2a19;
+  --accent: #8edba8;
+  --progress: #5ed493;
+  --energy: #f5a05f;
+  --protein: #8fb0ff;
+  --warn: #f2c14e;
+  --danger: #f07070;
+  --guide: #8fb0ff;
+  --m-primary: #5ed493;
+  --m-secondary: #3e7a58;
+  --m-idle: #33383f;
+  --m-outline: #464c54;
+  --m-glow: rgb(94 212 147 / 0.55);
+  --body-a: #4a5059;
+  --body-b: #737b86;
+  --body-line: #2a2f36;
+  --strength-a: #4a5058;
+  --strength-b: #5ed493;
+  --load-1: #2a4a37;
+  --load-2: #3e8a5e;
+  --load-3: #5ed493;
+  --load-4: #f2c14e;
   color-scheme: dark;
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-track: var(--track);
   --color-primary: var(--primary);
   --color-on-primary: var(--on-primary);
+  --color-accent: var(--accent);
   --color-progress: var(--progress);
   --color-energy: var(--energy);
   --color-protein: var(--protein);
   --color-warn: var(--warn);
-  --color-line: var(--line);
-  --color-track: var(--track);
+  --color-danger: var(--danger);
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
 }
 
@@ -95,6 +154,11 @@ button {
 :focus-visible {
   outline: 2px solid var(--protein);
   outline-offset: 2px;
+}
+
+.theme-dark {
+  background: var(--bg);
+  color: var(--ink);
 }
 
 .pt-safe {

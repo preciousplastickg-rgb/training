@@ -1,17 +1,19 @@
 // Хеш-маршрутизация: работает из любой подпапки (GitHub Pages) и офлайн без настройки сервера.
 import { useEffect, useState } from 'react';
 
-export const ROUTES = ['today', 'workout', 'nutrition', 'progress', 'settings'] as const;
+export const ROUTES = ['today', 'workout', 'nutrition', 'progress', 'settings', 'session', 'dev/animations', 'dev/seed'] as const;
 export type Route = (typeof ROUTES)[number];
 
 export function parseRoute(hash: string): Route {
-  const name = hash.replace(/^#\/?/, '').split(/[/?]/)[0] ?? '';
+  const name = hash.replace(/^#\/?/, '').split('?')[0]?.replace(/\/$/, '') ?? '';
   return (ROUTES as readonly string[]).includes(name) ? (name as Route) : 'today';
 }
 
-export function navigate(route: Route): void {
+export function navigate(route: Route, replace = false): void {
   const next = `#/${route}`;
-  if (window.location.hash !== next) window.location.hash = next;
+  if (window.location.hash === next) return;
+  if (replace) window.location.replace(next);
+  else window.location.hash = next;
 }
 
 export function useRoute(): Route {

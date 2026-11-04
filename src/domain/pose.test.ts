@@ -1,0 +1,50 @@
+import { describe, expect, it } from 'vitest';
+import { ANIMATIONS, ANIMATION_BY_ID } from '../data/animations';
+import { EXERCISES } from '../data/exercises';
+import { angleTo, cycleAt, easeInOut, sidePose, tempoText } from './pose';
+
+const end = (id: string) => ANIMATION_BY_ID[id]!.keyframes.find((k) => k.name === 'end')!.joints;
+
+describe('манекен', () => {
+  it('анимация есть для каждого из 19 упражнений', () => {
+    expect(EXERCISES).toHaveLength(19);
+    for (const e of EXERCISES) expect(ANIMATION_BY_ID[e.id], e.id).toBeDefined();
+    expect(ANIMATIONS).toHaveLength(19);
+  });
+  it('эталон: гоблет-присед end — корпус 40°, бедро ≈ горизонтально, голень 30°', () => {
+    const p = sidePose(ANIMATION_BY_ID.goblet_squat!, end('goblet_squat'));
+    expect(p.a.torso).toBe(40);
+    expect(angleTo(p.a.thigh, 'horizontal')).toBe(5);
+    expect(angleTo(p.a.shin, 'vertical')).toBe(30);
+  });
+  it('эталон: махи end — плечо ±80°', () => {
+    const j = end('lateral_raise');
+    expect(j.shoulderL).toBe(80);
+    expect(j.shoulderR).toBe(-80);
+  });
+  it('стопа на полу в стойке: присед не отрывает пятку', () => {
+    const p = sidePose(ANIMATION_BY_ID.goblet_squat!, end('goblet_squat'));
+    expect(p.heel.y).toBeCloseTo(p.toe.y);
+  });
+  it('у каждого не больше 3 подсказок углов, кадры существуют', () => {
+    for (const a of ANIMATIONS) {
+      expect(a.angles.length).toBeLessThanOrEqual(3);
+      const names = a.keyframes.map((k) => k.name);
+      for (const g of a.angles) expect(names).toContain(g.keyframe);
+    }
+  });
+  it('цикл: присед — вниз 2 с (уступающая), пауза, вверх 1 с (концентрическая)', () => {
+    const a = ANIMATION_BY_ID.goblet_squat!;
+    expect(cycleAt(a, 1)).toMatchObject({ phase: 'toEnd', concentric: false, t: 0.5 });
+    expect(cycleAt(a, 2.2).phase).toBe('pause');
+    expect(cycleAt(a, 2.75)).toMatchObject({ phase: 'toStart', concentric: true });
+    expect(tempoText(a)).toBe('Вниз 2 с · пауза · вверх 1 с');
+    expect(tempoText(ANIMATION_BY_ID.lateral_raise!)).toBe('Вверх 1 с · пауза · вниз 2 с');
+  });
+  it('easing на краях и в середине', () => {
+    expect(easeInOut(0)).toBe(0);
+    expect(easeInOut(1)).toBe(1);
+    expect(easeInOut(0.5)).toBeCloseTo(0.5, 3);
+    expect(easeInOut(0.2)).toBeLessThan(0.2);
+  });
+});

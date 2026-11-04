@@ -158,6 +158,10 @@ export interface Settings {
   theme: Theme;
   substitutions: Record<string, string>;
   lastBackupAt?: number;
+  /** Калории фазы 3: выбор в начале фазы (SPEC 3.1). Не задано — дефицит, как в фазе 2. */
+  phase3Mode?: 'maintenance' | 'deficit';
+  /** Первый запуск пройден (SPEC 6.8). */
+  onboarded?: boolean;
 }
 
 /** Строка настроек в БД — единственная, id = 'main'. */

@@ -64,3 +64,23 @@ describe('настройки', () => {
     for (const w of [startWeight, targetWeight, barWeight, ...plates]) expect(Number.isInteger(w)).toBe(true);
   });
 });
+
+describe('seed', () => {
+  it('программа и база продуктов пишутся один раз', async () => {
+    const { seedIfNeeded } = await import('./repo');
+    const { SEED_SLOTS } = await import('../data/program');
+    await seedIfNeeded(database);
+    await seedIfNeeded(database);
+    expect(await database.slots.count()).toBe(SEED_SLOTS.length);
+    const foods = await database.foods.count();
+    expect(foods).toBeGreaterThanOrEqual(120);
+    expect(foods).toBeLessThanOrEqual(150);
+  });
+  it('пользовательская правка слота не затирается повторным seed', async () => {
+    const { seedIfNeeded } = await import('./repo');
+    await seedIfNeeded(database);
+    await database.slots.update('A2', { sets: 4 });
+    await seedIfNeeded(database);
+    expect((await database.slots.get('A2'))?.sets).toBe(4);
+  });
+});

@@ -1,5 +1,5 @@
 // Генерирует PNG-иконки приложения без внешних зависимостей: свой растеризатор + zlib.
-// Рисунок: тёмно-синий фон, трек кольца, дуга прогресса 270° (зелёная) и точка-акцент (оранжевая).
+// Рисунок: белый фон, серебристый трек кольца, зелёная дуга прогресса 270° и светло-зелёная точка.
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -8,10 +8,10 @@ import { dirname, join } from 'node:path';
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons');
 mkdirSync(OUT, { recursive: true });
 
-const BG = [0x0b, 0x12, 0x26];
-const TRACK = [0x1e, 0x2a, 0x4d];
-const PROGRESS = [0x34, 0xd3, 0x99];
-const ENERGY = [0xfb, 0x92, 0x3c];
+const BG = [0xff, 0xff, 0xff];
+const TRACK = [0xe1, 0xe4, 0xe8];
+const PROGRESS = [0x34, 0xb3, 0x6b];
+const ENERGY = [0x9f, 0xe2, 0xb5];
 
 // scale — доля размера, в которую вписан рисунок (для maskable меньше, safe zone 80%).
 function shade(x, y, scale) {
@@ -99,10 +99,10 @@ for (const [name, size, scale] of files) {
 }
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-<rect width="100" height="100" rx="22" fill="#0B1226"/>
-<circle cx="50" cy="50" r="36" fill="none" stroke="#1E2A4D" stroke-width="10"/>
-<path d="M50 14 A36 36 0 1 1 14 50" fill="none" stroke="#34D399" stroke-width="10" stroke-linecap="round"/>
-<circle cx="50" cy="50" r="10" fill="#FB923C"/>
+<rect width="100" height="100" rx="22" fill="#FFFFFF"/>
+<circle cx="50" cy="50" r="36" fill="none" stroke="#E1E4E8" stroke-width="10"/>
+<path d="M50 14 A36 36 0 1 1 14 50" fill="none" stroke="#34B36B" stroke-width="10" stroke-linecap="round"/>
+<circle cx="50" cy="50" r="10" fill="#9FE2B5"/>
 </svg>
 `;
 writeFileSync(join(OUT, 'favicon.svg'), svg);

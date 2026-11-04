@@ -60,7 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   barWeight: 2000,
   plates: [2500, 2000, 1500, 1000, 500, 250, 125],
   sound: true,
-  theme: 'system',
+  theme: 'light',
   substitutions: {},
 };
 
@@ -76,6 +76,8 @@ export async function ensureSettings(database: AppDB = db): Promise<Settings> {
 }
 
 export async function updateSettings(patch: Partial<Settings>, database: AppDB = db): Promise<void> {
-  await ensureSettings(database);
-  await database.settings.update('main', patch);
+  await database.transaction('rw', database.settings, async () => {
+    const row = (await database.settings.get('main')) ?? { id: 'main' as const, ...DEFAULT_SETTINGS };
+    await database.settings.put({ ...row, ...patch });
+  });
 }
