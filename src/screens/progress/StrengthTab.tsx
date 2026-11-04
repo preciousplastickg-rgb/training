@@ -21,7 +21,8 @@ export function StrengthTab() {
   const sets = useAllSets();
   const sessions = useSessions();
   const [open, setOpen] = useState<string | null>(null);
-  const dates = useMemo(() => sessionDates(sessions.filter((s) => !s.isCalibration)), [sessions]);
+  // Разгрузки — плановые 80%: в графике силы они выглядели бы как откат (−19%), поэтому без них.
+  const dates = useMemo(() => sessionDates(sessions.filter((s) => !s.isCalibration && !s.isDeload)), [sessions]);
   const load = useMemo(() => weeklyLoad(sets, sessions, today), [sets, sessions, today]);
   const colors: MuscleColors = Object.fromEntries(ALL_MUSCLES.map((m) => [m, LOAD_COLORS[loadLevel(load[m])]]));
   const weak = underloaded(load);
@@ -69,7 +70,7 @@ export function StrengthTab() {
                         {growth}%
                       </span>
                     </span>
-                    <Sparkline values={series.map((p) => p.value)} label={`e1RM: ${e.name}`} />
+                    <Sparkline values={series.map((p) => p.value)} width={64} label={`e1RM: ${e.name}`} />
                     <ChevronRight size={18} className="text-muted" aria-hidden />
                   </button>
                 </li>
@@ -98,7 +99,7 @@ function ExerciseDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const recs = repRecords(mine);
   return (
     <Sheet open title={ex.name} onClose={onClose}>
-      <div className="max-h-[75vh] overflow-y-auto px-2 pb-2">
+      <div className="max-h-[75dvh] overflow-y-auto overscroll-contain px-2 pb-2">
         {from && (
           <LineChart
             ariaLabel={`Рабочий вес и e1RM: ${ex.name}`}

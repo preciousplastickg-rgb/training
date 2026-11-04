@@ -1,6 +1,6 @@
 // Анимированный манекен — SPEC 6.7.2. Свой SVG, requestAnimationFrame, без библиотек.
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ANIMATION_BY_ID, type AngleGuide, type ExerciseAnimation, type Prop } from '../../data/animations';
 import type { Muscle } from '../../db/types';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
@@ -14,8 +14,6 @@ const GROUND = 190;
 const BAR_Y = 22;
 const BENCH_KNEE = 46;
 
-const OUTLINE = { stroke: 'var(--body-line)', strokeWidth: 0.7, strokeLinejoin: 'round' as const };
-
 const kf = (a: ExerciseAnimation, name: string): Joints => a.keyframes.find((k) => k.name === name)?.joints ?? a.keyframes[0]!.joints;
 
 // ---------- Геометрия ----------
@@ -25,7 +23,7 @@ const len = (p: Pt) => Math.hypot(p.x, p.y);
 const mov = (p: Pt, d: Pt, l: number): Pt => ({ x: p.x + d.x * l, y: p.y + d.y * l });
 const f1 = (n: number) => Math.round(n * 10) / 10;
 
-/** Капсула с сужением от w1 к w2 и скруглёнными концами. */
+/** Капсула с сужением от w1 к w2 и скруглёнными (выпуклыми — sweep 0) концами. */
 function capsule(p1: Pt, p2: Pt, w1: number, w2: number): string {
   const d = sub(p2, p1);
   const l = len(d) || 1;
@@ -37,7 +35,7 @@ function capsule(p1: Pt, p2: Pt, w1: number, w2: number): string {
   const b = mov(p2, n, r2);
   const c = mov(p2, n, -r2);
   const e = mov(p1, n, -r1);
-  return `M${f1(a.x)} ${f1(a.y)}L${f1(b.x)} ${f1(b.y)}A${f1(r2)} ${f1(r2)} 0 0 1 ${f1(c.x)} ${f1(c.y)}L${f1(e.x)} ${f1(e.y)}A${f1(r1)} ${f1(r1)} 0 0 1 ${f1(a.x)} ${f1(a.y)}Z`;
+  return `M${f1(a.x)} ${f1(a.y)}L${f1(b.x)} ${f1(b.y)}A${f1(r2)} ${f1(r2)} 0 0 0 ${f1(c.x)} ${f1(c.y)}L${f1(e.x)} ${f1(e.y)}A${f1(r1)} ${f1(r1)} 0 0 0 ${f1(a.x)} ${f1(a.y)}Z`;
 }
 
 /** Мышца-накладка вдоль сегмента: смещение к передней (+1) или задней (−1) стороне. */
@@ -158,116 +156,170 @@ function makeFill(anim: ExerciseAnimation, state: CycleState): MuscleFill {
 
 // ---------- Рендер ----------
 
-function SideFigure({ p, fill, gid }: { p: SidePose; fill: MuscleFill; gid: string }) {
-  const body = `url(#${gid})`;
-  const M = ({ m, d }: { m: Muscle; d: string }) => {
+/** Круг как path — чтобы входить в общий силуэт слоя. */
+function circ(c: Pt, r: number): string {
+  return `M${f1(c.x - r)} ${f1(c.y)}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
+}
+
+/**
+ * Слой фигуры: все формы сливаются в один силуэт с общим контуром — без швов и «шарниров» в суставах.
+ * Контур — обводка всех форм снизу, заливка — поверх неё; мышцы и шорты обрезаны по силуэту.
+ */
+function Layer({ id, shapes, tone, children }: { id: string; shapes: string[]; tone: string; children?: ReactNode }) {
+  return (
+    <g>
+      <clipPath id={id}>
+        {shapes.map((d, i) => (
+          <path key={i} d={d} />
+        ))}
+      </clipPath>
+      <g fill="var(--body-line)" stroke="var(--body-line)" strokeWidth={1.6} strokeLinejoin="round">
+        {shapes.map((d, i) => (
+          <path key={i} d={d} />
+        ))}
+      </g>
+      <g fill={tone}>
+        {shapes.map((d, i) => (
+          <path key={i} d={d} />
+        ))}
+      </g>
+      <g clipPath={`url(#${id})`}>{children}</g>
+    </g>
+  );
+}
+
+const NEAR = 'var(--body-b)';
+const FAR = 'var(--body-a)';
+const SHORTS = 'var(--body-a)';
+
+function muscleOf(fill: MuscleFill) {
+  return ({ m, d }: { m: Muscle; d: string }) => {
     const f = fill(m);
     return f ? <path d={d} fill={f.color} opacity={f.opacity} /> : null;
   };
+}
+
+function SideFigure({ p, fill, gid }: { p: SidePose; fill: MuscleFill; gid: string }) {
+  const M = muscleOf(fill);
   const thighW = 19;
   const shinW = 13;
   const ua = 11;
-  const fa = 9;
   const torsoTop = mov(p.shoulder, dir(p.a.torso), -4);
   const torsoFront = frontOf(p.a.torso);
 
-  const leg = (hip: Pt, knee: Pt, ankle: Pt, heel: Pt, toe: Pt, aThigh: number, aShin: number, far: boolean) => (
-    <g opacity={far ? 0.72 : 1}>
-      <path d={capsule(heel, toe, 8, 7)} fill={body} {...OUTLINE} />
-      <path d={capsule(ankle, knee, 9, shinW)} fill={body} {...OUTLINE} />
+  const legShapes = (hip: Pt, knee: Pt, ankle: Pt, heel: Pt, toe: Pt, aThigh: number, aShin: number) => [
+    capsule(heel, toe, 8, 6),
+    capsule(ankle, knee, 8, 12),
+    muscleStrip(ankle, knee, 15, -1, 0.4, 0.85, frontOf(aShin)), // икра
+    capsule(knee, hip, 13, 20),
+    muscleStrip(knee, hip, 22, 1, 0.2, 0.75, frontOf(aThigh)), // квадрицепс
+  ];
+  const legMuscles = (hip: Pt, knee: Pt, ankle: Pt, aThigh: number, aShin: number) => (
+    <>
       <M m="calves" d={muscleStrip(ankle, knee, shinW, -1, 0.35, 0.85, frontOf(aShin))} />
-      <path d={capsule(knee, hip, 14, thighW)} fill={body} {...OUTLINE} />
       <M m="quads" d={muscleStrip(knee, hip, thighW, 1, 0.12, 0.8, frontOf(aThigh))} />
       <M m="hamstrings" d={muscleStrip(knee, hip, thighW, -1, 0.12, 0.8, frontOf(aThigh))} />
-      <circle cx={knee.x} cy={knee.y} r={6.2} fill="var(--body-a)" {...OUTLINE} />
-      <circle cx={ankle.x} cy={ankle.y} r={4.2} fill="var(--body-a)" {...OUTLINE} />
-    </g>
+    </>
   );
+  // Шорты — полоса от пояса до середины бедра шире силуэта: края по фигуре даёт clipPath слоя.
+  const shorts = (aThigh: number) => {
+    const waist = mov(p.hip, dir(p.a.torso), 7);
+    const hem = mov(p.hip, dir(aThigh + 180), 19);
+    const wf = frontOf(p.a.torso);
+    const lf = frontOf(aThigh);
+    const q = [mov(waist, wf, 30), mov(hem, lf, 30), mov(hem, lf, -30), mov(waist, wf, -30)];
+    return <path d={`M${q.map((v) => `${f1(v.x)} ${f1(v.y)}`).join('L')}Z`} fill={SHORTS} />;
+  };
 
-  const arm = (elbow: Pt, wrist: Pt, aUa: number, far: boolean) => {
+  const arm = (id: string, elbow: Pt, wrist: Pt, aUa: number, aFa: number, tone: string) => {
     // Для руки «вперёд» — α − 90 (руки ориентированы вниз).
     const front = dir(aUa - 90);
+    const shapes = [
+      circ(mov(p.shoulder, dir(aUa), 3), 7),
+      capsule(p.shoulder, elbow, ua + 1, ua - 2),
+      capsule(elbow, wrist, 9, 6.5),
+      capsule(wrist, mov(wrist, dir(aFa), 5), 7, 6),
+    ];
     return (
-      <g opacity={far ? 0.72 : 1}>
-        <path d={capsule(p.shoulder, elbow, ua + 1, ua - 1)} fill={body} {...OUTLINE} />
+      <Layer id={id} shapes={shapes} tone={tone}>
         <M m="biceps" d={muscleStrip(p.shoulder, elbow, ua, 1, 0.25, 0.85, front)} />
         <M m="triceps" d={muscleStrip(p.shoulder, elbow, ua, -1, 0.25, 0.85, front)} />
-        <path d={capsule(elbow, wrist, fa, fa - 2)} fill={body} {...OUTLINE} />
-        <circle cx={elbow.x} cy={elbow.y} r={4.6} fill="var(--body-a)" {...OUTLINE} />
-        <circle cx={wrist.x} cy={wrist.y} r={4} fill={body} {...OUTLINE} />
         <M m="front_delt" d={capsule(mov(p.shoulder, front, 2.5), mov(mov(p.shoulder, dir(aUa), 9), front, 2.5), 7, 4)} />
         <M m="rear_delt" d={capsule(mov(p.shoulder, front, -2.5), mov(mov(p.shoulder, dir(aUa), 9), front, -2.5), 7, 4)} />
         <M m="side_delt" d={capsule(p.shoulder, mov(p.shoulder, dir(aUa), 8), 9, 6)} />
-      </g>
+      </Layer>
     );
   };
 
   const hasB = !!(p.kneeB && p.ankleB && p.heelB && p.toeB);
+  const body = [
+    ...legShapes(p.hip, p.knee, p.ankle, p.heel, p.toe, p.a.thigh, p.a.shin),
+    capsule(mov(p.hip, torsoFront, -6), mov(mov(p.hip, torsoFront, -6), dir(p.a.pelvis), -5), 13, 10), // ягодица
+    capsule(p.hip, torsoTop, 24, 30),
+    muscleStrip(p.hip, torsoTop, 30, 1, 0.62, 0.9, torsoFront), // грудь
+    capsule(mov(p.shoulder, dir(p.a.torso), -4), p.neck, 9, 8),
+    circ(p.head, SEG.head + 1),
+  ];
   return (
     <g>
       {/* дальние: левая рука и вторая нога */}
-      {arm(p.elbowL, p.wristL, p.a.upperArmL, true)}
-      {hasB && leg(p.hip, p.kneeB!, p.ankleB!, p.heelB!, p.toeB!, p.a.thighB!, p.a.shinB!, true)}
-      {leg(p.hip, p.knee, p.ankle, p.heel, p.toe, p.a.thigh, p.a.shin, false)}
-      {/* таз в шортах */}
-      <circle cx={p.hip.x} cy={p.hip.y} r={13} fill="var(--m-outline)" {...OUTLINE} />
-      <M m="glutes" d={capsule(mov(p.hip, torsoFront, -6), mov(mov(p.hip, torsoFront, -6), dir(p.a.pelvis), -5), 12, 9)} />
-      {/* корпус */}
-      <path d={capsule(p.hip, torsoTop, 24, 30)} fill={body} {...OUTLINE} />
-      <M m="abs" d={muscleStrip(p.hip, torsoTop, 26, 1, 0.12, 0.55, torsoFront)} />
-      <M m="chest" d={muscleStrip(p.hip, torsoTop, 30, 1, 0.6, 0.92, torsoFront)} />
-      <M m="lower_back" d={muscleStrip(p.hip, torsoTop, 26, -1, 0.1, 0.45, torsoFront)} />
-      <M m="lats" d={muscleStrip(p.hip, torsoTop, 28, -1, 0.42, 0.78, torsoFront)} />
-      <M m="upper_back" d={muscleStrip(p.hip, torsoTop, 30, -1, 0.72, 0.98, torsoFront)} />
-      {/* шея и голова */}
-      <path d={capsule(mov(p.shoulder, dir(p.a.torso), -4), p.neck, 10, 9)} fill={body} {...OUTLINE} />
-      <circle cx={p.head.x} cy={p.head.y} r={SEG.head + 1} fill={body} {...OUTLINE} />
-      {arm(p.elbowR, p.wristR, p.a.upperArmR, false)}
+      {arm(`${gid}-armL`, p.elbowL, p.wristL, p.a.upperArmL, p.a.forearmL, FAR)}
+      {hasB && (
+        <Layer id={`${gid}-legB`} shapes={legShapes(p.hip, p.kneeB!, p.ankleB!, p.heelB!, p.toeB!, p.a.thighB!, p.a.shinB!)} tone={FAR}>
+          {shorts(p.a.thighB!)}
+          {legMuscles(p.hip, p.kneeB!, p.ankleB!, p.a.thighB!, p.a.shinB!)}
+        </Layer>
+      )}
+      <Layer id={`${gid}-body`} shapes={body} tone={NEAR}>
+        {shorts(p.a.thigh)}
+        {legMuscles(p.hip, p.knee, p.ankle, p.a.thigh, p.a.shin)}
+        <M m="glutes" d={capsule(mov(p.hip, torsoFront, -6), mov(mov(p.hip, torsoFront, -6), dir(p.a.pelvis), -5), 12, 9)} />
+        <M m="abs" d={muscleStrip(p.hip, torsoTop, 26, 1, 0.12, 0.55, torsoFront)} />
+        <M m="chest" d={muscleStrip(p.hip, torsoTop, 30, 1, 0.6, 0.92, torsoFront)} />
+        <M m="lower_back" d={muscleStrip(p.hip, torsoTop, 26, -1, 0.1, 0.45, torsoFront)} />
+        <M m="lats" d={muscleStrip(p.hip, torsoTop, 28, -1, 0.42, 0.78, torsoFront)} />
+        <M m="upper_back" d={muscleStrip(p.hip, torsoTop, 30, -1, 0.72, 0.98, torsoFront)} />
+      </Layer>
+      {arm(`${gid}-armR`, p.elbowR, p.wristR, p.a.upperArmR, p.a.forearmR, NEAR)}
     </g>
   );
 }
 
 function FrontFigure({ p, fill, gid }: { p: FrontPose; fill: MuscleFill; gid: string }) {
-  const body = `url(#${gid})`;
-  const M = ({ m, d }: { m: Muscle; d: string }) => {
-    const f = fill(m);
-    return f ? <path d={d} fill={f.color} opacity={f.opacity} /> : null;
-  };
+  const M = muscleOf(fill);
   const torso = `M${p.shoulderL.x + 4} ${p.shoulderL.y - 3}L${p.hipL.x + 4} ${p.hipL.y - 2}Q${p.pelvis.x} ${p.pelvis.y + 10} ${p.hipR.x - 4} ${p.hipR.y - 2}L${p.shoulderR.x - 4} ${p.shoulderR.y - 3}Q${p.pelvis.x} ${p.shoulderL.y - 8} ${p.shoulderL.x + 4} ${p.shoulderL.y - 3}Z`;
-  const arm = (s: Pt, e: Pt, w: Pt, side: 1 | -1) => (
-    <g>
-      <path d={capsule(s, e, 12, 10)} fill={body} {...OUTLINE} />
+  const arm = (id: string, s: Pt, e: Pt, w: Pt, side: 1 | -1) => (
+    <Layer id={id} shapes={[circ({ x: s.x - side * 1, y: s.y + 1 }, 7.5), capsule(s, e, 12, 9), capsule(e, w, 9, 7), circ(w, 4.5)]} tone={NEAR}>
       <M m="biceps" d={capsule(mov(s, sub(e, s), 0.3), mov(s, sub(e, s), 0.85), 6, 5)} />
-      <path d={capsule(e, w, 9, 7)} fill={body} {...OUTLINE} />
-      <circle cx={w.x} cy={w.y} r={4} fill={body} {...OUTLINE} />
       <M m="side_delt" d={capsule({ x: s.x + side * 1, y: s.y - 1 }, mov(s, sub(e, s), 0.32), 15, 11)} />
       <M m="front_delt" d={capsule({ x: s.x - side * 2, y: s.y + 1 }, mov(s, sub(e, s), 0.22), 11, 8)} />
-      <circle cx={e.x} cy={e.y} r={4.8} fill="var(--body-a)" {...OUTLINE} />
-    </g>
+    </Layer>
   );
-  const legs = (h: Pt, k: Pt, a: Pt) => (
-    <g>
-      <path d={capsule(h, k, 17, 13)} fill={body} {...OUTLINE} />
+  const leg = (h: Pt, k: Pt, a: Pt) => [
+    capsule(h, k, 17, 12),
+    capsule(k, a, 11, 8),
+    capsule({ x: a.x, y: a.y + 2 }, { x: a.x + (a.x > 100 ? 5 : -5), y: a.y + 4 }, 7, 6),
+  ];
+  const legMuscles = (h: Pt, k: Pt, a: Pt) => (
+    <>
       <M m="quads" d={capsule(mov(h, sub(k, h), 0.12), mov(h, sub(k, h), 0.85), 10, 8)} />
-      <path d={capsule(k, a, 12, 9)} fill={body} {...OUTLINE} />
       <M m="calves" d={capsule(mov(k, sub(a, k), 0.2), mov(k, sub(a, k), 0.7), 7, 5)} />
-      <path d={capsule({ x: a.x, y: a.y + 2 }, { x: a.x + (a.x > 100 ? 5 : -5), y: a.y + 4 }, 7, 6)} fill={body} />
-    </g>
+    </>
   );
+  const body = [...leg(p.hipL, p.kneeL, p.ankleL), ...leg(p.hipR, p.kneeR, p.ankleR), torso, capsule({ x: p.neck.x, y: p.neck.y + 8 }, p.neck, 10, 9), circ(p.head, SEG.head + 1)];
   return (
     <g>
-      {legs(p.hipL, p.kneeL, p.ankleL)}
-      {legs(p.hipR, p.kneeR, p.ankleR)}
-      <path d={`M${p.hipL.x + 7} ${p.hipL.y - 6}L${p.hipR.x - 7} ${p.hipR.y - 6}L${p.hipR.x - 8} ${p.hipR.y + 9}L${p.hipL.x + 8} ${p.hipL.y + 9}Z`} fill="var(--m-outline)" {...OUTLINE} />
-      <path d={torso} fill={body} {...OUTLINE} />
-      <M m="upper_back" d={`M${p.neck.x - 4} ${p.neck.y + 4}L${p.shoulderR.x + 2} ${p.shoulderR.y - 2}L${p.neck.x - 3} ${p.neck.y + 10}Z M${p.neck.x + 4} ${p.neck.y + 4}L${p.shoulderL.x - 2} ${p.shoulderL.y - 2}L${p.neck.x + 3} ${p.neck.y + 10}Z`} />
-      <M m="chest" d={capsule({ x: p.pelvis.x - 9, y: p.shoulderL.y + 7 }, { x: p.pelvis.x + 9, y: p.shoulderL.y + 7 }, 12, 12)} />
-      <M m="abs" d={capsule({ x: p.pelvis.x, y: p.shoulderL.y + 18 }, { x: p.pelvis.x, y: p.pelvis.y - 6 }, 11, 10)} />
-      <M m="lats" d={`M${p.shoulderL.x} ${p.shoulderL.y + 8}L${p.hipL.x + 5} ${p.hipL.y - 14}L${p.shoulderL.x - 6} ${p.shoulderL.y + 12}Z M${p.shoulderR.x} ${p.shoulderR.y + 8}L${p.hipR.x - 5} ${p.hipR.y - 14}L${p.shoulderR.x + 6} ${p.shoulderR.y + 12}Z`} />
-      <path d={capsule({ x: p.neck.x, y: p.neck.y + 8 }, p.neck, 10, 9)} fill={body} {...OUTLINE} />
-      <circle cx={p.head.x} cy={p.head.y} r={SEG.head + 1} fill={body} {...OUTLINE} />
-      {arm(p.shoulderL, p.elbowL, p.wristL, 1)}
-      {arm(p.shoulderR, p.elbowR, p.wristR, -1)}
+      <Layer id={`${gid}-body`} shapes={body} tone={NEAR}>
+        <path d={`M${p.hipL.x + 9} ${p.hipL.y - 8}L${p.hipR.x - 9} ${p.hipR.y - 8}L${p.hipR.x - 10} ${p.hipR.y + 12}L${p.hipL.x + 10} ${p.hipL.y + 12}Z`} fill={SHORTS} />
+        {legMuscles(p.hipL, p.kneeL, p.ankleL)}
+        {legMuscles(p.hipR, p.kneeR, p.ankleR)}
+        <M m="upper_back" d={`M${p.neck.x - 4} ${p.neck.y + 4}L${p.shoulderR.x + 2} ${p.shoulderR.y - 2}L${p.neck.x - 3} ${p.neck.y + 10}Z M${p.neck.x + 4} ${p.neck.y + 4}L${p.shoulderL.x - 2} ${p.shoulderL.y - 2}L${p.neck.x + 3} ${p.neck.y + 10}Z`} />
+        <M m="chest" d={capsule({ x: p.pelvis.x - 9, y: p.shoulderL.y + 7 }, { x: p.pelvis.x + 9, y: p.shoulderL.y + 7 }, 12, 12)} />
+        <M m="abs" d={capsule({ x: p.pelvis.x, y: p.shoulderL.y + 18 }, { x: p.pelvis.x, y: p.pelvis.y - 6 }, 11, 10)} />
+        <M m="lats" d={`M${p.shoulderL.x} ${p.shoulderL.y + 8}L${p.hipL.x + 5} ${p.hipL.y - 14}L${p.shoulderL.x - 6} ${p.shoulderL.y + 12}Z M${p.shoulderR.x} ${p.shoulderR.y + 8}L${p.hipR.x - 5} ${p.hipR.y - 14}L${p.shoulderR.x + 6} ${p.shoulderR.y + 12}Z`} />
+      </Layer>
+      {arm(`${gid}-armL`, p.shoulderL, p.elbowL, p.wristL, 1)}
+      {arm(`${gid}-armR`, p.shoulderR, p.elbowR, p.wristR, -1)}
     </g>
   );
 }
@@ -568,13 +620,6 @@ export function Mannequin({ exerciseId, frame, playing = true, size = 220, showG
 
   return (
     <svg ref={ref} viewBox={`0 0 ${W} ${H}`} width={size} height={size} role="img" aria-label="Техника упражнения">
-      <defs>
-        <linearGradient id={gid} x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="var(--body-a)" />
-          <stop offset="0.5" stopColor="var(--body-b)" />
-          <stop offset="1" stopColor="var(--body-a)" />
-        </linearGradient>
-      </defs>
       <g transform={offset.scale < 1 ? `translate(${W / 2} ${BAR_Y}) scale(${offset.scale}) translate(${-W / 2} ${-BAR_Y})` : undefined}>
       <Props anim={anim} p={pose} start={startPose} />
       {pose.view === 'side' ? <SideFigure p={pose} fill={fill} gid={gid} /> : <FrontFigure p={pose} fill={fill} gid={gid} />}

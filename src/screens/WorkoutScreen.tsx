@@ -177,12 +177,12 @@ function SessionHistory({ sessions }: { sessions: WorkoutSession[] }) {
               const v = volume(sets.filter((x) => x.sessionId === s.id));
               const min = Math.round(((s.finishedAt ?? s.startedAt) - s.startedAt) / 60000);
               return (
-                <li key={s.id} className="flex items-center justify-between py-2.5 text-sm">
-                  <span>
+                <li key={s.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                  <span className="min-w-0">
                     <b>{formatDayMonth(s.date)}</b> · Тренировка {s.workout}
-                    {s.isCalibration ? ' · подбор веса' : s.isDeload ? ' · разгрузка' : ''}
+                    {(s.isCalibration || s.isDeload) && <span className="block text-xs text-muted">{s.isCalibration ? 'подбор веса' : 'разгрузка'}</span>}
                   </span>
-                  <span className="text-muted">
+                  <span className="shrink-0 whitespace-nowrap text-muted">
                     {min} мин · {formatInt(Math.round(v / 100))} кг
                   </span>
                 </li>

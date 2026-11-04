@@ -178,11 +178,17 @@ export async function restoreFoodLog(entry: FoodLog): Promise<void> {
 }
 
 /** «Повторить вчерашний завтрак»: копия приёма пищи с другого дня. */
-export async function copyMeal(from: LocalDate, meal: FoodLog['meal'], to: LocalDate, toMeal: FoodLog['meal'] = meal): Promise<number> {
+/** Копия приёма пищи с другого дня. Возвращает id новых записей — для отмены. */
+export async function copyMeal(from: LocalDate, meal: FoodLog['meal'], to: LocalDate, toMeal: FoodLog['meal'] = meal): Promise<string[]> {
   const src = (await db.foodLog.where('date').equals(from).toArray()).filter((l) => l.meal === meal);
   const now = Date.now();
-  await db.foodLog.bulkAdd(src.map((l, i) => ({ ...l, id: uid(), date: to, meal: toMeal, createdAt: now + i })));
-  return src.length;
+  const rows = src.map((l, i) => ({ ...l, id: uid(), date: to, meal: toMeal, createdAt: now + i }));
+  await db.foodLog.bulkAdd(rows);
+  return rows.map((r) => r.id);
+}
+
+export async function deleteFoodLogs(ids: string[]): Promise<void> {
+  await db.foodLog.bulkDelete(ids);
 }
 
 export async function saveFood(food: Omit<Food, 'id'> & { id?: string }): Promise<string> {

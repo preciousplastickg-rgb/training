@@ -5,7 +5,7 @@ import { Rings } from '../components/Rings';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Bar, Card } from '../components/ui';
 import { DEFAULT_SETTINGS } from '../db/db';
-import { copyMeal, deleteFoodLog, restoreFoodLog } from '../db/repo';
+import { copyMeal, deleteFoodLog, deleteFoodLogs, restoreFoodLog } from '../db/repo';
 import type { Food, FoodLog } from '../db/types';
 import { addDays } from '../domain/dates';
 import { formatDayMonth, formatInt, formatKcal, NBSP } from '../domain/format';
@@ -29,7 +29,7 @@ export function NutritionScreen() {
   const { total, byMeal } = dayTotals(logs, map);
   const [addMeal, setAddMeal] = useState<Meal | null>(null);
   const [edit, setEdit] = useState<FoodLog | null>(null);
-  const [undo, setUndo] = useState<FoodLog | null>(null);
+  const [undo, setUndo] = useState<{ text: string; revert: () => Promise<void> } | null>(null);
   const global = useGlobalSheet();
 
   // «+ → Еда» с любого экрана: приём по времени суток.
@@ -54,18 +54,21 @@ export function NutritionScreen() {
 
   return (
     <>
-      <ScreenHeader title="Питание" />
+      <ScreenHeader
+        title="Питание"
+        subtitle={date === today || date === addDays(today, -1) ? `${label}, ${formatDayMonth(date)}` : label}
+        action={
+          <div className="-mr-2 flex">
+            <button type="button" aria-label="Предыдущий день" onClick={() => setDate((d) => addDays(d, -1))} className="flex h-11 w-11 items-center justify-center rounded-full active:bg-track">
+              <ChevronLeft size={24} />
+            </button>
+            <button type="button" aria-label="Следующий день" disabled={date >= today} onClick={() => setDate((d) => addDays(d, 1))} className="flex h-11 w-11 items-center justify-center rounded-full active:bg-track disabled:opacity-30">
+              <ChevronRight size={24} />
+            </button>
+          </div>
+        }
+      />
       <div className="flex flex-col gap-3 px-4 pb-6">
-        <div className="flex items-center justify-between">
-          <button type="button" aria-label="Предыдущий день" onClick={() => setDate((d) => addDays(d, -1))} className="flex h-11 w-11 items-center justify-center rounded-full active:bg-track">
-            <ChevronLeft size={24} />
-          </button>
-          <span className="font-semibold">{label}</span>
-          <button type="button" aria-label="Следующий день" disabled={date >= today} onClick={() => setDate((d) => addDays(d, 1))} className="flex h-11 w-11 items-center justify-center rounded-full active:bg-track disabled:opacity-30">
-            <ChevronRight size={24} />
-          </button>
-        </div>
-
         <Card>
           <div className="flex items-center gap-4">
             <Rings
@@ -104,7 +107,10 @@ export function NutritionScreen() {
                     food={e.foodId ? map.get(e.foodId) : undefined}
                     kcal={logMacros(e, map).kcal}
                     onTap={() => setEdit(e)}
-                    onDelete={async () => setUndo((await deleteFoodLog(e.id)) ?? null)}
+                    onDelete={async () => {
+                      const removed = await deleteFoodLog(e.id);
+                      setUndo(removed ? { text: 'Запись удалена', revert: () => restoreFoodLog(removed) } : null);
+                    }}
                   />
                 ))}
               </ul>
@@ -113,7 +119,10 @@ export function NutritionScreen() {
                   <Plus size={20} aria-hidden /> Добавить
                 </button>
                 {entries.length === 0 && yesterdayHas && (
-                  <button type="button" onClick={() => void copyMeal(addDays(date, -1), meal, date)} className="flex min-h-12 items-center gap-2 rounded-xl px-3 text-sm text-muted active:bg-track">
+                  <button type="button" onClick={async () => {
+                      const ids = await copyMeal(addDays(date, -1), meal, date);
+                      setUndo({ text: `${MEAL_NAMES[meal]}: как вчера`, revert: () => deleteFoodLogs(ids) });
+                    }} className="flex min-h-12 items-center gap-2 rounded-xl px-3 text-sm text-muted active:bg-track">
                     <Copy size={16} aria-hidden /> Как вчера
                   </button>
                 )}
@@ -125,8 +134,8 @@ export function NutritionScreen() {
 
       {undo && (
         <div role="status" className="fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-xl items-center gap-3 rounded-2xl bg-ink px-4 py-2 text-bg shadow-lg">
-          <span className="flex-1 text-sm">Запись удалена</span>
-          <button type="button" className="min-h-11 px-2 font-semibold" onClick={() => void restoreFoodLog(undo).then(() => setUndo(null))}>
+          <span className="flex-1 text-sm">{undo.text}</span>
+          <button type="button" className="min-h-11 px-2 font-semibold" onClick={() => void undo.revert().then(() => setUndo(null))}>
             Вернуть
           </button>
         </div>

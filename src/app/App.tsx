@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { AddMenu } from '../components/AddMenu';
 import { BottomNav } from '../components/BottomNav';
 import { PoolSheet, WeightSheet } from '../components/RecordSheets';
 import { UpdateBanner } from '../components/UpdateBanner';
-import { db, DEFAULT_SETTINGS } from '../db/db';
+import { DEFAULT_SETTINGS } from '../db/db';
 import { seedIfNeeded } from '../db/repo';
-import { useLiveQuery } from '../db/useLiveQuery';
-import { useBody } from '../hooks/useData';
+import { prefetchData, useBody, useSettings } from '../hooks/useData';
 import { useToday } from '../hooks/useToday';
 import { DevAnimations } from '../screens/dev/DevAnimations';
 import { DevSeed } from '../screens/dev/DevSeed';
@@ -27,17 +26,23 @@ export function App() {
   const [addOpen, setAddOpen] = useState(false);
   const [persisted, setPersisted] = useState<boolean>();
   const [ready, setReady] = useState(false);
-  const settings = useLiveQuery(() => db.settings.get('main'), []);
+  const settings = useSettings();
   const sheet = useGlobalSheet();
   const date = useToday();
   const body = useBody();
 
   useEffect(() => {
-    void seedIfNeeded().then(() => setReady(true));
+    void seedIfNeeded()
+      .then(prefetchData)
+      .then(() => setReady(true));
     void requestPersistentStorage().then(setPersisted);
   }, []);
 
-  useEffect(() => window.scrollTo(0, 0), [route]);
+  // До отрисовки нового экрана — иначе на кадр виден старый скролл. Фигурные скобки нужны:
+  // в новых браузерах scrollTo возвращает Promise, и React принял бы его за функцию очистки.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [route]);
 
   useApplyTheme(settings?.theme);
 

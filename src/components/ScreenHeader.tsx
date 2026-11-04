@@ -14,7 +14,8 @@ export function ScreenHeader({ title, subtitle, action, leading }: ScreenHeaderP
         {leading}
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-semibold">{title}</h1>
-          {subtitle && <p className="truncate text-sm text-muted">{subtitle}</p>}
+          {/* Строка подзаголовка есть всегда: заголовок стоит на одной высоте на всех экранах, без прыжка при переключении. */}
+          <p className="truncate text-sm text-muted">{subtitle ?? '\u00a0'}</p>
         </div>
         {action}
       </div>

@@ -19,7 +19,7 @@ export function ExerciseSheet({ exerciseId, onClose }: { exerciseId: string | nu
   const playing = !reduced || forcePlay;
   return (
     <Sheet open={!!ex} title={ex.name} onClose={onClose}>
-      <div className="max-h-[78vh] overflow-y-auto px-2 pb-2">
+      <div className="max-h-[78dvh] overflow-y-auto overscroll-contain px-2 pb-2">
         {anim && (
           <div className="flex flex-col items-center rounded-2xl bg-surface-2/60 py-2">
             <Mannequin exerciseId={ex.id} size={300} playing={playing} frame={playing ? undefined : 'end'} />

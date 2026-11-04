@@ -136,11 +136,17 @@ function PhaseCalendar({ date }: { date: string }) {
         )}
       </div>
       <div className="mt-1 flex text-[11px] text-muted">
-        {PHASES.map((p) => (
-          <span key={p.n} style={{ width: `${((diffDays(p.start, p.end) + 1) / days) * 100}%` }} className="truncate">
-            {p.n}. {p.name}
-          </span>
-        ))}
+        {PHASES.map((p) => {
+          const share = (diffDays(p.start, p.end) + 1) / days;
+          const current = date >= p.start && date <= p.end;
+          // В узком сегменте имя не помещается и налезает на соседнее — там только номер.
+          return (
+            <span key={p.n} style={{ width: `${share * 100}%` }} className={`truncate pr-1 ${current ? 'font-medium text-ink' : ''}`}>
+              {p.n}
+              {current || share >= 0.25 ? `. ${p.name}` : ''}
+            </span>
+          );
+        })}
       </div>
     </div>
   );

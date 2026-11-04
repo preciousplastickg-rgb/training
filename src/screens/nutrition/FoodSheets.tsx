@@ -58,7 +58,7 @@ export function AddFoodSheet({
   const title = picked ? picked.name : mode === 'quick' ? 'Быстрая запись' : mode === 'recipe' ? 'Моё блюдо' : `${MEAL_NAMES[meal]}: добавить`;
   return (
     <Sheet open={open} title={title} onClose={onClose}>
-      <div className="max-h-[75vh] overflow-y-auto px-2 pb-2">
+      <div className="max-h-[75dvh] overflow-y-auto overscroll-contain px-2 pb-2">
         {picked ? (
           <GramsPicker
             food={picked}
