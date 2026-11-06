@@ -3,6 +3,7 @@
 import type { LocalDate, SetLog, WorkoutSession } from '../db/types';
 import type { HistoryEntry } from './progression';
 import { suggest, type Suggestion } from './progression';
+import { volume } from './records';
 import type { PlannedExercise } from './program';
 
 /** Завершённые сессии упражнения, от старых к новым, только рабочие подходы. */
@@ -80,4 +81,21 @@ export function strengthSeries(sets: readonly SetLog[], sessions: readonly Worko
   }
   for (const v of Object.values(out)) v.sort((a, b) => a.date.localeCompare(b.date));
   return out;
+}
+
+/**
+ * Объём последних `n` завершённых тренировок того же типа (A или B), включая текущую, от старых к новым —
+ * столбики на итоге. Пробная не в счёт.
+ */
+export function recentVolumes(
+  session: Pick<WorkoutSession, 'id' | 'workout' | 'startedAt'>,
+  sessions: readonly WorkoutSession[],
+  sets: readonly Pick<SetLog, 'sessionId' | 'kind' | 'weight' | 'reps'>[],
+  n = 5,
+): { id: string; volume: number; current: boolean }[] {
+  const same = sessions
+    .filter((s) => s.workout === session.workout && !s.isCalibration && (s.id === session.id || (s.finishedAt !== undefined && s.startedAt < session.startedAt)))
+    .sort((a, b) => a.startedAt - b.startedAt)
+    .slice(-n);
+  return same.map((s) => ({ id: s.id, volume: volume(sets.filter((x) => x.sessionId === s.id)), current: s.id === session.id }));
 }

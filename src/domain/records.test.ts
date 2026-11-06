@@ -20,6 +20,9 @@ describe('сила', () => {
     const hits = findRecords([set('b', 6500, 8), set('b', 6500, 7)], prior);
     expect(hits.map((h) => h.kind).sort()).toEqual(['e1rm', 'weight']);
     expect(hits.find((h) => h.kind === 'weight')?.reps).toBe(8);
+    // прирост: на 8+ повторов лучшим был 60 → +5; e1RM — к прошлой лучшей оценке (60 × 10)
+    expect(hits.find((h) => h.kind === 'weight')?.delta).toBe(500);
+    expect(hits.find((h) => h.kind === 'e1rm')?.delta).toBe(e1rm(6500, 8)! - e1rm(6000, 10)!);
   });
   it('без улучшения — без рекорда; первая сессия — точка отсчёта', () => {
     expect(findRecords([set('b', 6000, 9)], [set('b', 6000, 10, 'p')])).toEqual([]);

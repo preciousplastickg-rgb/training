@@ -28,6 +28,9 @@ test('календарь тренировок: A/B по дням, бассейн
   await expect(page.getByText(/Готово:/)).toBeVisible();
   await page.goto('./#/workout');
   await page.reload();
+  // «Эта неделя»: сегодня — пн 4 января, зал.
+  await expect(page.getByRole('list', { name: 'Эта неделя' }).getByText('сегодня')).toBeVisible();
+  await page.getByRole('button', { name: 'Календарь' }).click();
   await expect(page.getByRole('heading', { name: 'Январь 2027' })).toBeVisible();
   // «Сегодня» демо-данных — пн 4 января: зал по чередованию, дальше вт — бассейн.
   await expect(page.getByRole('button', { name: /^Понедельник, 4 января: зал [AB] по плану/ })).toBeVisible();
@@ -38,6 +41,8 @@ test('календарь тренировок: A/B по дням, бассейн
   await expect(page.getByRole('dialog').getByText(/разгрузка/).first()).toBeVisible();
   // История: бассейн рядом с залом.
   await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByText(/· Бассейн/).first()).toBeVisible();
 });
 
@@ -47,6 +52,7 @@ test('правка дня в календаре и удаление ошибоч
   await expect(page.getByText(/Готово:/)).toBeVisible();
   await page.goto('./#/workout');
   await page.reload();
+  await page.getByRole('button', { name: 'Календарь' }).click();
   // Вторник 5 января по расписанию — бассейн; делаем его залом.
   await page.getByRole('button', { name: /^Вторник, 5 января/ }).click();
   const day = page.getByRole('dialog', { name: 'Вторник, 5 января' });
@@ -55,6 +61,7 @@ test('правка дня в календаре и удаление ошибоч
   await expect(day.getByText(/^Тренировка [AB]/)).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: /^Вторник, 5 января: зал [AB] по плану/ })).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // История: тап по тренировке → подходы → удалить.
   const first = page.getByRole('button', { name: /^\d+ \S+ · Тренировка [AB]/ }).first();

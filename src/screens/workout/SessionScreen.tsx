@@ -1,30 +1,30 @@
-// Режим тренировки — SPEC 6.2. Тёмная палитра, крупные зоны нажатия (≥ 56 px).
+// Режим тренировки — SPEC 6.2, макеты BActive / BRest / BSummary (REDESIGN 4).
+// Тёмная палитра независимо от темы, один подход на экране, зоны нажатия ≥ 56 px.
 
-import { ArrowLeftRight, Check, Info, Medal, Plus, SkipForward, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, Equal, Info, Minus, Plus, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { navigate } from '../../app/router';
 import { beep, unlockAudio } from '../../app/sound';
 import { ExerciseSheet } from '../../components/ExerciseSheet';
 import { Sheet } from '../../components/Sheet';
-import { Button, Stepper } from '../../components/ui';
+import { Button, Caps } from '../../components/ui';
 import { db, updateSettings } from '../../db/db';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import {
   deleteSet, discardSession, extendRest, finishSession, logSet, startRest, stopRest, updateSet, type RestTimer,
 } from '../../db/repo';
 import type { Exercise, Kg100, ProgramSlot, SetLog, Settings, WorkoutSession } from '../../db/types';
-import { formatInt, formatKg, formatScaled, NBSP } from '../../domain/format';
-import { lastSessionSets, suggestionFor } from '../../domain/history';
+import { formatInt, formatKg, formatScaled, formatWeekdayDate, NBSP, pluralRu } from '../../domain/format';
+import { lastSessionSets, recentVolumes, suggestionFor } from '../../domain/history';
 import { REST_SUPERSET, supersetRole, workoutPlan, type PlannedExercise } from '../../domain/program';
 import { MANUAL_TEXT, type Suggestion } from '../../domain/progression';
 import { findRecords, volume, type RecordHit } from '../../domain/records';
+import { nextGym } from '../../domain/week';
 import { adjacentWeight, platesPerSide, warmupSets } from '../../domain/weights';
 import { getExercise } from '../../data/exercises';
-import { useActiveSession, useAllSets, useRestTimer, useSessions, useSessionSets, useSettings } from '../../hooks/useData';
+import { useActiveSession, useAllSets, useRestTimer, useSessions, useSessionSets, useSettings, useSlots } from '../../hooks/useData';
 import { useNow } from '../../hooks/useNow';
 import { useWakeLock } from '../../hooks/useWakeLock';
-
-const HINT_KEY = 'hint:session';
 
 const defaultWeight = (ex: Exercise, settings: Settings): Kg100 =>
   ex.equipment === 'barbell' ? settings.barWeight : ex.equipment === 'dumbbell' ? 1000 : ex.equipment === 'cable' ? 2000 : ex.equipment === 'machine' ? 4000 : 0;
@@ -54,9 +54,9 @@ export function SessionScreen() {
 
   if (summaryId) {
     const s = sessions.find((x) => x.id === summaryId);
-    return <div className="theme-dark fixed inset-0 z-10 overflow-y-auto">{s && <Summary session={s} sessions={sessions} />}</div>;
+    return <div className="theme-dark fixed inset-0 z-10 overflow-y-auto bg-bg">{s && <Summary session={s} sessions={sessions} />}</div>;
   }
-  if (!active) return <div className="theme-dark fixed inset-0" />;
+  if (!active) return <div className="theme-dark fixed inset-0 bg-bg" />;
   return (
     <div className="theme-dark fixed inset-0 z-10">
       <ActiveWorkout session={active} onFinished={setSummaryId} />
@@ -101,18 +101,7 @@ function ActiveWorkoutView({
   const totalDone = plan.reduce((a, x) => a + Math.min(x.sets, workDone(x.exercise.id).length), 0);
   const [info, setInfo] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
-  // Подсказка «как записывать» — до первого «Понятно»; без обращения к БД, чтобы не мигала.
-  const [hint, setHint] = useState(() => localStorage.getItem(HINT_KEY) === null);
-  const dismissHint = () => {
-    localStorage.setItem(HINT_KEY, '1');
-    setHint(false);
-  };
-
-  // Текущий чип — всегда на виду: при автопереходе лента докручивается сама.
-  const chipRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    chipRef.current?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
-  }, [current]);
+  const [list, setList] = useState(false);
 
   const suggestions = new Map(
     plan.map((x) => [x.exercise.id, suggestionFor(x, allSets, sessions, { sessionId: session.id, isDeload: session.isDeload, isCalibration: session.isCalibration })]),
@@ -162,92 +151,113 @@ function ActiveWorkoutView({
 
   const elapsed = (now - session.startedAt) / 1000;
   const resting = !!timer && timer.sessionId === session.id;
+  const mode = session.isCalibration ? ' · подбор веса' : session.isDeload ? ' · разгрузка' : '';
+  const doneHere = p ? workDone(p.exercise.id).length : 0;
+
+  // Новый подход, отдых или другое упражнение — всегда с начала экрана.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [current, resting, doneHere]);
 
   return (
-    // scroll-pb: панель отдыха внизу не накрывает активную строку, когда она докручивается в вид.
-    <div className={`flex h-full flex-col overflow-y-auto bg-bg text-ink ${resting ? 'scroll-pb-[20rem]' : ''}`}>
-      <header className="pt-safe sticky top-0 z-20 bg-bg">
-        <div className="flex items-center gap-3 px-4 pt-2">
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold">Тренировка {session.workout}</h1>
-            <p className="text-sm text-muted tabular-nums">
-              {fmtClock(elapsed)} · {totalDone} из {totalPlanned}
-              {session.isCalibration ? ' · подбор веса' : session.isDeload ? ' · разгрузка' : ''}
+    <div ref={scrollRef} className="flex h-full flex-col overflow-y-auto bg-bg text-ink">
+      <header className="pt-safe shrink-0 px-4">
+        <div className="flex items-center gap-3 pt-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] text-muted tabular-nums">
+              Упражнение {current + 1} из {plan.length} · {fmtClock(elapsed)}
+              {mode}
             </p>
+            <h1 className="truncate text-[17px] font-extrabold">{p ? (p.exercise.short ?? p.exercise.name) : `Тренировка ${session.workout}`}</h1>
           </div>
-          <Button variant="secondary" className="min-h-14" onClick={() => setConfirm(true)}>
-            Завершить
-          </Button>
+          <button
+            type="button"
+            aria-label="Упражнения"
+            onClick={() => setList(true)}
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-surface active:scale-95"
+          >
+            <ChevronDown size={24} strokeWidth={2.4} aria-hidden />
+          </button>
+          {!resting && (
+            <button
+              type="button"
+              onClick={() => setConfirm(true)}
+              className="flex h-14 shrink-0 items-center rounded-full bg-surface px-[18px] text-[15px] font-bold active:scale-95"
+            >
+              Завершить
+            </button>
+          )}
         </div>
-        <div className="mx-4 mt-2 h-1.5 overflow-hidden rounded-full bg-track">
-          <div className="h-full rounded-full bg-progress transition-[width] duration-300" style={{ width: `${(totalDone / Math.max(1, totalPlanned)) * 100}%` }} />
-        </div>
-        <nav aria-label="Упражнения" className="flex gap-2 overflow-x-auto px-4 py-2">
-          {plan.map((x, i) => {
-            const done = remaining(x) === 0;
-            return (
-              <button
-                key={x.slot.id}
-                ref={i === current ? chipRef : undefined}
-                type="button"
-                onClick={() => setIdx(i)}
-                aria-current={i === current ? 'step' : undefined}
-                aria-label={`${i + 1}. ${x.exercise.name}${done ? ', сделано' : ''}`}
-                className={`flex min-h-11 shrink-0 items-center gap-1 rounded-full px-3 text-sm whitespace-nowrap ${
-                  i === current ? 'bg-primary font-medium text-on-primary' : done ? 'bg-progress/20 text-progress' : 'bg-surface-2 text-muted'
-                }`}
-              >
-                {done && <Check size={14} aria-hidden />}
-                {i + 1}. {x.exercise.short ?? x.exercise.name}
-              </button>
-            );
-          })}
-        </nav>
+        {p && (
+          <div className="mt-5 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${p.sets}, minmax(0, 1fr))` }} aria-label={`Подходов сделано ${doneHere} из ${p.sets}`} role="img">
+            {Array.from({ length: p.sets }, (_, i) => (
+              <div key={i} className={`h-1.5 rounded-[3px] ${i < doneHere ? 'bg-primary' : i === doneHere && !resting ? 'bg-[#4A4D33]' : 'bg-surface-2'}`} />
+            ))}
+          </div>
+        )}
       </header>
 
-      <main className={`flex-1 px-4 ${resting ? 'pb-[calc(20rem+env(safe-area-inset-bottom))]' : 'pb-[calc(2rem+env(safe-area-inset-bottom))]'}`}>
-        {hint && (
-          <aside className="mt-2 rounded-3xl border border-primary/50 bg-surface p-4" aria-label="Как записывать подход">
-            <p className="font-semibold">Как это работает</p>
-            <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-5 text-[15px]">
-              <li>Сделай подход с тем весом, что подсказан (или поставь свой стрелками ±).</li>
-              <li>Поправь повторы, если сделал не столько, и нажми <b>«Подход сделан»</b>.</li>
-              <li>Пойдёт отдых. После него — следующий подход, потом упражнение само сменится.</li>
-            </ol>
-            <Button variant="secondary" className="mt-3 w-full" onClick={dismissHint}>
-              Понятно
-            </Button>
-          </aside>
-        )}
-        {p && (
-          <ExerciseCard
+      {p &&
+        (resting ? (
+          <RestScreen
+            timer={timer}
+            now={now}
+            sound={settings.sound}
+            next={nextSetText(plan, current, sessionSets, suggestions)}
+            lastSet={[...sessionSets].filter((s) => s.kind === 'work').sort((a, b) => b.doneAt - a.doneAt)[0]}
+          />
+        ) : (
+          <SetScreen
             key={p.slot.id + p.exercise.id}
             p={p}
-            index={current}
             suggestion={suggestions.get(p.exercise.id)!}
             settings={settings}
             session={session}
             logged={sessionSets.filter((s) => s.exerciseId === p.exercise.id)}
             last={lastSessionSets(p.exercise.id, allSets, sessions, session.id)}
             withWarmup={current === firstLongIdx && !session.isCalibration}
-            resting={resting}
             onInfo={() => setInfo(p.exercise.id)}
             onLogged={() => afterSet(current)}
           />
-        )}
-      </main>
-
-      {resting && (
-        <RestPanel
-          timer={timer}
-          now={now}
-          sound={settings.sound}
-          nextText={nextSetText(plan, current, sessionSets, suggestions)}
-          lastSet={[...sessionSets].filter((s) => s.kind === 'work').sort((a, b) => b.doneAt - a.doneAt)[0]}
-        />
-      )}
+        ))}
 
       <ExerciseSheet exerciseId={info} onClose={() => setInfo(null)} />
+
+      <Sheet open={list} title="Упражнения" kicker={`Тренировка ${session.workout} · ${totalDone} из ${totalPlanned} подходов`} onClose={() => setList(false)}>
+        <ol className="theme-dark flex flex-col rounded-3xl bg-surface px-[18px] py-1">
+          {plan.map((x, i) => {
+            const d = Math.min(x.sets, workDone(x.exercise.id).length);
+            const done = d >= x.sets;
+            return (
+              <li key={x.slot.id} className="border-t border-line first:border-t-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIdx(i);
+                    setList(false);
+                  }}
+                  aria-current={i === current ? 'step' : undefined}
+                  aria-label={`${i + 1}. ${x.exercise.name}${done ? ', сделано' : ''}`}
+                  className="flex min-h-14 w-full items-center gap-3 text-left active:opacity-70"
+                >
+                  <span className={`font-display w-[22px] text-[13px] font-semibold tabular-nums ${done ? 'text-muted' : 'text-primary'}`}>{String(i + 1).padStart(2, '0')}</span>
+                  <span className={`flex-1 text-[15px] ${i === current ? 'font-extrabold' : 'font-semibold'} ${done ? 'text-muted' : ''}`}>{x.exercise.name}</span>
+                  {done ? (
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-on-primary">
+                      <Check size={16} strokeWidth={3} aria-hidden />
+                    </span>
+                  ) : (
+                    <span className="text-[13px] text-muted tabular-nums">
+                      {d} из {x.sets}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </Sheet>
 
       <Sheet open={confirm} title="Завершить тренировку?" onClose={() => setConfirm(false)}>
         <div className="theme-dark flex flex-col gap-2 rounded-2xl p-2">
@@ -276,32 +286,45 @@ function ActiveWorkoutView({
   );
 }
 
-function nextSetText(plan: PlannedExercise[], current: number, sets: SetLog[], sug: Map<string, Suggestion>): string | null {
-  const p = plan[current];
-  if (!p) return null;
+function nextSetText(plan: PlannedExercise[], current: number, sets: SetLog[], sug: Map<string, Suggestion>): { label: string; value: string } {
+  const p = plan[current]!;
   const done = sets.filter((s) => s.exerciseId === p.exercise.id && s.kind === 'work');
-  if (done.length >= p.sets) return null;
+  if (done.length >= p.sets) return { label: 'Дальше', value: 'следующее упражнение' };
   const s = sug.get(p.exercise.id);
   const weight = done[done.length - 1]?.weight ?? s?.weight ?? 0;
   const reps = s?.targets[done.length] ?? p.slot.repMin;
-  return `${p.exercise.short ?? p.exercise.name} · ${valueText(p.exercise, weight, reps)}`;
+  return { label: 'Следующий подход', value: valueText(p.exercise, weight, reps) };
 }
 
-// ---------- Карточка упражнения ----------
+// ---------- Подход (BActive) ----------
 
-function ExerciseCard({
-  p, index, suggestion, settings, session, logged, last, withWarmup, resting, onInfo, onLogged,
+function Round({ label, size, onClick, children }: { label: string; size: 64 | 56; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className={`flex shrink-0 items-center justify-center rounded-full bg-surface-2 active:scale-95 ${size === 64 ? 'h-16 w-16' : 'h-14 w-14'}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Row({ children }: { children: ReactNode }) {
+  return <div className="flex min-h-12 items-center gap-3 border-t border-line text-[15px] first:border-t-0">{children}</div>;
+}
+
+function SetScreen({
+  p, suggestion, settings, session, logged, last, withWarmup, onInfo, onLogged,
 }: {
   p: PlannedExercise;
-  index: number;
   suggestion: Suggestion;
   settings: Settings;
   session: WorkoutSession;
   logged: SetLog[];
   last: ReturnType<typeof lastSessionSets>;
   withWarmup: boolean;
-  /** Внизу панель отдыха: отступ под неё появляется позже записи подхода, поэтому докрутка повторяется. */
-  resting: boolean;
   onInfo: () => void;
   onLogged: () => void;
 }) {
@@ -310,28 +333,30 @@ function ExerciseCard({
   const work = logged.filter((s) => s.kind === 'work').sort((a, b) => a.setIndex - b.setIndex);
   const warm = logged.filter((s) => s.kind === 'warmup');
   const isKg = ex.unit === 'kg';
+  const n = Math.min(p.sets, work.length + 1);
+  const i = Math.min(p.sets - 1, work.length);
+  const allDone = work.length >= p.sets;
   const [weight, setWeight] = useState<Kg100>(() => work[work.length - 1]?.weight ?? suggestion.weight ?? defaultWeight(ex, settings));
-  const [reps, setReps] = useState<number[]>(() => Array.from({ length: p.sets }, (_, i) => suggestion.targets[i] ?? p.slot.repMin));
+  const [reps, setReps] = useState<number>(() => suggestion.targets[i] ?? p.slot.repMin);
   const [busy, setBusy] = useState(false);
   const alt = p.slot.altExerciseIds[0];
   const isSub = ex.id !== p.slot.exerciseId;
   const repStep = ex.unit === 'seconds' ? 5 : 1;
-  const firstOpenRow = Array.from({ length: p.sets }, (_, i) => i).find((i) => !work.some((s) => s.setIndex === i)) ?? -1;
-  const [chosenRow, setActiveRow] = useState<number | null>(null);
-  const activeRow = chosenRow !== null && !work.some((s) => s.setIndex === chosenRow) ? chosenRow : firstOpenRow;
-
-  // Активная строка — в поле зрения (после записи подхода следующая строка может быть под панелью отдыха).
-  const activeRef = useRef<HTMLDivElement>(null);
+  const lastReps = useRef(i);
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [activeRow, resting]);
+    // Следующий подход — своя цель повторов.
+    if (lastReps.current !== i) {
+      lastReps.current = i;
+      setReps(suggestion.targets[i] ?? p.slot.repMin);
+    }
+  }, [i, suggestion.targets, p.slot.repMin]);
 
-  const check = async (i: number) => {
-    if (busy) return;
+  const check = async () => {
+    if (busy || allDone) return;
     setBusy(true);
     unlockAudio();
     try {
-      await logSet({ sessionId: session.id, exerciseId: ex.id, slotId: p.slot.id, setIndex: i, kind: 'work', weight: isKg ? weight : 0, reps: reps[i]! });
+      await logSet({ sessionId: session.id, exerciseId: ex.id, slotId: p.slot.id, setIndex: i, kind: 'work', weight: isKg ? weight : 0, reps });
       onLogged();
     } finally {
       setBusy(false);
@@ -347,168 +372,167 @@ function ExerciseCard({
 
   const plates = eq === 'barbell' ? platesPerSide(weight, settings.barWeight, settings.plates) : null;
   const warmups = withWarmup && isKg ? warmupSets(eq, weight, settings.barWeight) : [];
-  const side = ex.perSide ? (ex.id === 'db_row' ? ' на руку' : ' на ногу') : '';
-  const range = `${p.sets} × ${p.slot.repMin}–${p.slot.repMax}${ex.unit === 'seconds' ? ' с' : ''}${side}`;
-  const head = isKg ? (suggestion.weight === null ? 'Вес подбери сам' : formatKg(suggestion.weight)) : ex.unit === 'seconds' ? `${suggestion.targets[0]} с` : `${suggestion.targets[0]} повт.`;
-  const swapLabel = isSub ? `Вернуть: ${getExercise(p.slot.exerciseId).name.toLowerCase()}` : alt ? `Заменить на: ${getExercise(alt).name.toLowerCase()}` : null;
+  const unitLabel = ex.unit === 'seconds' ? 'с' : 'повт.';
+  const repsLabel = ex.unit === 'seconds' ? 'Секунды' : 'Повторы';
+  const step = isKg ? `±${formatKg(adjacentWeight(eq, weight, 1) - weight, false)}` : '';
+  const weightText = formatKg(weight, false);
+  const weightSize = weightText.length <= 2 ? 'text-[88px] leading-[96px]' : weightText.length <= 4 ? 'text-[64px] leading-[80px]' : 'text-[52px] leading-[64px]';
+
+  // Строка прогрессии: значок по режиму, текст — вес и причина.
+  const hint = (() => {
+    const reason = session.isCalibration ? MANUAL_TEXT : suggestion.reason;
+    if (suggestion.mode === 'progress') return { icon: <ArrowUp size={16} strokeWidth={3} aria-hidden />, cls: 'bg-primary text-on-primary', text: reason };
+    if (suggestion.mode === 'stall' || suggestion.mode === 'deload') return { icon: <ArrowDown size={16} strokeWidth={3} aria-hidden />, cls: 'bg-warn text-on-primary', text: reason };
+    if (suggestion.mode === 'manual') return { icon: <Info size={16} strokeWidth={2.6} aria-hidden />, cls: 'bg-surface-2 text-ink', text: reason };
+    return { icon: <Equal size={16} strokeWidth={3} aria-hidden />, cls: 'bg-surface-2 text-ink', text: reason };
+  })();
+  const range = `${p.sets} × ${p.slot.repMin}–${p.slot.repMax}${ex.unit === 'seconds' ? ' с' : ''}${ex.perSide ? (ex.id === 'db_row' ? ' на руку' : ' на ногу') : ''}`;
+  const swapLabel = isSub ? 'Вернуть' : alt ? 'Заменить' : null;
 
   return (
-    <article className="mt-2 rounded-3xl bg-surface p-4">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm text-muted">
-            Упражнение {index + 1}{p.slot.supersetWith ? ' · суперсет' : ''} · подход {Math.min(p.sets, work.length + 1)} из {p.sets}
-          </p>
-          <h2 className="text-xl font-semibold leading-tight">{ex.name}</h2>
+    <div className="flex flex-1 shrink-0 flex-col">
+      <div className="mt-6 flex flex-col items-center gap-1">
+        <Caps className="text-primary!">
+          {allDone ? 'Все подходы сделаны' : `Подход ${n} из ${p.sets}`}
+          {p.slot.supersetWith ? ' · суперсет' : ''}
+        </Caps>
+        {isKg && (
+          <div className="mt-3 flex items-center gap-[18px]">
+            <Round label={`Вес, подход ${n}: меньше`} size={64} onClick={() => setWeight(adjacentWeight(eq, weight, -1))}>
+              <Minus size={26} strokeWidth={2.6} aria-hidden />
+            </Round>
+            <div className="flex w-[170px] items-baseline justify-center gap-1.5" aria-label={`Вес, подход ${n}`}>
+              <span className={`font-display text-huge font-bold tabular-nums ${weightSize}`}>{weightText}</span>
+              <span className="text-xl font-bold text-muted">кг</span>
+            </div>
+            <Round label={`Вес, подход ${n}: больше`} size={64} onClick={() => setWeight(adjacentWeight(eq, weight, 1))}>
+              <Plus size={26} strokeWidth={2.6} aria-hidden />
+            </Round>
+          </div>
+        )}
+        <div className={`flex items-center gap-[18px] ${isKg ? 'mt-2' : 'mt-3'}`}>
+          <Round label={`${repsLabel}, подход ${n}: меньше`} size={isKg ? 56 : 64} onClick={() => setReps((r) => Math.max(1, r - repStep))}>
+            <Minus size={22} strokeWidth={2.6} aria-hidden />
+          </Round>
+          <div className="flex w-[170px] items-baseline justify-center gap-2" aria-label={`${repsLabel}, подход ${n}`}>
+            <span className={`font-display font-bold tabular-nums ${isKg ? 'text-[40px] leading-[48px]' : 'text-huge text-[88px] leading-[96px]'}`}>
+              {isKg ? `× ${reps}` : reps}
+            </span>
+            <span className="text-[15px] font-bold text-muted">{unitLabel}</span>
+          </div>
+          <Round label={`${repsLabel}, подход ${n}: больше`} size={isKg ? 56 : 64} onClick={() => setReps((r) => r + repStep)}>
+            <Plus size={22} strokeWidth={2.6} aria-hidden />
+          </Round>
+        </div>
+        <p className="mt-1 text-[13px] text-muted">
+          цель {range}
+          {step ? ` · шаг ${step}` : ''}
+        </p>
+      </div>
+
+      <div className="mx-4 mt-4 rounded-3xl bg-surface px-[18px] py-1">
+        <Row>
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${hint.cls}`}>{hint.icon}</span>
+          <span className="flex-1 py-2">
+            {isKg && suggestion.weight !== null ? (
+              <>
+                <b>{formatKg(suggestion.weight)}</b> — {hint.text.replace(/^./, (c) => c.toLowerCase())}
+              </>
+            ) : (
+              hint.text
+            )}
+          </span>
+        </Row>
+        {plates && (
+          <Row>
+            <span className="flex-1 text-muted">На сторону</span>
+            <span className="font-extrabold tabular-nums">
+              {plates.perSide.length ? plates.perSide.map((x) => formatKg(x, false)).join(' + ') : 'только гриф'} · гриф {formatKg(settings.barWeight, false)}
+              {plates.remainder > 0 && <span className="text-muted"> · не хватает {formatKg(plates.remainder)}</span>}
+            </span>
+          </Row>
+        )}
+        {warmups.map((w, k) => {
+          const done = warm.find((s) => s.setIndex === k);
+          return (
+            <Row key={`w${k}`}>
+              <span className="flex-1 text-muted">Разминка {k + 1}</span>
+              <span className="font-extrabold tabular-nums">
+                {formatKg(w.weight, false)} × {w.reps}
+              </span>
+              <button
+                type="button"
+                aria-label={done ? `Разминка ${k + 1}: отменить` : `Разминка ${k + 1}: сделано`}
+                onClick={() =>
+                  done
+                    ? void deleteSet(done.id)
+                    : void logSet({ sessionId: session.id, exerciseId: ex.id, slotId: p.slot.id, setIndex: k, kind: 'warmup', weight: w.weight, reps: w.reps })
+                }
+                className={`-mr-1 flex h-14 w-14 items-center justify-center rounded-full ${done ? 'bg-primary text-on-primary' : 'bg-surface-2 text-muted'}`}
+              >
+                <Check size={22} strokeWidth={2.6} aria-hidden />
+              </button>
+            </Row>
+          );
+        })}
+        {work.map((s) => (
+          <Row key={s.id}>
+            <span className="flex-1 text-muted">Подход {s.setIndex + 1}</span>
+            <button
+              type="button"
+              aria-label={`Подход ${s.setIndex + 1}: отменить запись`}
+              onClick={() => void deleteSet(s.id)}
+              className="-mr-1 flex min-h-14 items-center gap-2 pl-2 font-extrabold tabular-nums active:opacity-70"
+            >
+              {valueText(ex, s.weight, s.reps)} <Check size={18} strokeWidth={3} className="text-primary" aria-hidden />
+            </button>
+          </Row>
+        ))}
+        {last && suggestion.mode !== 'progress' && suggestion.mode !== 'hold' && (
+          <Row>
+            <span className="flex-1 text-muted">Прошлый раз</span>
+            <span className="font-extrabold tabular-nums">
+              {last.sets[0] && isKg ? `${formatKg(last.sets[0].weight, false)} × ` : ''}
+              {last.sets.map((s) => s.reps).join(' / ')}
+              {ex.unit === 'seconds' ? ' с' : ''}
+            </span>
+          </Row>
+        )}
+      </div>
+
+      <div className="mt-auto flex flex-col gap-2.5 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className="flex gap-2.5">
+          <button type="button" onClick={onInfo} className="h-14 flex-1 rounded-full bg-surface text-[15px] font-bold active:scale-[0.98]">
+            Как делать
+          </button>
+          <button
+            type="button"
+            disabled={!swapLabel}
+            onClick={() => void swap()}
+            aria-label={isSub ? `Вернуть: ${getExercise(p.slot.exerciseId).name.toLowerCase()}` : alt ? `Заменить на: ${getExercise(alt).name.toLowerCase()}` : 'Заменить'}
+            className="h-14 flex-1 rounded-full bg-surface text-[15px] font-bold active:scale-[0.98] disabled:opacity-40"
+          >
+            {swapLabel ?? 'Заменить'}
+          </button>
         </div>
         <button
           type="button"
-          aria-label="Как делать"
-          onClick={onInfo}
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-surface-2 text-accent active:scale-95"
+          aria-label={allDone ? 'Все подходы записаны' : `Подход ${n}: записать`}
+          disabled={busy || allDone}
+          onClick={() => void check()}
+          className="flex h-[72px] w-full items-center justify-center gap-3 rounded-full bg-primary text-[19px] font-extrabold text-on-primary active:scale-[0.98] disabled:opacity-40"
         >
-          <Info size={26} aria-hidden />
+          <Check size={24} strokeWidth={3} aria-hidden /> {allDone ? 'Сделано' : 'Подход сделан'}
         </button>
       </div>
-
-      <p className="mt-3 rounded-2xl bg-surface-2 px-3 py-2 text-[15px]">
-        <b>{head}</b> · цель {range}
-        <br />
-        <span className={suggestion.mode === 'stall' ? 'text-warn' : 'text-muted'}>
-          {session.isCalibration ? MANUAL_TEXT : suggestion.reason}
-        </span>
-      </p>
-      {plates && (
-        <p className="mt-2 text-sm text-muted">
-          на сторону:{' '}
-          <b className="text-ink">
-            {plates.perSide.length ? plates.perSide.map((x) => formatKg(x, false)).join(' + ') : 'только гриф'}
-          </b>
-          {plates.remainder > 0 && ` (не хватает ${formatKg(plates.remainder)})`}
-        </p>
-      )}
-      {swapLabel && (
-        <button type="button" onClick={() => void swap()} className="mt-1 flex min-h-14 w-full items-center gap-2 text-left text-sm text-accent">
-          <ArrowLeftRight size={18} aria-hidden /> {swapLabel}
-        </button>
-      )}
-
-      {warmups.length > 0 && (
-        <div className="mt-3">
-          <p className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Разминка</p>
-          {warmups.map((w, i) => {
-            const done = warm.find((s) => s.setIndex === i);
-            return (
-              <div key={i} className="flex min-h-14 items-center gap-3 border-b border-line text-sm">
-                <span className="w-6 text-muted">р{i + 1}</span>
-                <span className="flex-1">{formatKg(w.weight)} × {w.reps}</span>
-                <button
-                  type="button"
-                  aria-label={done ? `Разминка ${i + 1}: отменить` : `Разминка ${i + 1}: сделано`}
-                  onClick={() =>
-                    done
-                      ? void deleteSet(done.id)
-                      : void logSet({ sessionId: session.id, exerciseId: ex.id, slotId: p.slot.id, setIndex: i, kind: 'warmup', weight: w.weight, reps: w.reps })
-                  }
-                  className={`flex h-14 w-14 items-center justify-center rounded-2xl ${done ? 'bg-progress text-bg' : 'bg-surface-2 text-muted'}`}
-                >
-                  <Check size={22} aria-hidden />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-col">
-        {Array.from({ length: p.sets }, (_, i) => {
-          const done = work.find((s) => s.setIndex === i);
-          const prev = last?.sets[i];
-          const isActive = !done && i === activeRow;
-          return (
-            <div key={i} ref={isActive ? activeRef : undefined} className={`border-b border-line py-2 last:border-0 ${isActive ? 'rounded-2xl bg-surface-2/60 px-2' : ''}`}>
-              {isActive ? (
-                <div className="flex flex-col gap-2">
-                  {isKg && (
-                    <div className="flex items-center gap-2">
-                      <span className="w-18 shrink-0 text-sm text-muted">Вес</span>
-                      <div className="flex-1">
-                        <Stepper big label={`Вес, подход ${i + 1}`} value={formatKg(weight, false)} unit="кг" onDec={() => setWeight(adjacentWeight(eq, weight, -1))} onInc={() => setWeight(adjacentWeight(eq, weight, 1))} />
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <span className="w-18 shrink-0 text-sm text-muted">{ex.unit === 'seconds' ? 'Секунды' : isKg ? 'Повторы' : `Подход ${i + 1}`}</span>
-                    <div className="flex-1">
-                      <Stepper
-                        big
-                        label={`${ex.unit === 'seconds' ? 'Секунды' : 'Повторы'}, подход ${i + 1}`}
-                        value={reps[i]}
-                        unit={ex.unit === 'seconds' ? 'с' : undefined}
-                        onDec={() => setReps((r) => r.map((v, j) => (j === i ? Math.max(1, v - repStep) : v)))}
-                        onInc={() => setReps((r) => r.map((v, j) => (j === i ? v + repStep : v)))}
-                      />
-                    </div>
-                  </div>
-                  {/* Одна понятная кнопка вместо значка-галочки: что нажать — не нужно угадывать */}
-                  <button
-                    type="button"
-                    aria-label={`Подход ${i + 1}: записать`}
-                    disabled={busy}
-                    onClick={() => void check(i)}
-                    className="mt-1 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-lg font-semibold text-on-primary active:scale-[0.98] disabled:opacity-60"
-                  >
-                    <Check size={24} strokeWidth={2.6} aria-hidden /> Подход {i + 1} сделан
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <span className="w-5 text-center text-sm font-semibold text-muted">{i + 1}</span>
-                  <button
-                    type="button"
-                    disabled={!!done}
-                    onClick={() => setActiveRow(i)}
-                    className={`min-h-14 flex-1 text-left text-[22px] font-semibold tabular-nums ${done ? '' : 'text-muted'}`}
-                    aria-label={done ? undefined : `Подход ${i + 1}: изменить`}
-                  >
-                    {done ? valueText(ex, done.weight, done.reps) : valueText(ex, isKg ? weight : 0, reps[i]!)}
-                  </button>
-                  <CheckButton i={i} done={!!done} busy={busy} onClick={() => (done ? void deleteSet(done.id) : void check(i))} />
-                </div>
-              )}
-              {prev && <p className={`mt-1 text-xs text-muted ${isActive ? 'text-center' : 'pl-8'}`}>прошлый раз {valueText(ex, prev.weight, prev.reps)}</p>}
-            </div>
-          );
-        })}
-      </div>
-    </article>
+    </div>
   );
 }
 
-function CheckButton({ i, done, busy, onClick }: { i: number; done: boolean; busy: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-label={done ? `Подход ${i + 1}: отменить запись` : `Подход ${i + 1}: записать`}
-      disabled={busy}
-      onClick={onClick}
-      className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl transition-colors ${
-        done ? 'bg-progress text-bg' : 'bg-primary text-on-primary active:scale-95'
-      }`}
-    >
-      <Check size={26} strokeWidth={2.6} aria-hidden />
-    </button>
-  );
-}
+// ---------- Отдых (BRest) ----------
 
-// ---------- Отдых ----------
-
-/**
- * Панель отдыха внизу экрана: карточка упражнения остаётся доступной — можно поправить вес
- * следующего подхода или открыть «Как делать», пока идёт отсчёт. Следующая галочка сама
- * запускает новый отдых, отдельный тап «Продолжить» не нужен.
- */
-function RestPanel({ timer, now, sound, nextText, lastSet }: { timer: RestTimer; now: number; sound: boolean; nextText: string | null; lastSet?: SetLog }) {
+/** Отдых на весь экран: кольцо 300 px, «+30 с» и «Пропустить», RIR, строка «Следующий подход». Остаток — от сохранённого endsAt. */
+function RestScreen({ timer, now, sound, next, lastSet }: { timer: RestTimer; now: number; sound: boolean; next: { label: string; value: string }; lastSet?: SetLog }) {
   const left = (timer.endsAt - now) / 1000;
   const done = left <= 0;
   const beeped = useRef<number | null>(null);
@@ -519,53 +543,60 @@ function RestPanel({ timer, now, sound, nextText, lastSet }: { timer: RestTimer;
       beep();
     }
   }, [done, sound, timer.endsAt, now]);
-  const size = 104;
-  const stroke = 8;
-  const r = size / 2 - stroke;
+  const size = 300;
+  const stroke = 18;
+  const r = size / 2 - stroke / 2;
   const c = 2 * Math.PI * r;
   const frac = done ? 1 : Math.max(0, Math.min(1, left / timer.total));
+  const text = done ? '0:00' : fmtClock(Math.ceil(left));
   return (
-    <div className="vv-bottom animate-sheet-in fixed inset-x-0 bottom-0 z-30 mx-auto max-w-xl" role="region" aria-label="Отдых">
-      <div className="pb-safe rounded-t-3xl border-t border-line bg-surface px-4 pt-3 text-ink shadow-[0_-12px_32px_rgb(0_0_0/0.45)]">
-        <div className="flex items-center gap-4">
-          <div className="relative shrink-0" style={{ width: size, height: size }}>
-            <svg width={size} height={size} className="-rotate-90">
-              <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--track)" strokeWidth={stroke} />
-              <circle
-                cx={size / 2}
-                cy={size / 2}
-                r={r}
-                fill="none"
-                stroke={done ? 'var(--progress)' : 'var(--energy)'}
-                strokeWidth={stroke}
-                strokeLinecap="round"
-                strokeDasharray={c}
-                strokeDashoffset={c * (1 - frac)}
-              />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className={`text-[28px] leading-none font-semibold tabular-nums ${done ? 'text-progress' : ''}`} role="timer">
-                {done ? '0:00' : fmtClock(Math.ceil(left))}
-              </span>
-            </div>
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className={`text-sm font-medium ${done ? 'text-progress' : 'text-muted'}`}>{done ? 'Отдых окончен' : 'Отдых'}</p>
-            {nextText ? (
-              <p className="mt-0.5 leading-snug">
-                <span className="text-sm text-muted">Следующий подход</span>
-                <br />
-                <b className="text-lg">{nextText}</b>
-              </p>
-            ) : (
-              <p className="mt-0.5 text-lg font-semibold">Дальше — следующее упражнение</p>
-            )}
-          </div>
+    <div className="flex flex-1 shrink-0 flex-col" role="region" aria-label="Отдых">
+      <div className="relative mx-auto mt-5" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90" aria-hidden>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-2)" strokeWidth={stroke} />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="var(--primary)"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={c * (1 - frac)}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+          <Caps className="tracking-[.1em]">{done ? 'Отдых окончен' : 'Отдых'}</Caps>
+          <span role="timer" aria-label={`Осталось ${text}`} className="font-display text-huge text-[72px] leading-[80px] font-bold tabular-nums">
+            {text}
+          </span>
+          <span className="text-[15px] text-muted">из {fmtClock(timer.total)}</span>
         </div>
+      </div>
 
-        {lastSet && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="w-18 shrink-0 text-sm leading-tight text-muted">Ещё мог, повторов</span>
+      <div className="mx-4 mt-5 grid grid-cols-2 gap-2.5">
+        <button type="button" onClick={() => void extendRest(30)} className="h-14 rounded-full bg-surface text-base font-extrabold active:scale-[0.98]">
+          +30 с
+        </button>
+        {done ? (
+          <button type="button" onClick={() => void stopRest()} className="h-14 rounded-full bg-primary text-base font-extrabold text-on-primary active:scale-[0.98]">
+            Готов
+          </button>
+        ) : (
+          <button type="button" onClick={() => void stopRest()} className="h-14 rounded-full bg-surface text-base font-extrabold active:scale-[0.98]">
+            Пропустить
+          </button>
+        )}
+      </div>
+
+      {lastSet && (
+        <div className="mx-4 mt-3 flex flex-col gap-2.5 rounded-[26px] bg-surface px-[18px] py-3.5">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[15px] font-extrabold">Сколько ещё мог?</span>
+            <span className="text-[13px] text-muted">можно пропустить</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
             {([0, 1, 2, 3] as const).map((v) => (
               <button
                 key={v}
@@ -573,99 +604,135 @@ function RestPanel({ timer, now, sound, nextText, lastSet }: { timer: RestTimer;
                 onClick={() => void updateSet(lastSet.id, { rir: lastSet.rir === v ? undefined : v })}
                 aria-pressed={lastSet.rir === v}
                 aria-label={`Ещё мог: ${v === 3 ? '3 и больше' : v}`}
-                className={`h-11 flex-1 rounded-xl text-base font-semibold ${lastSet.rir === v ? 'bg-primary text-on-primary' : 'bg-surface-2'}`}
+                className={`h-14 rounded-full text-lg font-extrabold ${lastSet.rir === v ? 'bg-primary text-on-primary' : 'bg-surface-2'}`}
               >
                 {v === 3 ? '3+' : v}
               </button>
             ))}
           </div>
-        )}
-
-        <div className="mt-3 flex gap-2 pb-3">
-          {done ? (
-            <Button size="lg" className="flex-1" onClick={() => void stopRest()}>
-              <Check size={20} aria-hidden /> Готов
-            </Button>
-          ) : (
-            <>
-              <Button size="lg" variant="secondary" className="flex-1" onClick={() => void extendRest(30)}>
-                <Plus size={20} aria-hidden /> 30 с
-              </Button>
-              <Button size="lg" variant="secondary" className="flex-1" onClick={() => void stopRest()}>
-                <SkipForward size={20} aria-hidden /> Пропустить
-              </Button>
-            </>
-          )}
         </div>
+      )}
+
+      <div className="mx-4 mt-auto mb-[calc(1rem+env(safe-area-inset-bottom))] flex h-16 shrink-0 items-center justify-between rounded-full bg-surface px-[22px]">
+        <span className="text-sm text-muted">{next.label}</span>
+        <span className="font-display text-xl font-bold tabular-nums">{next.value}</span>
       </div>
     </div>
   );
 }
 
-// ---------- Итог ----------
+// ---------- Итог (BSummary) ----------
 
 function Summary({ session, sessions }: { session: WorkoutSession; sessions: WorkoutSession[] }) {
   const all = useAllSets();
+  const slots = useSlots();
+  const settings = useSettings();
   const mine = all.filter((s) => s.sessionId === session.id);
   const finishedBefore = new Set(sessions.filter((s) => s.finishedAt !== undefined && s.startedAt < session.startedAt).map((s) => s.id));
   const prior = all.filter((s) => finishedBefore.has(s.sessionId));
   const records: RecordHit[] = findRecords(mine, prior);
   const vol = volume(mine);
-  const prev = sessions
-    .filter((s) => s.workout === session.workout && s.finishedAt !== undefined && s.startedAt < session.startedAt && !s.isCalibration)
-    .sort((a, b) => b.startedAt - a.startedAt)[0];
-  const prevVol = prev ? volume(all.filter((s) => s.sessionId === prev.id)) : 0;
+  const bars = recentVolumes(session, sessions, all, 5);
+  const prevVol = bars.length >= 2 ? bars[bars.length - 2]!.volume : 0;
   const diff = prevVol > 0 ? Math.round(((vol - prevVol) / prevVol) * 100) : null;
+  const maxVol = Math.max(1, ...bars.map((b) => b.volume));
   const minutes = Math.round(((session.finishedAt ?? Date.now()) - session.startedAt) / 60000);
   const workCount = mine.filter((s) => s.kind === 'work').length;
+  const planned = settings ? workoutPlan(session.workout, session.date, slots, settings).reduce((a, p) => a + p.sets, 0) : 0;
+  const next = settings ? nextGym(session.date, sessions, settings) : null;
+  const badge = records.length ? `Готово · ${records.length} ${pluralRu(records.length, 'рекорд', 'рекорда', 'рекордов')}` : 'Готово';
+
   return (
-    <div className="pt-safe flex min-h-full flex-col bg-bg px-4 pb-8 text-ink">
-      <h1 className="mt-6 text-2xl font-semibold">Тренировка {session.workout} завершена</h1>
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <Stat label="Длительность" value={`${minutes} мин`} />
-        <Stat label="Объём" value={`${formatInt(Math.round(vol / 100))} кг`} />
-        <Stat label="Подходов" value={String(workCount)} />
+    <div className="pt-safe flex min-h-full flex-col bg-bg pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-ink">
+      <div className="flex flex-col gap-2.5 px-[22px] pt-8">
+        <span className="caps self-start rounded-full bg-primary px-2.5 py-1.5 text-on-primary">{badge}</span>
+        <h1 className="font-display text-[34px] leading-10 font-bold">
+          Тренировка {session.workout}
+          <br />
+          закрыта
+        </h1>
+        <p className="text-[15px] text-muted">{formatWeekdayDate(session.date)}</p>
       </div>
-      {diff !== null && (
-        <p className="mt-3 rounded-2xl bg-surface p-3 text-center">
-          Объём к прошлой тренировке {session.workout}:{' '}
-          <b className={diff >= 0 ? 'text-progress' : 'text-warn'}>
-            {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)}%
-          </b>
-        </p>
-      )}
-      <h2 className="mt-6 mb-2 text-sm font-semibold text-muted">Рекорды</h2>
-      {records.length === 0 ? (
-        <p className="rounded-2xl bg-surface p-3 text-muted">В этот раз без рекордов — главное, что тренировка сделана.</p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {records.map((r) => (
-            <li key={r.setId + r.kind} className="flex items-center gap-3 rounded-2xl bg-surface p-3">
-              <Medal size={26} className="text-warn" aria-hidden />
-              <span className="flex-1">
-                <b>{getExercise(r.exerciseId).name}</b>
-                <br />
-                <span className="text-sm text-muted">
-                  {r.kind === 'weight' ? `${formatKg(r.weight)} × ${r.reps} — лучший вес на ${r.reps}+` : `e1RM ${formatScaled(r.e1rm ?? 0, 100, 1)}${NBSP}кг`}
+
+      <div className="mx-4 mt-6 grid grid-cols-2 gap-2.5">
+        <Stat label="Время" value={String(minutes)} unit=" мин" />
+        <Stat label="Подходы" value={String(workCount)} unit={planned ? ` / ${planned}` : ''} />
+        <div className="col-span-2 flex flex-col gap-3 rounded-3xl bg-surface px-[18px] py-4">
+          <div className="flex items-end justify-between">
+            <div className="flex flex-col gap-1">
+              <Caps>Объём</Caps>
+              <span className="font-display text-[30px] leading-9 font-bold tabular-nums">
+                {formatInt(Math.round(vol / 100))}
+                <span className="font-sans text-[15px] font-bold text-muted"> кг</span>
+              </span>
+            </div>
+            {diff !== null && (
+              <span className={`pb-1.5 text-[15px] font-extrabold ${diff >= 0 ? 'text-primary' : 'text-warn'}`}>
+                {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)}% к прошлой {session.workout}
+              </span>
+            )}
+          </div>
+          <div className="flex h-14 items-end gap-1.5" role="img" aria-label={`Объём последних ${bars.length} тренировок ${session.workout}`}>
+            {bars.map((b, i) => (
+              <div
+                key={b.id}
+                className={`flex-1 rounded-lg ${b.current ? 'bg-primary' : i === bars.length - 2 ? 'bg-[#3A3D42]' : 'bg-surface-2'}`}
+                style={{ height: `${Math.max(8, Math.round((b.volume / maxVol) * 100))}%` }}
+              />
+            ))}
+          </div>
+          <div className="flex justify-between text-xs text-muted">
+            <span>{bars.length > 1 ? `последние ${bars.length} ${pluralRu(bars.length, 'тренировка', 'тренировки', 'тренировок')} ${session.workout}` : `первая тренировка ${session.workout}`}</span>
+            <span>сегодня</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-4 mt-3 rounded-3xl bg-surface px-[18px] py-1">
+        {records.length === 0 ? (
+          <p className="py-4 text-[15px] text-muted">Без рекордов — главное, что тренировка сделана.</p>
+        ) : (
+          records.map((r) => (
+            <div key={r.setId + r.kind} className="flex min-h-[60px] items-center gap-3 border-t border-line first:border-t-0">
+              <span className="font-display flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-on-primary">PR</span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[15px] font-extrabold">{getExercise(r.exerciseId).name}</span>
+                <span className="text-[13px] text-muted tabular-nums">
+                  {formatKg(r.weight, false)} × {r.reps} · {r.kind === 'e1rm' ? `e1RM ${formatScaled(r.e1rm ?? 0, 100, 1)}${NBSP}кг` : `лучший вес на ${r.reps}+`}
                 </span>
               </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="flex-1" />
-      <Button size="lg" className="mt-8 w-full" onClick={() => navigate('today', true)}>
-        Готово
-      </Button>
+              <span className="text-sm font-extrabold text-primary tabular-nums">+{formatKg(r.delta, false)}</span>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="mx-4 mt-auto flex flex-col gap-2.5 pt-6">
+        {next && (
+          <p className="text-center text-sm text-muted">
+            Следующая — тренировка {next.workout}, {formatWeekdayDate(next.date).replace(/^./, (c) => c.toLowerCase())}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => navigate('today', true)}
+          className="h-16 w-full rounded-full bg-primary text-lg font-extrabold text-on-primary active:scale-[0.98]"
+        >
+          Готово
+        </button>
+      </div>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
   return (
-    <div className="rounded-2xl bg-surface p-3 text-center">
-      <p className="text-xl font-semibold tabular-nums">{value}</p>
-      <p className="text-xs text-muted">{label}</p>
+    <div className="flex flex-col gap-1 rounded-3xl bg-surface px-[18px] py-4">
+      <Caps>{label}</Caps>
+      <span className="font-display text-[30px] leading-9 font-bold tabular-nums">
+        {value}
+        {unit && <span className="font-sans text-[15px] font-bold text-muted">{unit}</span>}
+      </span>
     </div>
   );
 }

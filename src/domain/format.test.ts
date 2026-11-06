@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDayMonth, formatInt, formatKcal, formatKg, formatMacro, formatWeekdayDate, parseKg } from './format';
+import { formatDayMonth, formatInt, formatKcal, formatKg, formatMacro, formatWeekdayDate, parseKg, pluralRu } from './format';
 
 const sp = (s: string) => s.replace(/ /g, ' ');
 
@@ -47,5 +47,12 @@ describe('даты по-русски', () => {
   });
   it('с днём недели', () => {
     expect(formatWeekdayDate('2026-11-09')).toBe('Понедельник, 9 ноября');
+  });
+});
+
+describe('множественное число', () => {
+  it('рекорды', () => {
+    const f = (n: number) => pluralRu(n, 'рекорд', 'рекорда', 'рекордов');
+    expect([1, 2, 5, 11, 21, 22, 25, 101].map(f)).toEqual(['рекорд', 'рекорда', 'рекордов', 'рекордов', 'рекорд', 'рекорда', 'рекордов', 'рекорд']);
   });
 });

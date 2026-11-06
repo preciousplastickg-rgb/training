@@ -75,3 +75,13 @@ export function formatWeekdayDate(date: LocalDate): string {
   const wd = WEEKDAYS[isoWeekday(date) - 1] ?? '';
   return `${wd.charAt(0).toUpperCase()}${wd.slice(1)}, ${formatDayMonth(date)}`;
 }
+
+/** Русское множественное число: pluralRu(2, 'рекорд', 'рекорда', 'рекордов') → «рекорда». */
+export function pluralRu(n: number, one: string, few: string, many: string): string {
+  const a = Math.abs(n) % 100;
+  const b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b > 1 && b < 5) return few;
+  if (b === 1) return one;
+  return many;
+}

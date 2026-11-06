@@ -20,6 +20,8 @@ export interface RecordHit {
   reps: number;
   kind: 'weight' | 'e1rm';
   e1rm: Kg100 | null;
+  /** Прирост к прошлому лучшему, Kg100: для «вес» — к весу на столько же повторов, для e1RM — к прошлой оценке. */
+  delta: Kg100;
 }
 
 /**
@@ -45,11 +47,11 @@ export function findRecords(
     for (const s of sets) {
       const prevAtReps = Math.max(0, ...hist.filter((h) => h.reps >= s.reps).map((h) => h.weight));
       if (s.weight > prevAtReps && (!bestWeightHit || s.weight > bestWeightHit.weight)) {
-        bestWeightHit = { setId: s.id, exerciseId, weight: s.weight, reps: s.reps, kind: 'weight', e1rm: e1rm(s.weight, s.reps) };
+        bestWeightHit = { setId: s.id, exerciseId, weight: s.weight, reps: s.reps, kind: 'weight', e1rm: e1rm(s.weight, s.reps), delta: s.weight - prevAtReps };
       }
       const e = e1rm(s.weight, s.reps);
       if (e !== null && e > bestE1 && (!bestE1Hit || e > (bestE1Hit.e1rm ?? 0))) {
-        bestE1Hit = { setId: s.id, exerciseId, weight: s.weight, reps: s.reps, kind: 'e1rm', e1rm: e };
+        bestE1Hit = { setId: s.id, exerciseId, weight: s.weight, reps: s.reps, kind: 'e1rm', e1rm: e, delta: e - bestE1 };
       }
     }
     if (bestWeightHit) hits.push(bestWeightHit);

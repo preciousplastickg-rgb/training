@@ -1,6 +1,9 @@
 import { X } from 'lucide-react';
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 
+/** Открытые шторки снизу вверх. */
+const STACK: object[] = [];
+
 interface SheetProps {
   open: boolean;
   title: string;
@@ -14,17 +17,28 @@ interface SheetProps {
 export function Sheet({ open, title, kicker, onClose, children }: SheetProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  // onClose — через ref: новая функция при каждом рендере родителя не должна переставлять шторку в стеке.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    // Escape закрывает только верхнюю шторку (календарь → день): стек открытых шторок.
+    const me = {};
+    STACK.push(me);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && STACK[STACK.length - 1] === me) closeRef.current();
+    };
     window.addEventListener('keydown', onKey);
     // Без прокрутки к элементу: на iOS focus() двигает документ, и закреплённые элементы дёргаются.
     // Если содержимое уже поставило фокус (поле поиска с autoFocus) — не перехватываем.
     const panel = panelRef.current;
     if (panel && !panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      STACK.splice(STACK.indexOf(me), 1);
+    };
+  }, [open]);
 
   if (!open) return null;
 
