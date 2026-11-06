@@ -163,9 +163,9 @@ function ActiveWorkoutView({
   return (
     <div ref={scrollRef} className="flex h-full flex-col overflow-y-auto bg-bg text-ink">
       <header className="pt-safe shrink-0 px-4">
-        <div className="flex items-center gap-3 pt-2">
+        <div className="flex items-center gap-2.5 pt-2">
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] text-muted tabular-nums">
+            <p className="truncate text-[13px] whitespace-nowrap text-muted tabular-nums">
               Упражнение {current + 1} из {plan.length} · {fmtClock(elapsed)}
               {mode}
             </p>
@@ -183,7 +183,7 @@ function ActiveWorkoutView({
             <button
               type="button"
               onClick={() => setConfirm(true)}
-              className="flex h-14 shrink-0 items-center rounded-full bg-surface px-[18px] text-[15px] font-bold active:scale-95"
+              className="flex h-14 shrink-0 items-center rounded-full bg-surface px-3.5 text-[15px] font-bold active:scale-95"
             >
               Завершить
             </button>
@@ -372,6 +372,19 @@ function SetScreen({
 
   const plates = eq === 'barbell' ? platesPerSide(weight, settings.barWeight, settings.plates) : null;
   const warmups = withWarmup && isKg ? warmupSets(eq, weight, settings.barWeight) : [];
+  // Разминка — одной строкой и одним тапом: все подходы сразу (или все отменить).
+  const warmDone = warmups.length > 0 && warmups.every((_, k) => warm.some((s) => s.setIndex === k));
+  const toggleWarmup = async () => {
+    if (warmDone) {
+      for (const s of warm) await deleteSet(s.id);
+      return;
+    }
+    for (const [k, w] of warmups.entries()) {
+      if (!warm.some((s) => s.setIndex === k)) {
+        await logSet({ sessionId: session.id, exerciseId: ex.id, slotId: p.slot.id, setIndex: k, kind: 'warmup', weight: w.weight, reps: w.reps });
+      }
+    }
+  };
   const unitLabel = ex.unit === 'seconds' ? 'с' : 'повт.';
   const repsLabel = ex.unit === 'seconds' ? 'Секунды' : 'Повторы';
   const step = isKg ? `±${formatKg(adjacentWeight(eq, weight, 1) - weight, false)}` : '';
@@ -452,42 +465,37 @@ function SetScreen({
             </span>
           </Row>
         )}
-        {warmups.map((w, k) => {
-          const done = warm.find((s) => s.setIndex === k);
-          return (
-            <Row key={`w${k}`}>
-              <span className="flex-1 text-muted">Разминка {k + 1}</span>
-              <span className="font-extrabold tabular-nums">
-                {formatKg(w.weight, false)} × {w.reps}
-              </span>
-              <button
-                type="button"
-                aria-label={done ? `Разминка ${k + 1}: отменить` : `Разминка ${k + 1}: сделано`}
-                onClick={() =>
-                  done
-                    ? void deleteSet(done.id)
-                    : void logSet({ sessionId: session.id, exerciseId: ex.id, slotId: p.slot.id, setIndex: k, kind: 'warmup', weight: w.weight, reps: w.reps })
-                }
-                className={`-mr-1 flex h-14 w-14 items-center justify-center rounded-full ${done ? 'bg-primary text-on-primary' : 'bg-surface-2 text-muted'}`}
-              >
-                <Check size={22} strokeWidth={2.6} aria-hidden />
-              </button>
-            </Row>
-          );
-        })}
-        {work.map((s) => (
-          <Row key={s.id}>
-            <span className="flex-1 text-muted">Подход {s.setIndex + 1}</span>
+        {warmups.length > 0 && (
+          <Row>
+            <span className="shrink-0 text-muted">Разминка</span>
+            <span className="flex-1 text-right leading-5 font-extrabold tabular-nums">{warmups.map((w) => `${formatKg(w.weight, false)} × ${w.reps}`).join(' · ')}</span>
             <button
               type="button"
-              aria-label={`Подход ${s.setIndex + 1}: отменить запись`}
-              onClick={() => void deleteSet(s.id)}
-              className="-mr-1 flex min-h-14 items-center gap-2 pl-2 font-extrabold tabular-nums active:opacity-70"
+              aria-label={warmDone ? 'Разминка: отменить' : 'Разминка: сделано'}
+              onClick={() => void toggleWarmup()}
+              className={`-mr-1 flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${warmDone ? 'bg-primary text-on-primary' : 'bg-surface-2 text-muted'}`}
             >
-              {valueText(ex, s.weight, s.reps)} <Check size={18} strokeWidth={3} className="text-primary" aria-hidden />
+              <Check size={22} strokeWidth={2.6} aria-hidden />
             </button>
           </Row>
-        ))}
+        )}
+        {work.length > 0 && (
+          <Row>
+            <span className="flex flex-1 flex-wrap gap-1.5 py-1.5" aria-label="Записанные подходы">
+              {work.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  aria-label={`Подход ${s.setIndex + 1}: отменить запись`}
+                  onClick={() => void deleteSet(s.id)}
+                  className="flex min-h-14 items-center gap-1 rounded-full bg-surface-2 px-3 text-sm font-extrabold tabular-nums active:opacity-70"
+                >
+                  {valueText(ex, s.weight, s.reps)} <Check size={16} strokeWidth={3} className="text-primary" aria-hidden />
+                </button>
+              ))}
+            </span>
+          </Row>
+        )}
         {last && suggestion.mode !== 'progress' && suggestion.mode !== 'hold' && (
           <Row>
             <span className="flex-1 text-muted">Прошлый раз</span>

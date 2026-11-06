@@ -243,7 +243,7 @@ function ProfileSheet({ open, onClose, settings }: { open: boolean; onClose: () 
         </div>
         <p className="text-xs text-muted">Цель по весу — ориентир от сухой массы; на контрольных точках приложение предложит уточнить её по новым замерам.</p>
       </div>
-      <Button variant="secondary" className="mt-3 w-full" onClick={onClose}>
+      <Button size="lg" className="mt-3 w-full" onClick={onClose}>
         Готово
       </Button>
     </Sheet>
