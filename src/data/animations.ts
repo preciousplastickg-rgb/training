@@ -51,6 +51,12 @@ export interface ExerciseAnimation {
   base?: number;
   /** Как держать снаряд: goblet — гантель у груди, back — гриф на трапециях. */
   hold?: 'goblet' | 'back' | 'hands';
+  /**
+   * Кисти ведутся по ногам (румынская тяга): угол плеча в кадрах игнорируется, рука прямая и
+   * направлена так, чтобы кисть лежала на линии бедра/голени — гантели скользят по бёдрам,
+   * гриф не отходит от ног.
+   */
+  armPath?: 'legs';
   props?: Prop[];
   /** Удерживать время вместо повторов (планка). */
   hold_seconds?: string;
@@ -118,30 +124,30 @@ export const ANIMATIONS: ExerciseAnimation[] = [
     ],
   },
   {
-    exerciseId: 'db_rdl', view: 'side', rig: 'standing', equipment: 'dumbbell', hold: 'hands',
+    exerciseId: 'db_rdl', view: 'side', rig: 'standing', equipment: 'dumbbell', hold: 'hands', armPath: 'legs',
     keyframes: [
-      { name: 'start', joints: { ankle: 0, knee: -4, hip: 4, shoulderL: 4, shoulderR: 4 } },
-      { name: 'end', joints: { ankle: 4, knee: -18, hip: 89, shoulderL: 75, shoulderR: 75 } },
+      { name: 'start', joints: { ankle: 0, knee: -4, hip: 4 } },
+      { name: 'end', joints: { ankle: -3, knee: -20, hip: 93 } },
     ],
     tempo: T_SQUAT, concentric: 'up', direction: 'down',
     highlight: { primary: ['hamstrings', 'glutes'], secondary: ['lower_back'] },
     angles: [
-      { keyframe: 'end', segment: 'torso', reference: 'vertical', value: 75, label: 'Корпус', text: '70–80°' },
-      { keyframe: 'end', segment: 'thigh', reference: 'vertical', value: 15, label: 'Колено', text: '~15–20°' },
+      { keyframe: 'end', segment: 'torso', reference: 'vertical', value: 70, label: 'Корпус', text: '70–80°' },
+      { keyframe: 'end', segment: 'thigh', reference: 'vertical', value: 20, label: 'Колено', text: '~15–20°' },
       { keyframe: 'end', segment: 'torso', reference: 'along', value: 0, label: 'Спина прямая' },
     ],
   },
   {
-    exerciseId: 'barbell_rdl', view: 'side', rig: 'standing', equipment: 'barbell', hold: 'hands',
+    exerciseId: 'barbell_rdl', view: 'side', rig: 'standing', equipment: 'barbell', hold: 'hands', armPath: 'legs',
     keyframes: [
-      { name: 'start', joints: { ankle: 0, knee: -4, hip: 4, shoulderL: 4, shoulderR: 4 } },
-      { name: 'end', joints: { ankle: 4, knee: -18, hip: 86, shoulderL: 72, shoulderR: 72 } },
+      { name: 'start', joints: { ankle: 0, knee: -4, hip: 4 } },
+      { name: 'end', joints: { ankle: -3, knee: -20, hip: 93 } },
     ],
     tempo: T_SQUAT, concentric: 'up', direction: 'down',
     highlight: { primary: ['hamstrings', 'glutes'], secondary: ['lower_back', 'upper_back'] },
     angles: [
-      { keyframe: 'end', segment: 'torso', reference: 'vertical', value: 72, label: 'Корпус', text: '70–80°' },
-      { keyframe: 'end', segment: 'thigh', reference: 'vertical', value: 15, label: 'Колено', text: '~15–20°' },
+      { keyframe: 'end', segment: 'torso', reference: 'vertical', value: 70, label: 'Корпус', text: '70–80°' },
+      { keyframe: 'end', segment: 'thigh', reference: 'vertical', value: 20, label: 'Колено', text: '~15–20°' },
       { keyframe: 'end', segment: 'torso', reference: 'along', value: 0, label: 'Спина прямая' },
     ],
   },

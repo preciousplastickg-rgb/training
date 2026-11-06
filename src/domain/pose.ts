@@ -40,7 +40,57 @@ export type Pose = SidePose | FrontPose;
 
 const j = (joints: Joints, k: Joint, def = 0) => joints[k] ?? def;
 
-export function sidePose(anim: Pick<ExerciseAnimation, 'rig' | 'base'>, joints: Joints): SidePose {
+/** Кисть держит снаряд на 5 за запястьем (середина кисти) — то же, что handPoint в anatomy.ts. */
+const HAND = 5;
+/** Поперёк ноги от оси: гантель — поверх бедра (сбоку от него), гриф — перед ногами. */
+const LEG_TRACK_OFFSET = { dumbbell: 3, barbell: 13 };
+
+/**
+ * Угол прямой руки от плеча S, при котором кисть лежит на линии ног (ось бедро→голень, сдвинутая
+ * вперёд на off). Берётся самая низкая точка линии, до которой рука достаёт; если не достаёт —
+ * ближайшая. Так кисть ведётся по бедру и при наклоне не уходит вперёд от ног.
+ */
+export function armAlongLegs(S: Pt, track: readonly Pt[], off: number, reach: number): number {
+  const front = (a: Pt, b: Pt): Pt => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const l = Math.hypot(dx, dy) || 1;
+    return { x: dy / l, y: -dx / l };
+  };
+  let best: Pt | null = null;
+  let nearest: Pt | null = null;
+  let nearestD = Infinity;
+  for (let i = 0; i + 1 < track.length; i++) {
+    const n = front(track[i]!, track[i + 1]!);
+    const A = { x: track[i]!.x + n.x * off, y: track[i]!.y + n.y * off };
+    const B = { x: track[i + 1]!.x + n.x * off, y: track[i + 1]!.y + n.y * off };
+    const d = { x: B.x - A.x, y: B.y - A.y };
+    const f = { x: A.x - S.x, y: A.y - S.y };
+    const a = d.x * d.x + d.y * d.y;
+    const b = 2 * (f.x * d.x + f.y * d.y);
+    const c = f.x * f.x + f.y * f.y - reach * reach;
+    const disc = b * b - 4 * a * c;
+    if (disc >= 0) {
+      const sq = Math.sqrt(disc);
+      for (const t of [(-b - sq) / (2 * a), (-b + sq) / (2 * a)]) {
+        if (t < 0 || t > 1) continue;
+        const p = { x: A.x + d.x * t, y: A.y + d.y * t };
+        if (!best || p.y > best.y) best = p;
+      }
+    }
+    const t = Math.max(0, Math.min(1, -(f.x * d.x + f.y * d.y) / a));
+    const q = { x: A.x + d.x * t, y: A.y + d.y * t };
+    const dist = Math.hypot(q.x - S.x, q.y - S.y);
+    if (dist < nearestD) {
+      nearestD = dist;
+      nearest = q;
+    }
+  }
+  const target = best ?? nearest ?? { x: S.x, y: S.y + reach };
+  return (Math.atan2(target.x - S.x, -(target.y - S.y)) * 180) / Math.PI;
+}
+
+export function sidePose(anim: Pick<ExerciseAnimation, 'rig' | 'base'> & Partial<Pick<ExerciseAnimation, 'armPath' | 'equipment'>>, joints: Joints): SidePose {
   const knee = j(joints, 'knee');
   const hip = j(joints, 'hip');
   let aShin: number;
@@ -57,10 +107,10 @@ export function sidePose(anim: Pick<ExerciseAnimation, 'rig' | 'base'>, joints: 
   }
   const aTorso = aPelvis + j(joints, 'spine');
   const aNeck = aTorso + j(joints, 'neck');
-  const aUaL = aTorso + 180 - j(joints, 'shoulderL');
-  const aUaR = aTorso + 180 - j(joints, 'shoulderR');
-  const aFaL = aUaL - j(joints, 'elbowL');
-  const aFaR = aUaR - j(joints, 'elbowR');
+  let aUaL = aTorso + 180 - j(joints, 'shoulderL');
+  let aUaR = aTorso + 180 - j(joints, 'shoulderR');
+  let aFaL = aUaL - j(joints, 'elbowL');
+  let aFaR = aUaR - j(joints, 'elbowR');
 
   // Сначала строим от таза в (0,0), потом стойка сама переносит фигуру к опоре.
   const hipP: Pt = { x: 0, y: 0 };
@@ -71,6 +121,11 @@ export function sidePose(anim: Pick<ExerciseAnimation, 'rig' | 'base'>, joints: 
   const heel = add(ankleP, dir(footDir), -SEG.heel);
 
   const shoulder = add(hipP, dir(aTorso), SEG.torso);
+  if (anim.armPath === 'legs') {
+    const off = anim.equipment === 'barbell' ? LEG_TRACK_OFFSET.barbell : LEG_TRACK_OFFSET.dumbbell;
+    aUaL = aUaR = armAlongLegs(shoulder, [hipP, kneeP, ankleP], off, SEG.upperArm + SEG.forearm + HAND);
+    aFaL = aFaR = aUaL;
+  }
   const neck = add(shoulder, dir(aNeck), SEG.neck);
   const head = add(neck, dir(aNeck), SEG.head);
   const elbowL = add(shoulder, dir(aUaL), SEG.upperArm);
