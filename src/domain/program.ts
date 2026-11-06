@@ -55,12 +55,16 @@ const GYM_DAYS = new Set([1, 3, 5]);
  * План дней с начала программы по `until` включительно.
  * `gymDates` — даты завершённых тренировок в зале (кроме пробной).
  * План дня зависит от вчерашнего: пропуск зала переносит его на сегодня, два зала подряд не предлагаются.
+ * `projectFrom` — для взгляда вперёд: начиная с этой даты зал по плану считается сделанным.
  */
-export function planDays(until: LocalDate, gymDates: ReadonlySet<LocalDate>): DayPlan[] {
+export function planDays(until: LocalDate, gymDates: ReadonlySet<LocalDate>, projectFrom?: LocalDate): DayPlan[] {
   const out: DayPlan[] = [];
+  // Проекция вперёд (календарь): с `projectFrom` считаем, что зал по плану состоится.
+  const gyms = projectFrom ? new Set(gymDates) : gymDates;
   let prev: DayPlan | null = null;
   for (let d = PROGRAM_START; d <= until && d <= PROGRAM_END; d = addDays(d, 1)) {
-    const plan = planOneDay(d, prev, gymDates);
+    const plan = planOneDay(d, prev, gyms);
+    if (projectFrom && d >= projectFrom && plan.kind === 'gym') (gyms as Set<LocalDate>).add(d);
     out.push(plan);
     prev = plan;
   }

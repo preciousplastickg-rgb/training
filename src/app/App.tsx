@@ -18,7 +18,7 @@ import { WorkoutScreen } from '../screens/WorkoutScreen';
 import { SessionScreen } from '../screens/workout/SessionScreen';
 import { useRoute } from './router';
 import { requestPersistentStorage } from './storage';
-import { openSheet, useGlobalSheet } from './uiStore';
+import { globalSheetDate, openSheet, useGlobalSheet } from './uiStore';
 import { useApplyTheme } from './useTheme';
 
 export function App() {
@@ -71,7 +71,7 @@ export function App() {
       {route !== 'session' && <BottomNav route={route} onAdd={() => setAddOpen(true)} />}
       <AddMenu open={addOpen} onClose={() => setAddOpen(false)} />
       <WeightSheet open={sheet === 'weight'} onClose={() => openSheet(null)} date={date} body={body} heightCm={settings.heightCm ?? DEFAULT_SETTINGS.heightCm} />
-      <PoolSheet open={sheet === 'pool'} onClose={() => openSheet(null)} date={date} />
+      <PoolSheet open={sheet === 'pool'} onClose={() => openSheet(null)} date={globalSheetDate() ?? date} />
       <UpdateBanner />
     </div>
   );

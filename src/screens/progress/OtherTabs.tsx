@@ -4,10 +4,10 @@ import { Card, SectionTitle } from '../../components/ui';
 import { DEFAULT_SETTINGS } from '../../db/db';
 import { PROGRAM_END, PROGRAM_START } from '../../data/program';
 import { addDays, diffDays, isoWeekday, weekStart } from '../../domain/dates';
-import { dayStatuses, disciplineSummary, type DayStatus, type GymDone } from '../../domain/discipline';
+import { dayStatuses, disciplineSummary, gymDone, type DayStatus } from '../../domain/discipline';
 import { formatDayMonth, formatInt } from '../../domain/format';
 import { dayTargets, dayTotals, nutritionInTarget } from '../../domain/nutrition';
-import { gymDatesOf, planDays, workoutPlan } from '../../domain/program';
+import { gymDatesOf, planDays } from '../../domain/program';
 import { useAdjustments, useAllFoodLog, useAllSets, useFoods, usePool, useSessions, useSettings, useSlots } from '../../hooks/useData';
 import { useToday } from '../../hooks/useToday';
 
@@ -108,13 +108,7 @@ export function DisciplineTab() {
   const settings = useSettings() ?? DEFAULT_SETTINGS;
   const { plans, statuses, summary } = useMemo(() => {
     const plans = planDays(PROGRAM_END, gymDatesOf(sessions));
-    const gym: GymDone[] = sessions
-      .filter((s) => s.finishedAt !== undefined && !s.isCalibration)
-      .map((s) => {
-        const planned = workoutPlan(s.workout, s.date, slots, settings).reduce((a, p) => a + p.sets, 0);
-        const done = sets.filter((x) => x.sessionId === s.id && x.kind === 'work').length;
-        return { date: s.date, ratio: planned ? done / planned : 1 };
-      });
+    const gym = gymDone(sessions, sets, slots, settings);
     const statuses = dayStatuses(plans, gym, pool, today);
     return { plans, statuses, summary: disciplineSummary(plans, statuses) };
   }, [sessions, sets, pool, slots, settings, today]);

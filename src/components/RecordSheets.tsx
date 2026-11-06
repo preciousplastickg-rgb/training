@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { putBody, addPool } from '../db/repo';
 import type { BodyEntry } from '../db/types';
 import { bodyFatPercent, latestWith } from '../domain/body';
-import { formatScaled } from '../domain/format';
+import { formatDayMonth, formatScaled } from '../domain/format';
+import { useToday } from '../hooks/useToday';
 import { poolPlan } from '../data/program';
 import { Sheet } from './Sheet';
 import { Button, Field, Stepper } from './ui';
@@ -87,6 +88,7 @@ export function WeightSheet({
 const FEEL = ['Тяжело', 'Так себе', 'Нормально', 'Хорошо', 'Отлично'] as const;
 
 export function PoolSheet({ open, onClose, date }: { open: boolean; onClose: () => void; date: string }) {
+  const today = useToday();
   const plan = poolPlan(date, false);
   const [minutes, setMinutes] = useState(plan.minutes);
   const [meters, setMeters] = useState('');
@@ -104,7 +106,7 @@ export function PoolSheet({ open, onClose, date }: { open: boolean; onClose: () 
     onClose();
   };
   return (
-    <Sheet open={open} title="Бассейн" onClose={onClose}>
+    <Sheet open={open} title={date === today ? 'Бассейн' : `Бассейн · ${formatDayMonth(date)}`} onClose={onClose}>
       <div className="flex flex-col gap-4 px-2 pb-2">
         <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm">План: {plan.text}</p>
         <div>

@@ -1,7 +1,7 @@
 // Дисциплина — SPEC 5.8.
 
-import type { LocalDate, PoolSession } from '../db/types';
-import type { DayPlan } from './program';
+import type { LocalDate, PoolSession, ProgramSlot, SetLog, Settings, WorkoutSession } from '../db/types';
+import { workoutPlan, type DayPlan } from './program';
 
 /** 'moved' — зал не состоялся, но перенесён на следующий день (одна тренировка — один пропуск). */
 export type DayStatus = 'gym' | 'pool' | 'rest' | 'missed' | 'moved' | 'pending' | 'future';
@@ -13,6 +13,22 @@ export interface GymDone {
 }
 
 export const GYM_MIN_RATIO = 0.8;
+
+/** Завершённые тренировки (кроме пробной) с долей рабочих подходов от плана. */
+export function gymDone(
+  sessions: readonly WorkoutSession[],
+  sets: readonly SetLog[],
+  slots: readonly ProgramSlot[],
+  settings: Settings,
+): GymDone[] {
+  return sessions
+    .filter((s) => s.finishedAt !== undefined && !s.isCalibration)
+    .map((s) => {
+      const planned = workoutPlan(s.workout, s.date, slots, settings).reduce((a, p) => a + p.sets, 0);
+      const done = sets.filter((x) => x.sessionId === s.id && x.kind === 'work').length;
+      return { date: s.date, ratio: planned ? done / planned : 1 };
+    });
+}
 export const POOL_MIN_MINUTES = 20;
 
 /**

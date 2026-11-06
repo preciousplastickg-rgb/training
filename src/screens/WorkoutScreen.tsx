@@ -1,4 +1,4 @@
-import { ChevronRight, Dumbbell, History, Info, Play } from 'lucide-react';
+import { ChevronRight, Dumbbell, History, Info, Play, Waves } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { navigate } from '../app/router';
 import { unlockAudio } from '../app/sound';
@@ -7,15 +7,16 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Button, Card, Chip, SectionTitle, Tabs } from '../components/ui';
 import { DEFAULT_SETTINGS } from '../db/db';
 import { startSession } from '../db/repo';
-import type { WorkoutSession } from '../db/types';
+import type { PoolSession, WorkoutSession } from '../db/types';
 import { formatDayMonth, formatKg, formatInt } from '../domain/format';
 import { suggestionFor } from '../domain/history';
 import { deloadFor, estimateMinutes, nextWorkout, phaseWeek, workoutPlan, type PlannedExercise } from '../domain/program';
 import { volume } from '../domain/records';
 import { PROGRAM_START } from '../data/program';
-import { useActiveSession, useAllSets, useSessions, useSettings, useSlots } from '../hooks/useData';
+import { useActiveSession, useAllSets, usePool, useSessions, useSettings, useSlots } from '../hooks/useData';
 import { useToday } from '../hooks/useToday';
 import { EmptyState } from '../components/EmptyState';
+import { CalendarCard } from './workout/CalendarCard';
 
 export function WorkoutScreen() {
   const date = useToday();
@@ -93,6 +94,8 @@ export function WorkoutScreen() {
           </Card>
         )}
 
+        <CalendarCard />
+
         <section>
           <SectionTitle>Программа</SectionTitle>
           <Tabs value={tab} onChange={setTab} items={[{ value: 'A', label: 'Тренировка A' }, { value: 'B', label: 'Тренировка B' }]} />
@@ -162,25 +165,45 @@ function PlanList({
   );
 }
 
+/** История: зал и бассейн вместе, последние записи сверху. */
 function SessionHistory({ sessions }: { sessions: WorkoutSession[] }) {
   const sets = useAllSets();
-  const done = sessions.filter((s) => s.finishedAt !== undefined).slice(-10).reverse();
+  const pool = usePool();
+  type Item = { date: string; at: number; gym?: WorkoutSession; pool?: PoolSession };
+  const items: Item[] = [
+    ...sessions.filter((s) => s.finishedAt !== undefined).map((s) => ({ date: s.date, at: s.finishedAt!, gym: s })),
+    ...pool.map((p) => ({ date: p.date, at: 0, pool: p })),
+  ]
+    .sort((a, b) => (a.date === b.date ? b.at - a.at : a.date < b.date ? 1 : -1))
+    .slice(0, 12);
   return (
     <section>
       <SectionTitle>История</SectionTitle>
-      {done.length === 0 ? (
-        <EmptyState icon={History} text="Заверши первую тренировку — она появится здесь" />
+      {items.length === 0 ? (
+        <EmptyState icon={History} text="Заверши первую тренировку или запиши бассейн — они появятся здесь" />
       ) : (
         <Card>
           <ul className="divide-y divide-line">
-            {done.map((s) => {
-              const v = volume(sets.filter((x) => x.sessionId === s.id));
-              const min = Math.round(((s.finishedAt ?? s.startedAt) - s.startedAt) / 60000);
+            {items.map(({ gym: s, pool: p }) => {
+              if (p) {
+                return (
+                  <li key={p.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <b>{formatDayMonth(p.date)}</b> · Бассейн <Waves size={14} className="text-protein" aria-hidden />
+                    </span>
+                    <span className="shrink-0 whitespace-nowrap text-muted">
+                      {p.minutes} мин{p.meters ? ` · ${formatInt(p.meters)} м` : ''}
+                    </span>
+                  </li>
+                );
+              }
+              const v = volume(sets.filter((x) => x.sessionId === s!.id));
+              const min = Math.round(((s!.finishedAt ?? s!.startedAt) - s!.startedAt) / 60000);
               return (
-                <li key={s.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                <li key={s!.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                   <span className="min-w-0">
-                    <b>{formatDayMonth(s.date)}</b> · Тренировка {s.workout}
-                    {(s.isCalibration || s.isDeload) && <span className="block text-xs text-muted">{s.isCalibration ? 'подбор веса' : 'разгрузка'}</span>}
+                    <b>{formatDayMonth(s!.date)}</b> · Тренировка {s!.workout}
+                    {(s!.isCalibration || s!.isDeload) && <span className="block text-xs text-muted">{s!.isCalibration ? 'подбор веса' : 'разгрузка'}</span>}
                   </span>
                   <span className="shrink-0 whitespace-nowrap text-muted">
                     {min} мин · {formatInt(Math.round(v / 100))} кг
