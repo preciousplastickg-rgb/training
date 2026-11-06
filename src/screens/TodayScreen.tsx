@@ -348,12 +348,17 @@ function WeightRow({ date, body, fallback }: { date: string; body: BodyEntry[]; 
     if (todayEntry) void putBody(date, { weight: v });
   };
   const bump = (d: number) => set(value + d);
+  // Под числом — одна короткая подпись: статус записи показывает кнопка справа.
   const note = todayEntry
-    ? `записано${change !== null ? ` · ${change <= 0 ? '↓' : '↑'}${formatScaled(Math.abs(change), 100, 1)} за неделю` : avg !== null ? ` · среднее ${formatScaled(avg, 100, 1)}` : ''}`
+    ? change !== null
+      ? `${change <= 0 ? '↓' : '↑'}${formatScaled(Math.abs(change), 100, 1)} за неделю`
+      : avg !== null
+        ? `среднее ${formatScaled(avg, 100, 1)}`
+        : 'первая запись'
     : avg === null
       ? 'ещё не записан'
       : `среднее ${formatScaled(avg, 100, 1)}`;
-  const circle = 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full';
+  const circle = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full';
   return (
     <Card className="flex items-center gap-2 py-[18px]! pr-[18px]! pl-5!">
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -391,12 +396,13 @@ function WeightRow({ date, body, fallback }: { date: string; body: BodyEntry[]; 
         <Plus size={20} strokeWidth={2.6} aria-hidden />
       </button>
       {todayEntry ? (
-        <span className={`${circle} bg-primary text-on-primary`} aria-label="Вес записан">
-          <Check size={20} strokeWidth={3} aria-hidden />
+        // Кнопка с текстом, а не галочка: галочка читалась как чекбокс, который «надо поставить».
+        <span className="flex h-11 shrink-0 items-center rounded-full bg-track px-3.5 text-sm font-extrabold text-muted" aria-label="Вес записан">
+          Записано
         </span>
       ) : (
-        <button type="button" aria-label="Записать вес" onClick={() => void putBody(date, { weight: value })} className={`${circle} bg-ink text-primary active:scale-95`}>
-          <Check size={20} strokeWidth={3} aria-hidden />
+        <button type="button" aria-label="Записать вес" onClick={() => void putBody(date, { weight: value })} className="h-11 shrink-0 rounded-full bg-primary px-3.5 text-sm font-extrabold text-on-primary active:scale-95">
+          Записать
         </button>
       )}
     </Card>

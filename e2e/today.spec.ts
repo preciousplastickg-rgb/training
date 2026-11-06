@@ -23,5 +23,5 @@ test('первый запуск: % жира и цель, затем «Сегод
   await page.getByRole('dialog', { name: 'Бассейн' }).getByRole('button', { name: 'Записать' }).click();
   await expect(page.getByRole('dialog', { name: 'Бассейн' })).toBeHidden();
   // вес записан на первом шаге → «Записано»
-  await expect(page.getByText(/^записано/)).toBeVisible();
+  await expect(page.getByLabel('Вес записан')).toBeVisible();
 });
