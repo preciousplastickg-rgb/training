@@ -24,3 +24,19 @@ test('подход 1 тапом, таймер от endsAt, восстановл�
   await expect(page.getByRole('button', { name: 'Подход 1: отменить запись' })).toBeVisible();
   await expect(page.getByText('1 из 18')).toBeVisible();
 });
+
+test('«Как делать»: фигура, режимы «Движение / Верх / Низ», углы постоянно списком', async ({ page }) => {
+  await skipOnboarding(page);
+  await page.getByRole('navigation', { name: 'Основное меню' }).getByRole('button', { name: 'Тренировка' }).click();
+  await page.getByRole('button', { name: /^Гоблет-присед/ }).first().click();
+  const sheet = page.getByRole('dialog');
+  await expect(sheet.getByRole('img', { name: 'Техника упражнения' })).toBeVisible();
+  await expect(sheet.getByRole('tab', { name: 'Движение' })).toHaveAttribute('aria-selected', 'true');
+  // Список углов виден всегда, а не только в крайней точке анимации.
+  await expect(sheet.getByText('В нижней точке')).toBeVisible();
+  await expect(sheet.getByText('Корпус')).toBeVisible();
+  await sheet.getByRole('tab', { name: 'Низ' }).click();
+  // Стоп-кадр: на фигуре номера подсказок.
+  await expect(sheet.getByRole('img', { name: 'Техника упражнения' }).getByText('1', { exact: true })).toBeVisible();
+  await expect(sheet.getByText('Основные')).toBeVisible();
+});

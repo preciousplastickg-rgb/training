@@ -3,14 +3,27 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'node:child_process';
 import pkg from './package.json' with { type: 'json' };
 
 // GitHub Pages отдаёт приложение из /<repo>/, локально — из /.
 const base = process.env.BASE_PATH ?? '/';
 
+// Сборка — хеш коммита и время: в настройках видно, какая версия стоит на телефоне.
+function gitCommit(): string {
+  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA;
+  try {
+    return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    return 'dev';
+  }
+}
+const built = new Date().toLocaleString('ru-RU', { timeZone: 'Asia/Bishkek', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+const build = `${gitCommit().slice(0, 7)} · ${built}`;
+
 export default defineConfig({
   base,
-  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
+  define: { __APP_VERSION__: JSON.stringify(pkg.version), __APP_BUILD__: JSON.stringify(build) },
   plugins: [
     react(),
     tailwindcss(),

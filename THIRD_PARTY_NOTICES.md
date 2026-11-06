@@ -11,6 +11,7 @@ Copyright © 2017 IBM Corp. with Reserved Font Name "Plex".
 ## body-highlighter 3.0.2
 
 Полигоны карты мышц (`anteriorData`, `posteriorData`) скопированы в `src/data/muscleMap.ts`.
+Используются в карте мышц и в виде спереди анимированного манекена (руки повёрнуты вокруг суставов).
 Пакет как зависимость не подключается.
 
 ```

@@ -2,26 +2,11 @@
 
 import { useState } from 'react';
 import { EXERCISES, MUSCLE_NAMES } from '../../data/exercises';
+import { MUSCLE_SLUGS } from '../../data/anatomy';
 import { anteriorData, posteriorData, type MapSlug } from '../../data/muscleMap';
 import type { Muscle } from '../../db/types';
 
-/** Наши мышцы → слаги карты. Трапеция подсвечивается вместе с верхом спины. */
-export const MUSCLE_SLUGS: Record<Muscle, MapSlug[]> = {
-  chest: ['chest'],
-  front_delt: ['front-deltoids'],
-  side_delt: ['front-deltoids', 'back-deltoids'],
-  rear_delt: ['back-deltoids'],
-  lats: ['upper-back'],
-  upper_back: ['upper-back', 'trapezius', 'neck'],
-  biceps: ['biceps'],
-  triceps: ['triceps'],
-  abs: ['abs', 'obliques'],
-  lower_back: ['lower-back'],
-  glutes: ['gluteal'],
-  quads: ['quadriceps'],
-  hamstrings: ['hamstring'],
-  calves: ['calves', 'left-soleus', 'right-soleus'],
-};
+export { MUSCLE_SLUGS };
 
 const NEUTRAL: MapSlug[] = ['head', 'knees'];
 

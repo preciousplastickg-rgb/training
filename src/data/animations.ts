@@ -159,10 +159,11 @@ export const ANIMATIONS: ExerciseAnimation[] = [
     ],
   },
   {
-    exerciseId: 'plank', view: 'side', rig: 'lying', base: 82, equipment: 'none',
+    // Наклон 83,5°: предплечья и носки на одной линии пола (плечо остаётся над локтем).
+    exerciseId: 'plank', view: 'side', rig: 'lying', base: 83.5, equipment: 'none',
     keyframes: [
-      { name: 'start', joints: { hip: 0, knee: 0, shoulderL: 82, elbowL: 90, shoulderR: 82, elbowR: 90 } },
-      { name: 'end', joints: { hip: 0, knee: 0, shoulderL: 82, elbowL: 90, shoulderR: 82, elbowR: 90 } },
+      { name: 'start', joints: { hip: 0, knee: 0, shoulderL: 83.5, elbowL: 90, shoulderR: 83.5, elbowR: 90 } },
+      { name: 'end', joints: { hip: 0, knee: 0, shoulderL: 83.5, elbowL: 90, shoulderR: 83.5, elbowR: 90 } },
     ],
     tempo: { down: 0, pause: 3, up: 0, rest: 0 }, concentric: 'up', direction: 'static', hold_seconds: 'Держи 30–60 с',
     highlight: { primary: ['abs'], secondary: ['glutes', 'front_delt'] },

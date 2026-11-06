@@ -9,7 +9,19 @@ export function UpdateBanner() {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
-  } = useRegisterSW({ immediate: true });
+  } = useRegisterSW({
+    immediate: true,
+    // iOS проверяет обновление только при запуске; приложение же обычно возвращается из фона.
+    // Проверяем при каждом возврате и раз в час — плашка появится без перезапуска.
+    onRegisteredSW(_url, reg) {
+      if (!reg) return;
+      const check = () => {
+        if (document.visibilityState === 'visible' && navigator.onLine) reg.update().catch(() => {});
+      };
+      document.addEventListener('visibilitychange', check);
+      setInterval(check, 60 * 60 * 1000);
+    },
+  });
 
   if (!needRefresh) return null;
 
