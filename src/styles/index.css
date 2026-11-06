@@ -1,33 +1,41 @@
 @import 'tailwindcss';
 
-/* Токены — SPEC 9 (светлая палитра: белый, серый, серебристый, светло-зелёный акцент).
+/* Токены — редизайн «Энергия», вариант B (docs/design/REDESIGN.md 1.1): тёплый светлый фон,
+   чёрные карточки-герои, лаймовый акцент. Лайм, --energy, --protein — только фон и графика.
    Тема: системная по умолчанию, data-theme на <html> её переопределяет.
-   .theme-dark — принудительно тёмная (графитовая) палитра для режима тренировки. */
+   .theme-dark — принудительно тёмная палитра для режима тренировки. */
 
 :root {
-  --bg: #f4f5f7;
+  --bg: #f2f0eb;
   --surface: #ffffff;
-  --surface-2: #eceef1;
-  --ink: #1b1e22;
-  --muted: #6b7280;
-  --line: #e1e4e8;
-  --track: #eef0f3;
-  --primary: #9fe2b5;
-  --on-primary: #0f3d24;
-  --accent: #1b7f45;
-  --progress: #34b36b;
-  --energy: #f0883e;
-  --protein: #5b8def;
+  --surface-2: #eceae4;
+  --track: #eceae4;
+  --ink: #111214;
+  --muted: #66635c;
+  --muted-on-ink: #a7a9ae;
+  --line: #e4e1da;
+  --lime: #d4f25a;
+  --primary: #d4f25a;
+  --on-primary: #111214;
+  --accent: #111214;
+  --progress: #111214;
+  --energy: #ff6a3d;
+  --protein: #4c7dff;
   --fat: #b58ad6; /* полоска жиров: не --warn, норма жиров — не предупреждение */
   --warn: #c27c0e;
   --danger: #d64545;
-  --guide: #5b8def;
-  /* Карта мышц, манекен, силуэт (SPEC 6.7) */
+  --guide: #4c7dff;
+  --on-guide: #ffffff;
+  /* Тёмная карточка-«герой»: на светлом — чёрная без обводки, на тёмном — чуть светлее фона с обводкой. */
+  --hero: #111214;
+  --hero-line: transparent;
+  /* Карта мышц, манекен, силуэт (SPEC 6.7) — без изменений в редизайне B */
   --m-primary: #2fb36a;
   --m-secondary: #a9e4bf;
   --m-idle: #dadde2;
   --m-outline: #c3c8cf;
   --m-glow: rgb(47 179 106 / 0.5);
+  --m-text: #1f7f48; /* подписи основных мышц у карты: --m-primary слишком светлый для текста */
   --body-a: #afb7c1;
   --body-b: #d6dbe1;
   --body-line: #8c96a2;
@@ -42,28 +50,34 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #131518;
-    --surface: #1c1f23;
-    --surface-2: #262a2f;
-    --ink: #f1f3f5;
-    --muted: #9aa3ae;
-    --line: #2c3036;
-    --track: #262a2f;
-    --primary: #8edba8;
-    --on-primary: #0e2a19;
-    --accent: #8edba8;
-    --progress: #5ed493;
-    --energy: #f5a05f;
+    --bg: #0b0b0c;
+    --surface: #18191c;
+    --surface-2: #232529;
+    --track: #232529;
+    --ink: #f4f4f2;
+    --muted: #9c9ea3;
+    --muted-on-ink: #a7a9ae;
+    --line: #2a2c30;
+    --lime: #d4f25a;
+    --primary: #d4f25a;
+    --on-primary: #111214;
+    --accent: #f4f4f2;
+    --progress: #f4f4f2;
+    --energy: #ff8a63;
     --protein: #8fb0ff;
     --fat: #c9a6e6;
     --warn: #f2c14e;
     --danger: #f07070;
     --guide: #8fb0ff;
+    --on-guide: #0e1b33;
+    --hero: #1e2024;
+    --hero-line: #2a2c30;
     --m-primary: #5ed493;
     --m-secondary: #3e7a58;
     --m-idle: #33383f;
     --m-outline: #464c54;
     --m-glow: rgb(94 212 147 / 0.55);
+    --m-text: #5ed493;
     --body-a: #4a5059;
     --body-b: #737b86;
     --body-line: #2a2f36;
@@ -79,28 +93,34 @@
 
 :root[data-theme='dark'],
 .theme-dark {
-  --bg: #131518;
-  --surface: #1c1f23;
-  --surface-2: #262a2f;
-  --ink: #f1f3f5;
-  --muted: #9aa3ae;
-  --line: #2c3036;
-  --track: #262a2f;
-  --primary: #8edba8;
-  --on-primary: #0e2a19;
-  --accent: #8edba8;
-  --progress: #5ed493;
-  --energy: #f5a05f;
+  --bg: #0b0b0c;
+  --surface: #18191c;
+  --surface-2: #232529;
+  --track: #232529;
+  --ink: #f4f4f2;
+  --muted: #9c9ea3;
+  --muted-on-ink: #a7a9ae;
+  --line: #2a2c30;
+  --lime: #d4f25a;
+  --primary: #d4f25a;
+  --on-primary: #111214;
+  --accent: #f4f4f2;
+  --progress: #f4f4f2;
+  --energy: #ff8a63;
   --protein: #8fb0ff;
   --fat: #c9a6e6;
   --warn: #f2c14e;
   --danger: #f07070;
   --guide: #8fb0ff;
+  --on-guide: #0e1b33;
+  --hero: #1e2024;
+  --hero-line: #2a2c30;
   --m-primary: #5ed493;
   --m-secondary: #3e7a58;
   --m-idle: #33383f;
   --m-outline: #464c54;
   --m-glow: rgb(94 212 147 / 0.55);
+  --m-text: #5ed493;
   --body-a: #4a5059;
   --body-b: #737b86;
   --body-line: #2a2f36;
@@ -130,7 +150,11 @@
   --color-fat: var(--fat);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
-  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --color-hero: var(--hero);
+  --color-hero-line: var(--hero-line);
+  --color-muted-on-ink: var(--muted-on-ink);
+  --font-sans: 'Manrope', system-ui, -apple-system, sans-serif;
+  --font-display: 'Unbounded', 'Manrope', system-ui, sans-serif;
 }
 
 html,
@@ -180,8 +204,25 @@ button {
   touch-action: manipulation;
 }
 
+/* Заголовки и крупные цифры — Unbounded (REDESIGN 1.2); от 64 px — плотнее. */
+.font-display {
+  letter-spacing: -0.02em;
+}
+.font-display.text-huge {
+  letter-spacing: -0.03em;
+}
+
+/* Капс-метка: «КАЛОРИИ», «ВЕС СЕГОДНЯ», «В НИЖНЕЙ ТОЧКЕ». */
+.caps {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 :focus-visible {
-  outline: 2px solid var(--protein);
+  outline: 2px solid var(--guide);
   outline-offset: 2px;
 }
 

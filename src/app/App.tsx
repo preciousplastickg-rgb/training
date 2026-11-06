@@ -59,7 +59,7 @@ export function App() {
   }
 
   return (
-    <div className={`mx-auto min-h-full max-w-xl ${route === 'session' ? '' : 'pb-[calc(5rem+env(safe-area-inset-bottom))]'}`}>
+    <div className={`mx-auto min-h-full max-w-xl ${route === 'session' ? '' : 'pb-[calc(7.5rem+env(safe-area-inset-bottom))]'}`}>
       <main>
         {route === 'session' && <SessionScreen />}
         {route === 'today' && <TodayScreen />}

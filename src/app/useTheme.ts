@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { Theme } from '../db/types';
 
-const BG: Record<'light' | 'dark', string> = { light: '#F4F5F7', dark: '#131518' };
+const BG: Record<'light' | 'dark', string> = { light: '#F2F0EB', dark: '#0B0B0C' };
 
 /**
  * Ставит data-theme на <html>; 'system' — без атрибута, решает prefers-color-scheme.

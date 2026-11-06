@@ -1,12 +1,20 @@
 # Сторонние компоненты
 
-## IBM Plex Sans
+## Unbounded
 
-Шрифт интерфейса. Пакет `@fontsource/ibm-plex-sans`, файлы шрифта встроены в сборку.
+Шрифт заголовков и крупных цифр. Пакет `@fontsource/unbounded`, файлы шрифта встроены в сборку.
 
-Copyright © 2017 IBM Corp. with Reserved Font Name "Plex".
+Copyright 2022 The Unbounded Project Authors (https://github.com/unboundedfont/Unbounded).
 Лицензия: SIL Open Font License 1.1 — https://openfontlicense.org/
-Полный текст: `node_modules/@fontsource/ibm-plex-sans/LICENSE`.
+Полный текст: `node_modules/@fontsource/unbounded/LICENSE`.
+
+## Manrope
+
+Шрифт текста интерфейса. Пакет `@fontsource/manrope`, файлы шрифта встроены в сборку.
+
+Copyright 2019 The Manrope Project Authors (https://github.com/sharanda/manrope).
+Лицензия: SIL Open Font License 1.1 — https://openfontlicense.org/
+Полный текст: `node_modules/@fontsource/manrope/LICENSE`.
 
 ## body-highlighter 3.0.2
 

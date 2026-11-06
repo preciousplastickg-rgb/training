@@ -15,7 +15,10 @@ interface BottomNavProps {
   onAdd: () => void;
 }
 
-/** Нижнее меню: Сегодня · Тренировка · [+] · Питание · Прогресс (SPEC 6). */
+/**
+ * Нижнее меню (REDESIGN 1.3): чёрная таблетка 70 px над краем экрана, значки без подписей
+ * (подпись — в aria-label), активный — лаймовый значок на подложке, «+» — лаймовый круг.
+ */
 export function BottomNav({ route, onAdd }: BottomNavProps) {
   const item = ({ route: r, label, icon: Icon }: (typeof LEFT)[number]) => {
     const active = route === r;
@@ -24,35 +27,32 @@ export function BottomNav({ route, onAdd }: BottomNavProps) {
         key={r}
         type="button"
         onClick={() => navigate(r)}
+        aria-label={label}
         aria-current={active ? 'page' : undefined}
-        className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
-          active ? 'text-ink' : 'text-muted'
+        className={`flex h-12 items-center justify-center justify-self-center rounded-full transition-colors ${
+          active ? 'bg-[#2A2C30] px-3.5 text-primary' : 'w-12 text-muted-on-ink'
         }`}
       >
-        <span className={`flex h-7 w-12 items-center justify-center rounded-full ${active ? 'bg-primary/15' : ''}`}>
-          <Icon size={22} strokeWidth={active ? 2.4 : 1.8} aria-hidden />
-        </span>
-        {label}
+        <Icon size={22} strokeWidth={2} aria-hidden />
       </button>
     );
   };
 
   return (
-    <nav aria-label="Основное меню" className="vv-bottom pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur">
-      <div className="mx-auto flex max-w-xl items-stretch px-1 py-1">
-        {LEFT.map(item)}
-        <div className="flex flex-1 items-center justify-center">
-          <button
-            type="button"
-            onClick={onAdd}
-            aria-label="Добавить запись"
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-on-primary shadow-lg active:scale-95 transition-transform"
-          >
-            <Plus size={28} strokeWidth={2.4} aria-hidden />
-          </button>
-        </div>
-        {RIGHT.map(item)}
-      </div>
+    <nav
+      aria-label="Основное меню"
+      className="vv-bottom fixed inset-x-4 bottom-[calc(26px+env(safe-area-inset-bottom))] z-40 mx-auto grid h-[70px] max-w-xl grid-cols-5 items-center rounded-full border border-hero-line bg-hero px-1.5"
+    >
+      {LEFT.map(item)}
+      <button
+        type="button"
+        onClick={onAdd}
+        aria-label="Добавить запись"
+        className="flex h-[54px] w-[54px] items-center justify-center justify-self-center rounded-full bg-primary text-on-primary transition-transform active:scale-95"
+      >
+        <Plus size={26} strokeWidth={2.6} aria-hidden />
+      </button>
+      {RIGHT.map(item)}
     </nav>
   );
 }

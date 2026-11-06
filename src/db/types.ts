@@ -20,6 +20,8 @@ export interface Exercise {
   unit: 'kg' | 'seconds' | 'reps';
   perSide: boolean;
   muscles: { primary: Muscle[]; secondary: Muscle[] };
+  /** Роль мышцы в упражнении, 2–4 слова: вторая строка выноски на карте мышц («главная работа»). */
+  muscleRoles?: Partial<Record<Muscle, string>>;
   cues: string[];
   mistakes: string[];
   setup?: string;

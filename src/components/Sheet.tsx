@@ -4,12 +4,14 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 interface SheetProps {
   open: boolean;
   title: string;
+  /** Маленькая подпись над заголовком: «Как делать». */
+  kicker?: string;
   onClose: () => void;
   children: ReactNode;
 }
 
-/** Нижняя шторка поверх экрана. Закрывается тапом по фону, крестиком и Escape. */
-export function Sheet({ open, title, onClose, children }: SheetProps) {
+/** Нижняя шторка поверх экрана (REDESIGN: фон `--bg`, карточки внутри — `--surface`). Закрывается тапом по фону, крестиком и Escape. */
+export function Sheet({ open, title, kicker, onClose, children }: SheetProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +37,7 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
         type="button"
         aria-label="Закрыть"
         tabIndex={-1}
-        className="animate-fade-in absolute inset-0 touch-none bg-black/50"
+        className="animate-fade-in absolute inset-0 touch-none bg-black/60"
         onClick={onClose}
       />
       <div
@@ -44,22 +46,28 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="animate-sheet-in pb-safe relative flex max-h-[92dvh] flex-col rounded-t-3xl bg-surface text-ink shadow-2xl outline-none"
+        className="animate-sheet-in pb-safe relative flex max-h-[92dvh] flex-col rounded-t-[28px] bg-bg text-ink outline-none"
       >
-        <div className="flex shrink-0 touch-none items-center justify-between px-5 pt-4 pb-2">
-          <h2 id={titleId} className="text-lg font-semibold">
-            {title}
-          </h2>
+        <div className="flex shrink-0 touch-none flex-col items-center pt-2.5">
+          <div className="h-[5px] w-10 rounded-full bg-line" aria-hidden />
+        </div>
+        <div className="flex shrink-0 touch-none items-start justify-between gap-3 px-5 pt-2 pb-3">
+          <div className="min-w-0 flex-1">
+            {kicker && <p className="text-[13px] leading-[18px] text-muted">{kicker}</p>}
+            <h2 id={titleId} className="font-display text-[22px] leading-[30px] font-bold">
+              {title}
+            </h2>
+          </div>
           <button
             type="button"
             aria-label="Закрыть"
             onClick={onClose}
-            className="-mr-2 flex h-11 w-11 items-center justify-center rounded-full text-muted active:bg-track"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface text-ink active:bg-track"
           >
-            <X size={22} />
+            <X size={20} strokeWidth={2.2} />
           </button>
         </div>
-        <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-4">{children}</div>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-4">{children}</div>
       </div>
     </div>
   );

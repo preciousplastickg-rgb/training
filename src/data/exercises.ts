@@ -28,6 +28,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['quads', 'glutes'], secondary: ['abs'] },
+    muscleRoles: { quads: 'разгибают колени', glutes: 'поднимают таз', abs: 'держит корпус' },
     cues: [
       'Гантель вертикально у груди, локти вниз',
       'Колени идут по направлению носков',
@@ -45,6 +46,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['quads', 'glutes'], secondary: ['hamstrings', 'lower_back'] },
+    muscleRoles: { quads: 'главная работа', glutes: 'разгибают таз', hamstrings: 'помогают внизу', lower_back: 'держит спину прямой' },
     cues: [
       'Гриф на трапециях, хват чуть шире плеч',
       'Вдох и напряжение пресса перед каждым повтором',
@@ -62,6 +64,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['chest', 'triceps'], secondary: ['front_delt'] },
+    muscleRoles: { chest: 'главная работа', triceps: 'дожимают вверху', front_delt: 'помогает со старта' },
     cues: [
       'Лопатки сведены и опущены, ступни в пол',
       'Гриф опускается на низ груди, локти под 45–70° к корпусу',
@@ -79,6 +82,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: true,
     muscles: { primary: ['lats', 'upper_back'], secondary: ['biceps', 'rear_delt'] },
+    muscleRoles: { lats: 'тянут локоть назад', upper_back: 'сводит лопатку', biceps: 'сгибает руку', rear_delt: 'помогает вверху' },
     cues: [
       'Опора рукой и коленом о скамью, спина параллельно полу',
       'Тяни локтем к бедру, а не к плечу',
@@ -96,6 +100,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['hamstrings', 'glutes'], secondary: ['lower_back'] },
+    muscleRoles: { hamstrings: 'главная работа, тянутся внизу', glutes: 'разгибают таз вверху', lower_back: 'держит спину прямой' },
     cues: [
       'Колени чуть согнуты и не меняют угол',
       'Таз уходит назад, гантели скользят по бёдрам',
@@ -113,6 +118,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['hamstrings', 'glutes'], secondary: ['lower_back', 'upper_back'] },
+    muscleRoles: { hamstrings: 'главная работа', glutes: 'разгибают таз вверху', lower_back: 'держит спину прямой', upper_back: 'держит лопатки сведёнными' },
     cues: [
       'Как с гантелями: гриф по бёдрам, таз назад',
       'Опускать до середины голени или пока спина ровная',
@@ -130,6 +136,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['side_delt'], secondary: ['upper_back'] },
+    muscleRoles: { side_delt: 'поднимает руку в сторону', upper_back: 'стабилизирует лопатку' },
     cues: [
       'Лёгкий наклон корпуса вперёд, локти чуть согнуты',
       'Поднимай до уровня плеч, ведёт локоть',
@@ -147,6 +154,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'seconds',
     perSide: false,
     muscles: { primary: ['abs'], secondary: ['glutes', 'front_delt'] },
+    muscleRoles: { abs: 'держит корпус', glutes: 'держат таз', front_delt: 'держит плечи' },
     cues: ['Локти под плечами, тело — прямая линия', 'Ягодицы и пресс напряжены', 'Дыши ровно'],
     mistakes: ['Провисает поясница', 'Таз задран вверх'],
     setup: 'На коврике, опора на предплечья и носки.',
@@ -160,6 +168,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['front_delt', 'side_delt'], secondary: ['triceps'] },
+    muscleRoles: { front_delt: 'главная работа', side_delt: 'поднимает руку', triceps: 'дожимает вверху' },
     cues: [
       'Спинка 80–90°, гантели на уровне ушей',
       'Локти чуть впереди корпуса',
@@ -177,6 +186,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['lats'], secondary: ['biceps', 'upper_back'] },
+    muscleRoles: { lats: 'главная работа', biceps: 'сгибает руку', upper_back: 'сводит лопатки' },
     cues: [
       'Хват чуть шире плеч, грудь вперёд, лёгкий отклон назад',
       'Тяни к верху груди, локти вниз и назад',
@@ -194,6 +204,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'reps',
     perSide: false,
     muscles: { primary: ['lats'], secondary: ['biceps', 'upper_back'] },
+    muscleRoles: { lats: 'главная работа', biceps: 'сгибает руку', upper_back: 'сводит лопатки' },
     cues: [
       'Хват чуть шире плеч, начни с опускания лопаток',
       'Тянись грудью к перекладине',
@@ -211,6 +222,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: true,
     muscles: { primary: ['quads', 'glutes'], secondary: ['hamstrings'] },
+    muscleRoles: { quads: 'разгибают колено', glutes: 'поднимают таз', hamstrings: 'помогают внизу' },
     cues: [
       'Задняя нога на скамье, передняя стопа далеко вперёд',
       'Опускайся вертикально вниз',
@@ -228,6 +240,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['quads', 'glutes'], secondary: ['hamstrings'] },
+    muscleRoles: { quads: 'главная работа', glutes: 'разгибают таз', hamstrings: 'помогают внизу' },
     cues: [
       'Стопы на ширине плеч в середине платформы',
       'Опускай до 90° в коленях, поясница прижата',
@@ -245,6 +258,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['chest', 'front_delt'], secondary: ['triceps'] },
+    muscleRoles: { chest: 'верх груди, главная', front_delt: 'помогает со старта', triceps: 'дожимает вверху' },
     cues: [
       'Скамья 30°, лопатки сведены',
       'Гантели опускаются до уровня груди',
@@ -262,6 +276,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['chest', 'triceps'], secondary: ['front_delt'] },
+    muscleRoles: { chest: 'главная работа', triceps: 'дожимают вверху', front_delt: 'помогает со старта' },
     cues: [
       'Как жим штанги: лопатки сведены, ступни в пол',
       'Гантели до уровня груди',
@@ -279,6 +294,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['biceps'], secondary: [] },
+    muscleRoles: { biceps: 'главная работа' },
     cues: ['Локти прижаты к корпусу', 'Подъём без раскачки', 'Вниз медленно, 2 секунды'],
     mistakes: ['Раскачка спиной', 'Локти уходят вперёд'],
     setup: 'Стоя, гантели в опущенных руках ладонями вперёд.',
@@ -292,6 +308,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['triceps'], secondary: [] },
+    muscleRoles: { triceps: 'главная работа' },
     cues: ['Локти у корпуса и неподвижны', 'Разгибай до конца, канат разводи внизу', 'Вверх до 90° в локте'],
     mistakes: ['Работа плечами и корпусом', 'Локти расходятся'],
     setup: 'Верхний блок, канатная рукоять. Встань близко, лёгкий наклон вперёд.',
@@ -305,6 +322,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'reps',
     perSide: false,
     muscles: { primary: ['abs'], secondary: [] },
+    muscleRoles: { abs: 'подкручивает таз' },
     cues: ['Подкручивай таз, а не просто поднимай ноги', 'Без раскачки', 'Новичку — с согнутыми коленями'],
     mistakes: ['Раскачка корпусом', 'Опускание рывком'],
     setup: 'Вис на перекладине прямым хватом или упор на локтях в брусьях.',
@@ -318,6 +336,7 @@ export const EXERCISES: Exercise[] = [
     unit: 'kg',
     perSide: false,
     muscles: { primary: ['abs'], secondary: [] },
+    muscleRoles: { abs: 'скручивает корпус' },
     cues: ['На коленях, канат у головы', 'Скругляй спину, локти тянутся к бёдрам', 'Бёдра неподвижны'],
     mistakes: ['Тяга руками', 'Сгибание в тазу вместо скручивания'],
     setup: 'Верхний блок, канатная рукоять. Встань на колени в шаге от блока.',

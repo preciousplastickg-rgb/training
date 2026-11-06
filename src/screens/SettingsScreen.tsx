@@ -146,7 +146,7 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
           <p className="text-sm text-muted">Сборка {__APP_BUILD__}</p>
           <ViewportDiagnostics />
           <p className="mt-1 text-sm text-muted">Карта мышц: body-highlighter, MIT</p>
-          <p className="text-sm text-muted">Шрифт: IBM Plex Sans, SIL Open Font License 1.1</p>
+          <p className="text-sm text-muted">Шрифты: Unbounded и Manrope, SIL Open Font License 1.1</p>
           <button type="button" onClick={() => navigate('dev/animations')} className="mt-2 flex min-h-11 w-full items-center justify-between text-left text-accent">
             Позы упражнений (проверка манекена) <ChevronRight size={18} aria-hidden />
           </button>

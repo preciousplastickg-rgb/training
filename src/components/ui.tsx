@@ -1,3 +1,7 @@
+// Общие компоненты — редизайн «Энергия», вариант B (docs/design/REDESIGN.md 1.3):
+// карточки 26 px без теней, кнопки и таблетки полностью скруглённые, лаймовый главный CTA,
+// кнопки ± круглые на --track, капс-метки 12/800.
+
 import { Minus, Plus } from 'lucide-react';
 import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
@@ -15,17 +19,26 @@ export function Card({ children, className = '', onClick }: { children: ReactNod
             onClick();
           }
         }}
-        className={`block w-full cursor-pointer rounded-2xl bg-surface p-4 text-left shadow-[0_1px_2px_rgb(0_0_0/0.04)] active:opacity-80 ${className}`}
+        className={`block w-full cursor-pointer rounded-[26px] bg-surface p-4 text-left active:opacity-80 ${className}`}
       >
         {children}
       </div>
     );
   }
-  return <section className={`rounded-2xl bg-surface p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)] ${className}`}>{children}</section>;
+  return <section className={`rounded-[26px] bg-surface p-4 ${className}`}>{children}</section>;
+}
+
+/** Тёмная карточка-«герой» (тренировка дня, итоги питания, профиль): `--hero`, белый текст, акцент лаймом. */
+export function HeroCard({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <section className={`rounded-[28px] border border-hero-line bg-hero p-5 text-white ${className}`}>{children}</section>;
 }
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
+/**
+ * Кнопка-таблетка. `primary` — лайм, 58 px (`lg`) для главного действия экрана;
+ * `secondary` — на дорожке `--track`; `surface` в className — белая таблетка на фоне `--bg`.
+ */
 export function Button({
   variant = 'primary',
   size = 'md',
@@ -34,16 +47,16 @@ export function Button({
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'md' | 'lg' | 'sm' }) {
   const v: Record<Variant, string> = {
-    primary: 'bg-primary text-on-primary',
-    secondary: 'bg-surface-2 text-ink',
-    ghost: 'text-accent',
-    danger: 'bg-danger/10 text-danger',
+    primary: 'bg-primary text-on-primary font-extrabold',
+    secondary: 'bg-track text-ink font-bold',
+    ghost: 'text-accent font-bold',
+    danger: 'bg-danger/10 text-danger font-bold',
   };
-  const s = size === 'lg' ? 'min-h-14 px-6 text-base' : size === 'sm' ? 'min-h-11 px-3 text-sm' : 'min-h-12 px-4 text-base';
+  const s = size === 'lg' ? 'min-h-[58px] px-6 text-[17px]' : size === 'sm' ? 'min-h-11 px-4 text-sm' : 'min-h-12 px-5 text-[15px]';
   return (
     <button
       type="button"
-      className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-[transform,opacity] active:scale-[0.98] disabled:opacity-40 ${v[variant]} ${s} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-full transition-[transform,opacity] active:scale-[0.98] disabled:opacity-40 ${v[variant]} ${s} ${className}`}
       {...rest}
     >
       {children}
@@ -65,7 +78,7 @@ export function IconButton({ label, children, className = '', ...rest }: ButtonH
 }
 
 /**
- * Степпер ±: крупные кнопки (в режиме тренировки — 56 px).
+ * Степпер ±: круглые кнопки 48 px, в режиме тренировки (`big`) — 56 px.
  * С `onEdit` число можно и набрать: тап по нему открывает ввод, Enter или уход из поля — сохраняет.
  */
 export function Stepper({
@@ -88,9 +101,9 @@ export function Stepper({
   /** Текст в поле ввода, если `value` — не строка и не число. */
   editValue?: string;
 }) {
-  const btn = big ? 'h-14 w-14' : 'h-11 w-11';
+  const btn = big ? 'h-14 w-14' : 'h-12 w-12';
   const [editing, setEditing] = useState(false);
-  const text = `${big ? 'text-[22px]' : 'text-lg'} font-semibold tabular-nums`;
+  const text = `font-display ${big ? 'text-[26px]' : 'text-[22px]'} font-bold tabular-nums`;
   const initial = editValue ?? (typeof value === 'string' || typeof value === 'number' ? String(value) : '');
   const commit = (raw: string) => {
     setEditing(false);
@@ -98,8 +111,8 @@ export function Stepper({
   };
   return (
     <div className="flex items-center gap-1">
-      <button type="button" aria-label={`${label}: меньше`} onClick={onDec} className={`${btn} flex shrink-0 items-center justify-center rounded-xl bg-surface-2 active:scale-95`}>
-        <Minus size={big ? 22 : 18} aria-hidden />
+      <button type="button" aria-label={`${label}: меньше`} onClick={onDec} className={`${btn} flex shrink-0 items-center justify-center rounded-full bg-track active:scale-95`}>
+        <Minus size={big ? 22 : 20} strokeWidth={2.4} aria-hidden />
       </button>
       {editing ? (
         <input
@@ -118,24 +131,25 @@ export function Stepper({
           type="button"
           onClick={() => setEditing(true)}
           aria-label={`${label}: ввести число`}
-          className={`min-h-11 min-w-0 flex-1 rounded-lg text-center active:bg-track ${text}`}
+          className={`min-h-11 min-w-0 flex-1 rounded-2xl text-center active:bg-track ${text}`}
         >
           {value}
-          {unit && <span className="ml-0.5 text-xs font-normal text-muted">{unit}</span>}
+          {unit && <span className="ml-1 font-sans text-sm font-bold text-muted">{unit}</span>}
         </button>
       ) : (
         <div className={`min-w-0 flex-1 text-center ${text}`} aria-label={label}>
           {value}
-          {unit && <span className="ml-0.5 text-xs font-normal text-muted">{unit}</span>}
+          {unit && <span className="ml-1 font-sans text-sm font-bold text-muted">{unit}</span>}
         </div>
       )}
-      <button type="button" aria-label={`${label}: больше`} onClick={onInc} className={`${btn} flex shrink-0 items-center justify-center rounded-xl bg-surface-2 active:scale-95`}>
-        <Plus size={big ? 22 : 18} aria-hidden />
+      <button type="button" aria-label={`${label}: больше`} onClick={onInc} className={`${btn} flex shrink-0 items-center justify-center rounded-full bg-track active:scale-95`}>
+        <Plus size={big ? 22 : 20} strokeWidth={2.4} aria-hidden />
       </button>
     </div>
   );
 }
 
+/** Таблетка-переключатель: активная — лайм. */
 export function Chip({
   active = false,
   children,
@@ -148,8 +162,8 @@ export function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-medium ${
-        active ? 'bg-primary text-on-primary' : 'bg-surface-2 text-ink'
+      className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold ${
+        active ? 'bg-primary text-on-primary' : 'bg-track text-ink'
       } ${className}`}
       {...rest}
     >
@@ -158,9 +172,22 @@ export function Chip({
   );
 }
 
-export function Tabs<T extends string>({ value, onChange, items }: { value: T; onChange: (v: T) => void; items: { value: T; label: string }[] }) {
+/**
+ * Вкладки. `pill` (Прогресс): белая подложка, активная — чёрная с лаймовым текстом.
+ * `lime` (переключатель в «Как делать»): подложка `--surface-2`, активная — лайм.
+ */
+export function Tabs<T extends string>({
+  value, onChange, items, variant = 'pill',
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  items: { value: T; label: string }[];
+  variant?: 'pill' | 'lime';
+}) {
+  const box = variant === 'lime' ? 'bg-surface-2' : 'bg-surface';
+  const on = variant === 'lime' ? 'bg-primary text-on-primary font-extrabold' : 'bg-ink text-primary font-bold';
   return (
-    <div role="tablist" className="flex gap-1 rounded-2xl bg-surface-2 p-1">
+    <div role="tablist" className={`flex gap-1 rounded-full p-1 ${box}`}>
       {items.map((it) => (
         <button
           key={it.value}
@@ -168,7 +195,7 @@ export function Tabs<T extends string>({ value, onChange, items }: { value: T; o
           role="tab"
           aria-selected={value === it.value}
           onClick={() => onChange(it.value)}
-          className={`min-h-11 min-w-0 flex-auto whitespace-nowrap rounded-xl px-2 text-sm font-medium ${value === it.value ? 'bg-surface text-ink shadow-sm' : 'text-muted'}`}
+          className={`min-h-11 min-w-0 flex-auto whitespace-nowrap rounded-full px-2 text-sm transition-colors ${value === it.value ? on : 'font-semibold text-muted'}`}
         >
           {it.label}
         </button>
@@ -203,7 +230,7 @@ export function Field({
   return (
     <label className="block">
       <span className="mb-1 block text-sm text-muted">{label}</span>
-      <span className="flex min-h-12 items-center rounded-xl border border-line bg-surface px-3 focus-within:border-accent">
+      <span className="flex min-h-12 items-center rounded-2xl border border-line bg-surface px-4 focus-within:border-ink">
         <input className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none" {...rest} />
         {suffix && <span className="text-sm text-muted">{suffix}</span>}
       </span>
@@ -222,8 +249,8 @@ export function ConfirmDelete({ label, note, onConfirm, className = '' }: { labe
     );
   }
   return (
-    <div className={`rounded-2xl bg-danger/10 p-3 ${className}`} role="alertdialog" aria-label="Подтверждение удаления">
-      <p className="mb-2 text-sm font-medium text-danger">Точно удалить?{note ? ` ${note}` : ''}</p>
+    <div className={`rounded-[22px] bg-danger/10 p-3 ${className}`} role="alertdialog" aria-label="Подтверждение удаления">
+      <p className="mb-2 text-sm font-bold text-danger">Точно удалить?{note ? ` ${note}` : ''}</p>
       <div className="flex gap-2">
         <Button variant="danger" className="flex-1 bg-danger text-white" onClick={() => void onConfirm()}>
           Да, удалить
@@ -236,10 +263,15 @@ export function ConfirmDelete({ label, note, onConfirm, className = '' }: { labe
   );
 }
 
+/** Капс-метка: «КАЛОРИИ», «В НИЖНЕЙ ТОЧКЕ». Текст передавать в обычном регистре — капс делает CSS. */
+export function Caps({ children, className = '', as: Tag = 'p' }: { children: ReactNode; className?: string; as?: 'p' | 'h2' | 'h3' | 'span' }) {
+  return <Tag className={`caps text-muted ${className}`}>{children}</Tag>;
+}
+
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-2 flex items-center justify-between">
-      <h2 className="text-sm font-semibold text-muted">{children}</h2>
+    <div className="mb-2 flex items-center justify-between px-1">
+      <Caps as="h2">{children}</Caps>
       {action}
     </div>
   );

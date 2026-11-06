@@ -37,7 +37,7 @@ test('«Как делать»: фигура, режимы «Движение / �
   await expect(sheet.getByRole('tab', { name: 'Движение' })).toHaveAttribute('aria-selected', 'true');
   // Список углов виден всегда, а не только в крайней точке анимации.
   await expect(sheet.getByText('В нижней точке')).toBeVisible();
-  await expect(sheet.getByText('Корпус')).toBeVisible();
+  await expect(sheet.getByText('Корпус', { exact: true })).toBeVisible();
   await sheet.getByRole('tab', { name: 'Низ' }).click();
   // Стоп-кадр: на фигуре номера подсказок.
   await expect(sheet.getByRole('img', { name: 'Техника упражнения' }).getByText('1', { exact: true })).toBeVisible();

@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { EXERCISES, MUSCLE_NAMES } from '../../data/exercises';
 import { MUSCLE_SLUGS } from '../../data/anatomy';
 import { anteriorData, posteriorData, type MapSlug } from '../../data/muscleMap';
-import type { Muscle } from '../../db/types';
+import type { Exercise, Muscle } from '../../db/types';
+import { layoutCallouts, MAP_PX } from '../../domain/muscleCallouts';
 
 export { MUSCLE_SLUGS };
 
@@ -112,6 +113,57 @@ export function MuscleMapPair({ colors, legend = true, width = 130 }: { colors: 
             <i className="h-3 w-3 rounded-full" style={{ background: 'var(--m-secondary)' }} /> Помогают
           </span>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Одна карта 130 × 286 с выносками (REDESIGN 3.2): точка на мышце → линия до x = 146 → подпись с x = 152.
+ * Основные — сплошная линия и зелёная подпись, помогающие — пунктир и подпись светлее.
+ * Мышцы, которых на этой стороне не видно, перечислены под картой.
+ */
+export function MuscleCallouts({ ex }: { ex: Pick<Exercise, 'muscles' | 'muscleRoles'> }) {
+  const { view, callouts, hidden } = layoutCallouts(ex.muscles.primary, ex.muscles.secondary);
+  const colors = exerciseColors(ex.muscles.primary, ex.muscles.secondary);
+  const H = 220 * MAP_PX;
+  return (
+    <div>
+      <div className="relative" style={{ height: H }}>
+        <div className="absolute top-0 left-0">
+          <MuscleMap view={view} colors={colors} width={100 * MAP_PX} glow={false} />
+        </div>
+        <svg width={150} height={H} viewBox={`0 0 150 ${H}`} aria-hidden className="absolute top-0 left-0">
+          {callouts.map((c) => {
+            const primary = c.role === 'primary';
+            const ly = c.labelY + 10;
+            return (
+              <g key={c.muscle}>
+                <path
+                  d={`M${c.anchor.x} ${c.anchor.y}L138 ${c.anchor.y}L146 ${ly}`}
+                  fill="none"
+                  stroke={primary ? 'var(--m-primary)' : 'var(--muted)'}
+                  strokeWidth={1.2}
+                  strokeDasharray={primary ? undefined : '3 3'}
+                />
+                <circle cx={c.anchor.x} cy={c.anchor.y} r={3.5} fill={primary ? 'var(--m-primary)' : 'var(--m-secondary)'} stroke="var(--surface)" strokeWidth={1.5} />
+              </g>
+            );
+          })}
+        </svg>
+        {callouts.map((c) => (
+          <div key={c.muscle} className="absolute right-0 flex flex-col" style={{ left: 152, top: c.labelY }}>
+            <span className={`text-[15px] leading-5 ${c.role === 'primary' ? 'font-bold text-[color:var(--m-text)]' : 'font-semibold text-ink/80'}`}>
+              {MUSCLE_NAMES[c.muscle]}
+            </span>
+            {ex.muscleRoles?.[c.muscle] && <span className="text-xs leading-4 text-muted">{ex.muscleRoles[c.muscle]}</span>}
+          </div>
+        ))}
+      </div>
+      {hidden.length > 0 && (
+        <p className="mt-2 text-xs text-muted">
+          {view === 'back' ? 'Не видно сзади' : 'Не видно спереди'}: {hidden.map((h) => `${MUSCLE_NAMES[h.muscle].toLowerCase()}${ex.muscleRoles?.[h.muscle] ? ` — ${ex.muscleRoles[h.muscle]}` : ''}`).join('; ')}
+        </p>
       )}
     </div>
   );

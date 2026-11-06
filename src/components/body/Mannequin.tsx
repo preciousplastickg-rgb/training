@@ -225,6 +225,25 @@ function Body({ skin, plates, hl, gid, symmetric }: { skin: SkinShape[]; plates:
             <g>
               {shapes.map((sh) => <path key={sh.key} d={sh.d} fill={`url(#${gid}-${sh.key})`} />)}
             </g>
+            {/* Группы мышц видны формами (REDESIGN 3.1): чёткие области, обрезанные по телу; рабочие — цветом */}
+            <g clipPath={`url(#${gid}-clip-${layer})`}>
+              {glow.filter((pl) => layerOf(pl) === layer).map((pl) => {
+                const h = hl(pl.muscles);
+                return (
+                  <polygon
+                    key={'a' + pl.key}
+                    points={ptsAttr(pl.pts)}
+                    fill={h ? h.color : '#FFFFFF'}
+                    fillOpacity={h ? 0.92 : 0.07}
+                    stroke={h ? '#0E2A19' : 'var(--body-line)'}
+                    strokeOpacity={h ? 0.55 : 0.9}
+                    strokeWidth={0.7}
+                    strokeLinejoin="round"
+                    style={{ transition: 'fill 260ms ease-out, fill-opacity 260ms ease-out' }}
+                  />
+                );
+              })}
+            </g>
             {/* Мышцы под кожей: широкое мягкое свечение и более чёткое ядро, обрезанные по телу */}
             <g clipPath={`url(#${gid}-clip-${layer})`}>
               {(['blur', 'core'] as const).map((pass) => (
