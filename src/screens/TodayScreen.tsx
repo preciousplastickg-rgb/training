@@ -349,10 +349,10 @@ function WeightRow({ date, body, fallback }: { date: string; body: BodyEntry[]; 
   };
   const bump = (d: number) => set(value + d);
   const note = todayEntry
-    ? `кг · записано${change !== null ? ` · ${change <= 0 ? '↓' : '↑'}${formatScaled(Math.abs(change), 100, 1)} за неделю` : avg !== null ? ` · среднее ${formatScaled(avg, 100, 1)}` : ''}`
+    ? `записано${change !== null ? ` · ${change <= 0 ? '↓' : '↑'}${formatScaled(Math.abs(change), 100, 1)} за неделю` : avg !== null ? ` · среднее ${formatScaled(avg, 100, 1)}` : ''}`
     : avg === null
-      ? 'кг · ещё не записан'
-      : `кг · среднее ${formatScaled(avg, 100, 1)}`;
+      ? 'ещё не записан'
+      : `среднее ${formatScaled(avg, 100, 1)}`;
   const circle = 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full';
   return (
     <Card className="flex items-center gap-2 py-[18px]! pr-[18px]! pl-5!">
@@ -375,9 +375,12 @@ function WeightRow({ date, body, fallback }: { date: string; body: BodyEntry[]; 
             className="font-display w-full border-b-2 border-ink bg-transparent text-[26px] font-bold tabular-nums outline-none"
           />
         ) : (
-          <button type="button" onClick={() => setEditing(true)} aria-label="Ввести вес" className="min-h-8 text-left active:opacity-70">
-            <span className="font-display text-[26px] leading-8 font-bold tabular-nums">{formatScaled(value, 100, 1)}</span>
-            <span className="ml-1 text-sm font-semibold text-muted">{note}</span>
+          <button type="button" onClick={() => setEditing(true)} aria-label="Ввести вес" className="flex min-h-8 flex-col text-left active:opacity-70">
+            <span className="font-display text-[26px] leading-8 font-bold tabular-nums">
+              {formatScaled(value, 100, 1)}
+              <span className="ml-1 font-sans text-sm font-semibold text-muted">кг</span>
+            </span>
+            <span className="text-[13px] leading-[18px] font-semibold text-muted">{note}</span>
           </button>
         )}
       </div>

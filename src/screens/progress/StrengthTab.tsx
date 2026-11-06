@@ -75,7 +75,7 @@ export function StrengthTab() {
                 <li key={e.id}>
                   <button type="button" onClick={() => setOpen(e.id)} className="flex min-h-[70px] w-full items-center gap-3 border-t border-line px-[18px] text-left active:bg-track">
                     <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-[15px] font-extrabold">{e.name}</span>
+                      <span className="text-[15px] leading-5 font-extrabold">{e.name}</span>
                       <span className="text-[13px] text-muted tabular-nums">
                         {top ? `${formatKg(top.weight, false)} × ${top.reps} · ` : ''}
                         {lastDate === today ? 'сегодня' : formatDayMonth(lastDate!)}

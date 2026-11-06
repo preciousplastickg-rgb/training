@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, Waves } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { openSheet } from '../../app/uiStore';
 import { Sheet } from '../../components/Sheet';
-import { Button, Card, Chip } from '../../components/ui';
+import { Button, Caps, Card, Chip } from '../../components/ui';
 import { CALIBRATION_DATE, PROGRAM_END, REST_DAY_STEPS } from '../../data/program';
 import { DEFAULT_SETTINGS, updateSettings } from '../../db/db';
 import type { DayOverride } from '../../db/types';
@@ -30,7 +30,7 @@ function shiftMonth(month: string, n: number): string {
 }
 
 /** Календарь тренировок: какой день зал A или B, бассейн, отдых; прошедшие — по факту. */
-export function CalendarCard() {
+export function CalendarCard({ initialDate }: { initialDate?: string | null } = {}) {
   const today = useToday();
   const sessions = useSessions();
   const sets = useAllSets();
@@ -38,8 +38,9 @@ export function CalendarCard() {
   const pool = usePool();
   const settings = useSettings() ?? DEFAULT_SETTINGS;
   const clamp = (m: string) => (m < FIRST_MONTH ? FIRST_MONTH : m > LAST_MONTH ? LAST_MONTH : m);
-  const [month, setMonth] = useState(() => clamp(today.slice(0, 7)));
-  const [selected, setSelected] = useState<string | null>(null);
+  // Открыт тапом по дню недели — сразу этот день.
+  const [month, setMonth] = useState(() => clamp((initialDate || today).slice(0, 7)));
+  const [selected, setSelected] = useState<string | null>(initialDate || null);
 
   const first = `${month}-01`;
   const last = addDays(`${shiftMonth(month, 1)}-01`, -1);
@@ -193,10 +194,10 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
 
   return (
     <Sheet open title={formatWeekdayDate(day.date)} onClose={onClose}>
-      <div className="flex flex-col gap-3 px-2 pb-2">
+      <div className="flex flex-col gap-3 px-1 pb-2">
         {editable && (
           <section>
-            <p className="mb-1 text-xs font-semibold text-muted">ЧТО В ЭТОТ ДЕНЬ</p>
+            <Caps className="mb-2">Что в этот день</Caps>
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="План на день">
               {OVERRIDES.map((o) => (
                 <Chip key={o.v} active={override === o.v} onClick={() => setOverride(o.v)} role="radio" aria-checked={override === o.v}>
@@ -207,8 +208,8 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
             <p className="mt-1 text-xs text-muted">Расписание на всю неделю — в настройках. Буквы A/B чередуются сами.</p>
           </section>
         )}
-        <section className="rounded-2xl bg-surface-2 p-3">
-          <p className="text-xs font-semibold text-muted">ПЛАН{plan.overridden ? ' · ИЗМЕНЁН ВРУЧНУЮ' : ''}</p>
+        <section className="rounded-[22px] bg-surface p-4">
+          <Caps>План{plan.overridden ? ' · изменён вручную' : ''}</Caps>
           {plan.kind === 'gym' && day.workout && (
             <>
               <p className="mt-1 font-semibold">
@@ -244,8 +245,8 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
         </section>
 
         {past && (
-          <section className="rounded-2xl border border-line p-3">
-            <p className="text-xs font-semibold text-muted">СДЕЛАНО</p>
+          <section className="rounded-[22px] bg-surface p-4">
+            <Caps>Сделано</Caps>
             {day.session && (
               <button type="button" onClick={() => setDetails({ gym: day.session })} className="mt-1 flex min-h-11 w-full items-center gap-2 text-left">
                 <span className="flex-1">

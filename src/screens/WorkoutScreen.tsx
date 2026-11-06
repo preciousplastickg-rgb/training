@@ -38,7 +38,8 @@ export function WorkoutScreen() {
   const pool = usePool();
   const active = useActiveSession();
   const [info, setInfo] = useState<string | null>(null);
-  const [calendar, setCalendar] = useState(false);
+  // null — закрыт, '' — открыт на текущем месяце, дата — открыт сразу на этом дне.
+  const [calendar, setCalendar] = useState<string | null>(null);
   const auto = nextWorkout(sessions);
   const [override, setOverride] = useState<'A' | 'B' | null>(null);
   const workout = override ?? auto;
@@ -118,11 +119,11 @@ export function WorkoutScreen() {
 
         <div className="flex items-baseline justify-between px-1.5 pt-2.5">
           <h2 className="font-display text-lg font-bold">Эта неделя</h2>
-          <button type="button" onClick={() => setCalendar(true)} className="min-h-11 text-sm font-bold underline underline-offset-2">
+          <button type="button" onClick={() => setCalendar('')} className="min-h-11 text-sm font-bold underline underline-offset-2">
             Календарь
           </button>
         </div>
-        <WeekList rows={week} />
+        <WeekList rows={week} onPick={(d) => setCalendar(d)} />
         {(stats.gymPlanned > 0 || stats.poolPlanned > 0) && (
           <p className="px-1.5 text-sm text-muted">
             {MONTHS[Number(month.slice(5)) - 1]}: зал {stats.gymDone} из {stats.gymPlanned} · бассейн {stats.poolDone} из {stats.poolPlanned}
@@ -132,8 +133,8 @@ export function WorkoutScreen() {
         <SessionHistory sessions={sessions} />
       </div>
       <ExerciseSheet exerciseId={info} onClose={() => setInfo(null)} />
-      <Sheet open={calendar} title="Календарь" kicker="Зал, бассейн и отдых по дням" onClose={() => setCalendar(false)}>
-        <CalendarCard />
+      <Sheet open={calendar !== null} title="Календарь" kicker="Зал, бассейн и отдых по дням" onClose={() => setCalendar(null)}>
+        <CalendarCard initialDate={calendar || null} />
       </Sheet>
     </>
   );
@@ -176,10 +177,10 @@ function PlanList({
               type="button"
               onClick={() => onInfo(p.exercise.id)}
               aria-label={`${p.exercise.name}: как делать`}
-              className="flex min-h-[46px] w-full items-center gap-3 border-t border-[#26282C] text-left active:opacity-70"
+              className="flex min-h-[46px] w-full items-center gap-3 border-t border-[#26282C] py-1.5 text-left active:opacity-70"
             >
-              <span className="font-display w-[22px] text-[13px] font-semibold text-primary tabular-nums">{String(i + 1).padStart(2, '0')}</span>
-              <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{p.exercise.name}</span>
+              <span className="font-display w-[22px] shrink-0 text-[13px] font-semibold text-primary tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+              <span className="min-w-0 flex-1 text-[15px] leading-5 font-semibold">{p.exercise.name}</span>
               <span className="text-[15px] font-extrabold tabular-nums">{value}</span>
               <span className="shrink-0 text-right text-[13px] whitespace-nowrap text-muted-on-ink tabular-nums">{range}</span>
             </button>
@@ -201,29 +202,31 @@ const PILL: Record<WeekRow['status'], { text: string; cls: string }> = {
   finished: { text: 'финиш', cls: 'text-muted' },
 };
 
-/** «Эта неделя»: 7 строк по 60 px — день, что сделано или по плану, статус-таблетка; сегодня — на лаймовой подложке. */
-function WeekList({ rows }: { rows: WeekRow[] }) {
+/** «Эта неделя»: 7 строк по 60 px — день, что сделано или по плану, статус-таблетка; сегодня — на лаймовой подложке. Тап — день в календаре. */
+function WeekList({ rows, onPick }: { rows: WeekRow[]; onPick: (date: string) => void }) {
   return (
     <Card className="overflow-hidden p-0!">
       <ol aria-label="Эта неделя">
         {rows.map((r) => {
           const pill = PILL[r.status];
           return (
-            <li
-              key={r.date}
-              className="flex min-h-[60px] items-center gap-3.5 border-t border-line px-[18px] first:border-t-0"
-              style={r.today ? { background: 'color-mix(in srgb, var(--lime) 18%, var(--surface))' } : undefined}
-              aria-current={r.today ? 'date' : undefined}
-            >
-              <span className="flex w-[34px] flex-col">
-                <span className="text-xs font-bold text-muted">{r.name}</span>
-                <span className="font-display text-[17px] font-bold tabular-nums">{r.day}</span>
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[15px] font-bold">{r.title}</span>
-                {r.sub && <span className="truncate text-[13px] text-muted">{r.sub}</span>}
-              </span>
-              <span className={`rounded-full px-2.5 py-[5px] text-xs font-extrabold whitespace-nowrap ${pill.cls}`}>{pill.text}</span>
+            <li key={r.date} className="border-t border-line first:border-t-0" aria-current={r.today ? 'date' : undefined}>
+              <button
+                type="button"
+                onClick={() => onPick(r.date)}
+                className="flex min-h-[60px] w-full items-center gap-3.5 px-[18px] text-left active:opacity-70"
+                style={r.today ? { background: 'color-mix(in srgb, var(--lime) 18%, var(--surface))' } : undefined}
+              >
+                <span className="flex w-[34px] flex-col">
+                  <span className="text-xs font-bold text-muted">{r.name}</span>
+                  <span className="font-display text-[17px] font-bold tabular-nums">{r.day}</span>
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-[15px] font-bold">{r.title}</span>
+                  {r.sub && <span className="truncate text-[13px] text-muted">{r.sub}</span>}
+                </span>
+                <span className={`rounded-full px-2.5 py-[5px] text-xs font-extrabold whitespace-nowrap ${pill.cls}`}>{pill.text}</span>
+              </button>
             </li>
           );
         })}

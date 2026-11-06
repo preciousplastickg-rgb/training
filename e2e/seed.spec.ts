@@ -68,7 +68,7 @@ test('правка дня в календаре и удаление ошибоч
   const first = page.getByRole('button', { name: /^\d+ \S+ · Тренировка [AB]/ }).first();
   const title = (await first.textContent()) ?? '';
   await first.click();
-  const sheet = page.getByRole('dialog', { name: /^Тренировка [AB] · / });
+  const sheet = page.getByRole('dialog', { name: /^Тренировка [AB]$/ });
   await expect(sheet.getByText(/подходов/)).toBeVisible();
   await sheet.getByRole('button', { name: 'Удалить тренировку' }).click();
   await sheet.getByRole('button', { name: 'Да, удалить' }).click();

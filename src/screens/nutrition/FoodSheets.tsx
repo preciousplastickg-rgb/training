@@ -492,7 +492,7 @@ function RecipeForm({ foods, onDone }: { foods: Food[]; onDone: () => void }) {
 export function EditEntrySheet({ entry, food, onClose }: { entry: FoodLog | null; food: Food | undefined; onClose: () => void }) {
   if (!entry) return null;
   return (
-    <Sheet open title={food?.name ?? entry.quick?.name ?? 'Запись'} onClose={onClose}>
+    <Sheet open title={food && entry.grams ? 'Изменить порцию' : 'Быстрая запись'} kicker={food && entry.grams ? undefined : entry.quick?.name} onClose={onClose}>
       <div className="flex flex-col pb-2">
         {food && entry.grams ? (
           <GramsPicker
@@ -505,7 +505,7 @@ export function EditEntrySheet({ entry, food, onClose }: { entry: FoodLog | null
             }}
           />
         ) : (
-          <p className="px-1 text-muted">Быстрая запись: {entry.quick?.kcal} ккал, белок {formatMacro(entry.quick?.p ?? 0)}. Удалить — свайпом влево.</p>
+          <p className="px-1 text-muted">{entry.quick?.kcal} ккал, белок {formatMacro(entry.quick?.p ?? 0)}. Изменить нельзя — удали свайпом влево и запиши заново.</p>
         )}
       </div>
     </Sheet>

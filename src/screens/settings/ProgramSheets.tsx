@@ -20,11 +20,14 @@ interface SheetProps {
   onClose: () => void;
 }
 
-export function Row({ label, children }: { label: string; children: ReactNode }) {
+export function Row({ label, sub, children }: { label: string; sub?: string; children: ReactNode }) {
   return (
     <div className="flex min-h-[58px] items-center gap-3 border-t border-line py-1.5 first:border-t-0">
-      <span className="flex-1 text-[16px] font-semibold">{label}</span>
-      <div className="w-44">{children}</div>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-[16px] font-semibold">{label}</span>
+        {sub && <span className="text-[13px] text-muted">{sub}</span>}
+      </span>
+      <div className="w-44 shrink-0">{children}</div>
     </div>
   );
 }
@@ -133,7 +136,7 @@ export function RestSheet({ open, onClose, settings }: SheetProps & { settings: 
   return (
     <Sheet open={open} kicker="Программа" title="Отдых между подходами" onClose={onClose}>
       <Group>
-        <Row label="Долгий: присед, жимы, тяги">
+        <Row label="Долгий" sub="присед, жимы, тяги">
           <Stepper label="Долгий отдых" value={`${settings.restLong} с`} onDec={() => void updateSettings({ restLong: Math.max(30, settings.restLong - 15) })} onInc={() => void updateSettings({ restLong: settings.restLong + 15 })} />
         </Row>
         <Row label="Обычный">

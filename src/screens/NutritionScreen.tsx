@@ -117,9 +117,8 @@ export function NutritionScreen() {
               <div className="flex min-h-[58px] items-center gap-2.5">
                 <span className="flex flex-1 flex-col">
                   <h2 className="font-display text-[17px] font-bold">{MEAL_NAMES[meal]}</h2>
-                  <span className="text-[13px] text-muted">{entries.length ? `${mp} г белка` : 'пока пусто'}</span>
+                  <span className="text-[13px] text-muted tabular-nums">{entries.length ? `${formatInt(byMeal[meal].kcal)} ккал · ${mp} г белка` : 'пока пусто'}</span>
                 </span>
-                {entries.length > 0 && <span className="text-base font-extrabold tabular-nums">{formatInt(byMeal[meal].kcal)}</span>}
                 <button
                   type="button"
                   onClick={() => setAdd({ meal, mode: 'search' })}
@@ -214,10 +213,27 @@ function HeroBar({ label, value, color, right, aria }: { label: string; value: n
 function SwipeRow({ entry, food, kcal, onTap, onDelete }: { entry: FoodLog; food: Food | undefined; kcal: number; onTap: () => void; onDelete: () => void }) {
   const [dx, setDx] = useState(0);
   const start = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const ref = useRef<HTMLLIElement>(null);
+  // Строка уезжает на 88 px, кнопка 72 px: между числом и корзиной остаётся зазор 16 px.
   const REVEAL = 88;
+  // Открытая строка закрывается тапом в любом другом месте.
+  useEffect(() => {
+    if (dx >= 0) return;
+    const close = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setDx(0);
+    };
+    document.addEventListener('pointerdown', close, true);
+    return () => document.removeEventListener('pointerdown', close, true);
+  }, [dx]);
   return (
-    <li className="relative overflow-hidden">
-      <button type="button" onClick={onDelete} aria-label="Удалить запись" className="absolute inset-y-0 right-0 flex w-[88px] items-center justify-center rounded-2xl bg-danger text-white">
+    <li ref={ref} className="relative overflow-hidden">
+      <button
+        type="button"
+        onClick={onDelete}
+        aria-label="Удалить запись"
+        tabIndex={dx < 0 ? 0 : -1}
+        className="absolute inset-y-1 right-0 flex w-[72px] items-center justify-center rounded-2xl bg-danger text-white"
+      >
         <Trash2 size={20} aria-hidden />
       </button>
       <div

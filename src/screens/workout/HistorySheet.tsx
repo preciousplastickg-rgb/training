@@ -26,8 +26,8 @@ export function HistorySheet({ item, sets, onClose }: { item: HistoryItem | null
   const { gym, pool } = item;
   if (pool) {
     return (
-      <Sheet open title={`Бассейн · ${formatWeekdayDate(pool.date)}`} onClose={onClose}>
-        <div className="flex flex-col gap-3 px-2 pb-2">
+      <Sheet open title="Бассейн" kicker={formatWeekdayDate(pool.date)} onClose={onClose}>
+        <div className="flex flex-col gap-3 px-1 pb-2">
           <p className="text-lg">
             <b>{pool.minutes} мин</b>
             {pool.meters ? ` · ${formatInt(pool.meters)} м` : ''}
@@ -44,19 +44,19 @@ export function HistorySheet({ item, sets, onClose }: { item: HistoryItem | null
   const minutes = Math.round(((gym.finishedAt ?? gym.startedAt) - gym.startedAt) / 60000);
   const order = [...new Set(mine.sort((a, b) => a.doneAt - b.doneAt).map((s) => s.exerciseId))];
   return (
-    <Sheet open title={`Тренировка ${gym.workout} · ${formatWeekdayDate(gym.date)}`} onClose={onClose}>
-      <div className="flex flex-col gap-3 px-2 pb-2">
+    <Sheet open title={`Тренировка ${gym.workout}`} kicker={formatWeekdayDate(gym.date)} onClose={onClose}>
+      <div className="flex flex-col gap-3 px-1 pb-2">
         <p className="text-sm text-muted">
           {minutes} мин · объём {formatInt(Math.round(volume(mine) / 100))}{NBSP}кг · {work.length} подходов
           {gym.isCalibration ? ' · подбор веса' : gym.isDeload ? ' · разгрузка' : ''}
         </p>
-        <ul className="divide-y divide-line rounded-2xl bg-surface-2 px-3">
+        <ul className="divide-y divide-line rounded-[26px] bg-surface px-5 py-1">
           {order.map((id) => {
             const ex = getExercise(id);
             const rows = work.filter((s) => s.exerciseId === id).sort((a, b) => a.setIndex - b.setIndex);
             return (
-              <li key={id} className="py-2">
-                <p className="font-medium">{ex.name}</p>
+              <li key={id} className="py-2.5">
+                <p className="text-[15px] font-bold">{ex.name}</p>
                 <p className="text-sm text-muted tabular-nums">{rows.length ? rows.map((s) => setText(ex, s)).join(' · ') : 'только разминка'}</p>
               </li>
             );
