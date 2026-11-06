@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Adjustment, BodyEntry, Food, FoodLog } from '../db/types';
 import { addDays } from './dates';
-import { carbsFor, dayTargets, dayTotals, nutritionInTarget, portion, recipePer100, weeklyAdjustment } from './nutrition';
+import { carbsFor, chickenGrams, dayTargets, dayTotals, nutritionInTarget, nutritionStats, portion, recipePer100, weeklyAdjustment } from './nutrition';
 
 const chicken: Food = { id: 'c', name: 'Куриная грудка', aliases: [], per100: { kcal: 110, p: 230, f: 15, c: 0 }, source: 'seed', approx: false, archived: false };
 const rice: Food = { id: 'r', name: 'Рис', aliases: [], per100: { kcal: 360, p: 70, f: 6, c: 790 }, source: 'seed', approx: false, archived: false };
@@ -107,5 +107,22 @@ describe('корректировка калорий (SPEC 5.6)', () => {
     expect(weeklyAdjustment('2027-01-04', seed(20, 70), {}, 2050)).toBeNull();
     expect(weeklyAdjustment('2027-01-18', seed(20, 80), {}, 2050)).toBeNull();
     expect(weeklyAdjustment('2027-01-25', seed(20, 80), {}, 2050)?.kind).toBe('cut');
+  });
+});
+
+describe('подсказки и статистика питания', () => {
+  it('курица: 60 г белка ≈ 200 г грудки', () => {
+    expect(chickenGrams(60)).toBe(200);
+    expect(chickenGrams(3)).toBe(10);
+    expect(chickenGrams(0)).toBe(0);
+  });
+  it('недели и дни в цели', () => {
+    // пн 9 ноября: 700 г грудки + 200 г риса = 770 + 720 = 1 490 ккал, белок 161 + 14 = 175 г → белок ок, ккал мимо
+    const logs = [log('lunch', 'c', 700), log('dinner', 'r', 200)].map((l) => ({ ...l, date: '2026-11-09' }));
+    const s = nutritionStats(logs, foods, [], { phase3Mode: 'deficit' }, '2026-11-10')!;
+    expect(s.weeks).toHaveLength(1);
+    expect(s.weeks[0]).toMatchObject({ start: '2026-11-09', value: 1490, target: 2050, ok: false });
+    expect(s).toMatchObject({ days: 1, proteinOk: 1, inTarget: 0 });
+    expect(nutritionStats([], foods, [], { phase3Mode: 'deficit' }, '2026-11-10')).toBeNull();
   });
 });

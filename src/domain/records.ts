@@ -1,6 +1,6 @@
 // Рекорды и сила — SPEC 5.7.
 
-import type { Kg100, SetLog } from '../db/types';
+import type { Kg100, SetLog, WorkoutSession } from '../db/types';
 
 /** e1RM по Эпли: вес × (1 + повторы / 30). Только подходы до 12 повторов. */
 export function e1rm(weight: Kg100, reps: number): Kg100 | null {
@@ -93,4 +93,17 @@ export function repRecords(sets: readonly SetLog[]): { reps: number; weight: Kg1
   const work = sets.filter((s) => s.kind === 'work' && s.weight > 0);
   const reps = [...new Set(work.map((s) => s.reps))].filter((r) => r <= 15).sort((a, b) => a - b);
   return reps.map((r) => ({ reps: r, weight: Math.max(...work.filter((s) => s.reps >= r).map((s) => s.weight)) }));
+}
+
+/** Сколько рекордов поставлено за всё время: каждая завершённая сессия против истории до неё. */
+export function recordCount(sets: readonly SetLog[], sessions: readonly WorkoutSession[]): number {
+  const done = sessions.filter((s) => s.finishedAt !== undefined).sort((a, b) => a.startedAt - b.startedAt);
+  let n = 0;
+  let prior: SetLog[] = [];
+  for (const s of done) {
+    const mine = sets.filter((x) => x.sessionId === s.id);
+    n += findRecords(mine, prior).length;
+    prior = prior.concat(mine);
+  }
+  return n;
 }

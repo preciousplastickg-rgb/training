@@ -15,7 +15,7 @@ test('экспорт → удалить приложение → постави�
   await a.getByRole('button', { name: 'Ужин: добавить' }).click();
   await a.getByRole('textbox', { name: 'Поиск продукта' }).fill('плов');
   await a.getByRole('button', { name: /^Плов/ }).click();
-  await a.getByRole('button', { name: 'Добавить', exact: true }).click();
+  await a.getByRole('button', { name: 'Добавить в ужин' }).click();
   await expect(a.getByRole('img', { name: /Калории 735 из/ })).toBeVisible(); // порция 350 г × 210
 
   await a.goto('./#/settings');

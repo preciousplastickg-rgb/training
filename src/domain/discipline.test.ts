@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayStatuses, disciplineSummary } from './discipline';
+import { bestStreak, dayStatuses, disciplineSummary } from './discipline';
 import { planDays } from './program';
 
 describe('дисциплина', () => {
@@ -26,5 +26,8 @@ describe('дисциплина', () => {
     expect(s.planned).toBe(5); // пн, вт, ср, чт и пт→сб как одна
     expect(s.done).toBe(2);
     expect(s.streak).toBe(1); // вс-отдых после пропуска в сб
+  });
+  it('лучшая серия: пн, вт — два дня до первого пропуска', () => {
+    expect(bestStreak(plans, statuses)).toBe(2);
   });
 });

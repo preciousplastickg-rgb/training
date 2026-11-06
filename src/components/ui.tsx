@@ -180,7 +180,7 @@ export function Chip({
 }
 
 /**
- * Вкладки. `pill` (Прогресс): белая подложка, активная — чёрная с лаймовым текстом.
+ * Вкладки. `pill` (Прогресс): белая подложка, активная — чёрная (`--hero`) с лаймовым текстом.
  * `lime` (переключатель в «Как делать»): подложка `--surface-2`, активная — лайм.
  */
 export function Tabs<T extends string>({
@@ -192,7 +192,7 @@ export function Tabs<T extends string>({
   variant?: 'pill' | 'lime';
 }) {
   const box = variant === 'lime' ? 'bg-surface-2' : 'bg-surface';
-  const on = variant === 'lime' ? 'bg-primary text-on-primary font-extrabold' : 'bg-ink text-primary font-bold';
+  const on = variant === 'lime' ? 'bg-primary text-on-primary font-extrabold' : 'bg-hero border border-hero-line text-primary font-bold';
   return (
     <div role="tablist" className={`flex gap-1 rounded-full p-1 ${box}`}>
       {items.map((it) => (

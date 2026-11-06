@@ -185,3 +185,69 @@ export function weeklyAdjustment(
   }
   return null;
 }
+
+/** Сколько куриной грудки (≈ 30 г белка на 100 г) закроет недобор белка, граммы с шагом 10. */
+export function chickenGrams(proteinG: number): number {
+  if (proteinG <= 0) return 0;
+  return Math.max(10, Math.round((proteinG / 30) * 10) * 10);
+}
+
+export interface NutritionWeek {
+  /** Понедельник недели. */
+  start: LocalDate;
+  /** Средние ккал за дни с записями. */
+  value: number;
+  target: number;
+  ok: boolean;
+}
+
+export interface NutritionStats {
+  weeks: NutritionWeek[];
+  /** Дней с записями. */
+  days: number;
+  /** Дней с белком ≥ 90%. */
+  proteinOk: number;
+  /** Дней в цели (ккал ±10% и белок ≥ 90%). */
+  inTarget: number;
+}
+
+/** Статистика питания по неделям и дням с начала записей (или старта программы) до сегодня. */
+export function nutritionStats(
+  logs: readonly FoodLog[],
+  foods: ReadonlyMap<string, Food>,
+  adjustments: readonly Adjustment[],
+  settings: Pick<Settings, 'phase3Mode'>,
+  today: LocalDate,
+): NutritionStats | null {
+  const byDate = new Map<LocalDate, FoodLog[]>();
+  for (const l of logs) byDate.set(l.date, [...(byDate.get(l.date) ?? []), l]);
+  const first = [...byDate.keys()].sort()[0];
+  if (!first) return null;
+  const weeks: NutritionWeek[] = [];
+  let proteinOk = 0;
+  let inTarget = 0;
+  let days = 0;
+  for (let w = weekStart(first < PROGRAM_START ? first : PROGRAM_START); w <= today; w = addDays(w, 7)) {
+    let sum = 0;
+    let tsum = 0;
+    let n = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(w, i);
+      if (d > today) break;
+      const dl = byDate.get(d);
+      if (!dl) continue;
+      const total = dayTotals(dl, foods).total;
+      const t = dayTargets(d, adjustments, settings);
+      sum += total.kcal;
+      tsum += t.kcal;
+      n++;
+      days++;
+      if (total.p >= t.protein * 9) proteinOk++;
+      if (nutritionInTarget(total, t)) inTarget++;
+    }
+    const value = n ? Math.round(sum / n) : 0;
+    const target = n ? Math.round(tsum / n) : dayTargets(w, adjustments, settings).kcal;
+    weeks.push({ start: w, value, target, ok: n > 0 && Math.abs(value - target) <= target * 0.1 });
+  }
+  return { weeks, days, proteinOk, inTarget };
+}

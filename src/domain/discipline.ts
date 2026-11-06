@@ -97,3 +97,21 @@ export function disciplineSummary(plans: readonly DayPlan[], statuses: ReadonlyM
   }
   return { planned, done, streak };
 }
+
+/** Лучшая серия дней без пропусков за всё время (та же логика, что текущая серия). */
+export function bestStreak(plans: readonly DayPlan[], statuses: ReadonlyMap<LocalDate, DayStatus>): number {
+  let best = 0;
+  let cur = 0;
+  for (const p of plans) {
+    const s = statuses.get(p.date);
+    if (s === 'future' || s === 'pending') break;
+    if (s === 'missed') {
+      cur = 0;
+      continue;
+    }
+    if (s === 'moved') continue;
+    cur++;
+    if (cur > best) best = cur;
+  }
+  return best;
+}

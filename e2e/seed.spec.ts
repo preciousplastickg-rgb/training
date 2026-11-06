@@ -17,9 +17,10 @@ test('на демо-данных за 8 недель все графики от�
   await expect(page.getByRole('img', { name: /^e1RM: / }).first()).toBeVisible();
   await page.getByRole('tab', { name: 'Питание' }).click();
   await expect(page.getByRole('img', { name: /Средние калории по неделям/ })).toBeVisible();
-  await page.getByRole('tab', { name: 'Дисциплина' }).click();
+  await page.getByRole('tab', { name: 'Режим' }).click();
   await expect(page.getByRole('img', { name: 'Тепловая карта дисциплины' })).toBeVisible();
-  await expect(page.getByText(/Выполнено \d+ из \d+ тренировок · серия \d+/)).toBeVisible();
+  await expect(page.getByText(/^\d+% тренировок$/)).toBeVisible();
+  await expect(page.getByText(/^лучшая — \d+$/)).toBeVisible();
 });
 
 test('календарь тренировок: A/B по дням, бассейн, подробности дня', async ({ page }) => {

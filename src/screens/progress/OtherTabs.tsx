@@ -1,211 +1,89 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+// Прогресс · Питание и Режим — макет BDiscipline (REDESIGN 4): чёрная карточка «Выполнено / Серия»,
+// тепловая карта вертикально (строка = неделя), «Питание в цели».
+
+import { useMemo, useState } from 'react';
 import { BarChart } from '../../components/charts/Charts';
-import { Card, SectionTitle } from '../../components/ui';
+import { Bar, Caps, Card, HeroCard } from '../../components/ui';
 import { DEFAULT_SETTINGS } from '../../db/db';
 import { PROGRAM_END, PROGRAM_START } from '../../data/program';
-import { addDays, diffDays, isoWeekday, weekStart } from '../../domain/dates';
-import { dayStatuses, disciplineSummary, gymDone, type DayStatus } from '../../domain/discipline';
-import { formatDayMonth, formatInt } from '../../domain/format';
-import { dayTargets, dayTotals, nutritionInTarget } from '../../domain/nutrition';
+import { addDays, diffDays, weekStart } from '../../domain/dates';
+import { bestStreak, dayStatuses, disciplineSummary, gymDone, type DayStatus } from '../../domain/discipline';
+import { formatDayMonth, formatInt, pluralRu } from '../../domain/format';
+import { nutritionStats } from '../../domain/nutrition';
 import { gymDatesOf, planDays, planOptionsOf } from '../../domain/program';
 import { useAdjustments, useAllFoodLog, useAllSets, useFoods, usePool, useSessions, useSettings, useSlots } from '../../hooks/useData';
 import { useToday } from '../../hooks/useToday';
 
 // ---------- Питание ----------
 
-export function NutritionTab() {
+function useNutritionStats() {
   const today = useToday();
   const logs = useAllFoodLog();
   const foods = useFoods();
   const adjustments = useAdjustments();
   const settings = useSettings() ?? DEFAULT_SETTINGS;
   const map = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods]);
-  const data = useMemo(() => {
-    const byDate = new Map<string, typeof logs>();
-    for (const l of logs) byDate.set(l.date, [...(byDate.get(l.date) ?? []), l]);
-    const first = [...byDate.keys()].sort()[0];
-    if (!first) return null;
-    const weeks: { label: string; value: number; target: number; ok: boolean }[] = [];
-    let proteinOk = 0;
-    let inTarget = 0;
-    let days = 0;
-    for (let w = weekStart(first < PROGRAM_START ? first : PROGRAM_START); w <= today; w = addDays(w, 7)) {
-      let sum = 0;
-      let tsum = 0;
-      let n = 0;
-      for (let i = 0; i < 7; i++) {
-        const d = addDays(w, i);
-        if (d > today) break;
-        const dl = byDate.get(d);
-        if (!dl) continue;
-        const total = dayTotals(dl, map).total;
-        const t = dayTargets(d, adjustments, settings);
-        sum += total.kcal;
-        tsum += t.kcal;
-        n++;
-        days++;
-        if (total.p >= t.protein * 9) proteinOk++;
-        if (nutritionInTarget(total, t)) inTarget++;
-      }
-      const value = n ? Math.round(sum / n) : 0;
-      const target = n ? Math.round(tsum / n) : dayTargets(w, adjustments, settings).kcal;
-      weeks.push({ label: formatDayMonth(w).split(' ')[0]!, value, target, ok: n > 0 && Math.abs(value - target) <= target * 0.1 });
-    }
-    return { weeks: weeks.slice(-12), proteinOk, inTarget, days };
-  }, [logs, map, adjustments, settings, today]);
+  return useMemo(() => nutritionStats(logs, map, adjustments, settings, today), [logs, map, adjustments, settings, today]);
+}
 
-  if (!data) return <Card><p className="py-6 text-center text-muted">Запиши еду — появится статистика по неделям</p></Card>;
+export function NutritionTab() {
+  const data = useNutritionStats();
+  if (!data) {
+    return (
+      <Card>
+        <p className="py-6 text-center text-muted">Запиши еду — появится статистика по неделям</p>
+      </Card>
+    );
+  }
+  const weeks = data.weeks.slice(-12);
   return (
     <div className="flex flex-col gap-3">
-      <Card>
-        <SectionTitle>Средние калории по неделям</SectionTitle>
+      <Card className="rounded-[28px]!">
+        <div className="mb-2 flex items-baseline justify-between px-1">
+          <h2 className="font-display text-[17px] font-bold">Калории</h2>
+          <span className="text-[13px] text-muted">среднее за день по неделям</span>
+        </div>
         <BarChart
           ariaLabel="Средние калории по неделям против цели"
-          bars={data.weeks.map((w) => ({ label: w.label, value: w.value, ok: w.ok }))}
-          target={data.weeks.map((w) => ({ value: w.target, label: String(w.target) }))}
+          bars={weeks.map((w) => ({ label: formatDayMonth(w.start).split(' ')[0]!, value: w.value, ok: w.ok }))}
+          target={weeks.map((w) => ({ value: w.target, label: String(w.target) }))}
           format={(v) => formatInt(v)}
         />
-        <div className="mt-1 flex gap-4 text-xs text-muted">
+        <div className="mt-1 flex gap-4 text-xs font-semibold text-muted">
           <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded bg-progress" /> в цели ±10%</span>
           <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded bg-energy" /> мимо</span>
           <span className="flex items-center gap-1"><i className="h-0.5 w-4 border-t-2 border-dashed border-ink" /> цель</span>
         </div>
       </Card>
-      <div className="grid grid-cols-2 gap-2">
-        <Card>
-          <p className="text-xs text-muted">Белок в цели</p>
-          <p className="text-2xl font-semibold tabular-nums text-protein">{Math.round((data.proteinOk / Math.max(1, data.days)) * 100)}%</p>
-          <p className="text-xs text-muted">{data.proteinOk} из {data.days} дней</p>
+      <div className="grid grid-cols-2 gap-2.5">
+        <Card className="flex flex-col gap-1 rounded-3xl! p-3.5!">
+          <Caps>Белок в цели</Caps>
+          <span className="font-display text-[26px] leading-8 font-bold tabular-nums">{Math.round((data.proteinOk / Math.max(1, data.days)) * 100)}%</span>
+          <span className="text-[13px] text-muted">
+            {data.proteinOk} из {data.days} дней
+          </span>
         </Card>
-        <Card>
-          <p className="text-xs text-muted">Дни в цели</p>
-          <p className="text-2xl font-semibold tabular-nums text-accent">{Math.round((data.inTarget / Math.max(1, data.days)) * 100)}%</p>
-          <p className="text-xs text-muted">ккал ±10% и белок ≥ 90%</p>
+        <Card className="flex flex-col gap-1 rounded-3xl! p-3.5!">
+          <Caps>Дни в цели</Caps>
+          <span className="font-display text-[26px] leading-8 font-bold tabular-nums">{Math.round((data.inTarget / Math.max(1, data.days)) * 100)}%</span>
+          <span className="text-[13px] text-muted">ккал ±10% и белок ≥ 90%</span>
         </Card>
       </div>
     </div>
   );
 }
 
-// ---------- Дисциплина ----------
+// ---------- Режим (дисциплина) ----------
 
-const STATUS_COLOR: Record<DayStatus, string> = {
-  gym: 'var(--progress)',
+const STATUS_BG: Record<DayStatus, string> = {
+  gym: 'var(--ink)',
   pool: 'var(--protein)',
-  rest: 'var(--load-1)',
+  rest: 'color-mix(in srgb, var(--ink) 16%, var(--surface))',
   missed: 'var(--energy)',
-  moved: 'var(--surface-2)',
+  moved: 'color-mix(in srgb, var(--ink) 8%, var(--surface))',
   pending: 'var(--track)',
   future: 'var(--track)',
 };
-
-export function DisciplineTab() {
-  const today = useToday();
-  const sessions = useSessions();
-  const sets = useAllSets();
-  const pool = usePool();
-  const slots = useSlots();
-  const settings = useSettings() ?? DEFAULT_SETTINGS;
-  const { plans, statuses, summary } = useMemo(() => {
-    const plans = planDays(PROGRAM_END, gymDatesOf(sessions), undefined, planOptionsOf(settings));
-    const gym = gymDone(sessions, sets, slots, settings);
-    const statuses = dayStatuses(plans, gym, pool, today);
-    return { plans, statuses, summary: disciplineSummary(plans, statuses) };
-  }, [sessions, sets, pool, slots, settings, today]);
-
-  const startMonday = weekStart(PROGRAM_START);
-  const weeks = Math.ceil((diffDays(startMonday, PROGRAM_END) + 1) / 7);
-  const CELL = 12;
-  const GAP = 3;
-  const left = 18;
-  const top = 16;
-  const [picked, setPicked] = useState<string | null>(null);
-  // Карта шире экрана: открываем её на текущей неделе, а не на ноябре.
-  const scrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const w = Math.floor(Math.max(0, diffDays(startMonday, today)) / 7);
-    el.scrollLeft = Math.max(0, left + (w + 1) * (CELL + GAP) - el.clientWidth);
-  }, [today, startMonday]);
-  const pickedStatus = picked ? (statuses.get(picked) ?? 'future') : null;
-  const months: { x: number; label: string }[] = [];
-  for (let w = 0; w < weeks; w++) {
-    const d = addDays(startMonday, w * 7);
-    const prev = addDays(d, -7);
-    if (w === 0 || d.slice(5, 7) !== prev.slice(5, 7)) months.push({ x: left + w * (CELL + GAP), label: formatDayMonth(addDays(d, 6)).split(' ')[1]!.slice(0, 3) });
-  }
-  return (
-    <div className="flex flex-col gap-3">
-      <Card>
-        <p className="text-lg font-semibold">
-          Выполнено {summary.done} из {summary.planned} тренировок · серия {summary.streak} {plural(summary.streak)}
-        </p>
-        <div ref={scrollRef} className="mt-3 overflow-x-auto pb-1">
-          <svg
-            width={left + weeks * (CELL + GAP)}
-            height={top + 7 * (CELL + GAP)}
-            role="img"
-            aria-label="Тепловая карта дисциплины"
-            onClick={(e) => {
-              const d = (e.target as SVGElement).getAttribute('data-date');
-              setPicked((p) => (d && d !== p ? d : null));
-            }}
-          >
-            {months.map((m) => (
-              <text key={m.x} x={m.x} y={10} fontSize={10} fill="var(--muted)">
-                {m.label}
-              </text>
-            ))}
-            {['пн', '', 'ср', '', 'пт', '', 'вс'].map((d, i) => (
-              <text key={i} x={0} y={top + i * (CELL + GAP) + 10} fontSize={9} fill="var(--muted)">
-                {d}
-              </text>
-            ))}
-            {plans.map((p) => {
-              const w = Math.floor(diffDays(startMonday, p.date) / 7);
-              const row = isoWeekday(p.date) - 1;
-              const s = statuses.get(p.date) ?? 'future';
-              return (
-                <rect
-                  key={p.date}
-                  data-date={p.date}
-                  x={left + w * (CELL + GAP)}
-                  y={top + row * (CELL + GAP)}
-                  width={CELL}
-                  height={CELL}
-                  rx={3}
-                  fill={STATUS_COLOR[s]}
-                  opacity={s === 'future' ? 0.5 : 1}
-                  stroke={p.date === today || p.date === picked ? 'var(--ink)' : undefined}
-                  strokeWidth={p.date === picked ? 2 : p.date === today ? 1.5 : undefined}
-                >
-                  <title>{`${formatDayMonth(p.date)}: ${STATUS_TEXT[s]}`}</title>
-                </rect>
-              );
-            })}
-          </svg>
-        </div>
-        <p className="mt-1 min-h-5 text-sm" role="status">
-          {picked && pickedStatus ? (
-            <>
-              <b>{formatDayMonth(picked)}</b> · {STATUS_TEXT[pickedStatus]}
-            </>
-          ) : (
-            <span className="text-xs text-muted">Тап по клетке — что было в этот день</span>
-          )}
-        </p>
-        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
-          {(['gym', 'pool', 'rest', 'missed', 'moved'] as const).map((s) => (
-            <span key={s} className="flex items-center gap-1">
-              <i className="h-3 w-3 rounded" style={{ background: STATUS_COLOR[s] }} /> {STATUS_TEXT[s]}
-            </span>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}
 
 const STATUS_TEXT: Record<DayStatus, string> = {
   gym: 'зал',
@@ -217,10 +95,141 @@ const STATUS_TEXT: Record<DayStatus, string> = {
   future: 'впереди',
 };
 
-function plural(n: number): string {
-  const m10 = n % 10;
-  const m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return 'день';
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'дня';
-  return 'дней';
+const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+export function DisciplineTab() {
+  const today = useToday();
+  const sessions = useSessions();
+  const sets = useAllSets();
+  const pool = usePool();
+  const slots = useSlots();
+  const settings = useSettings() ?? DEFAULT_SETTINGS;
+  const nutrition = useNutritionStats();
+  const { plans, statuses, summary, best } = useMemo(() => {
+    const plans = planDays(PROGRAM_END, gymDatesOf(sessions), undefined, planOptionsOf(settings));
+    const gym = gymDone(sessions, sets, slots, settings);
+    const statuses = dayStatuses(plans, gym, pool, today);
+    return { plans, statuses, summary: disciplineSummary(plans, statuses), best: bestStreak(plans, statuses) };
+  }, [sessions, sets, pool, slots, settings, today]);
+  const [picked, setPicked] = useState<string | null>(null);
+
+  const startMonday = weekStart(PROGRAM_START);
+  const weeks = Math.ceil((diffDays(startMonday, PROGRAM_END) + 1) / 7);
+  const planByDate = new Map(plans.map((p) => [p.date, p]));
+  const pct = summary.planned ? Math.round((summary.done / summary.planned) * 100) : 0;
+  const pickedStatus = picked ? (statuses.get(picked) ?? 'future') : null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <HeroCard className="grid grid-cols-2 gap-2.5 rounded-[30px]! px-[22px]! py-5!">
+        <div className="flex flex-col gap-1">
+          <Caps className="text-muted-on-ink!">Выполнено</Caps>
+          <span className="font-display text-[32px] leading-9 font-bold text-primary tabular-nums">
+            {summary.done}
+            <span className="font-sans text-[15px] font-normal text-muted-on-ink"> / {summary.planned}</span>
+          </span>
+          <span className="text-[13px] text-muted-on-ink">{pct}% тренировок</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Caps className="text-muted-on-ink!">Серия</Caps>
+          <span className="font-display text-[32px] leading-9 font-bold tabular-nums">
+            {summary.streak}
+            <span className="font-sans text-[15px] font-normal text-muted-on-ink"> {pluralRu(summary.streak, 'день', 'дня', 'дней')}</span>
+          </span>
+          <span className="text-[13px] text-muted-on-ink">лучшая — {best}</span>
+        </div>
+      </HeroCard>
+
+      <Card className="flex flex-col gap-3 rounded-[28px]! px-4! py-[18px]!">
+        <div className="flex items-baseline justify-between px-1">
+          <h2 className="font-display text-base font-bold">
+            {formatDayMonth(PROGRAM_START).replace(/ (\S{3})\S*$/, ' $1')} → {formatDayMonth(PROGRAM_END).replace(/ (\S{3})\S*$/, ' $1')}
+          </h2>
+          <span className="text-[13px] text-muted">{weeks} недель</span>
+        </div>
+        <div
+          className="grid justify-center gap-1"
+          style={{ gridTemplateColumns: '40px repeat(7, 20px)' }}
+          role="img"
+          aria-label="Тепловая карта дисциплины"
+          onClick={(e) => {
+            const d = (e.target as HTMLElement).getAttribute('data-date');
+            setPicked((p) => (d && d !== p ? d : null));
+          }}
+        >
+          {['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((h, i) => (
+            <span key={i} className="text-center text-[11px] font-bold text-muted">
+              {h}
+            </span>
+          ))}
+          {Array.from({ length: weeks }, (_, w) => {
+            const monday = addDays(startMonday, w * 7);
+            let label = '';
+            for (let d = 0; d < 7; d++) {
+              const date = addDays(monday, d);
+              if (date <= PROGRAM_END && (date.endsWith('-01') || (w === 0 && d === 0))) label = MONTHS_SHORT[Number(date.slice(5, 7)) - 1]!;
+            }
+            return [
+              <span key={`m${w}`} className="text-[11px] leading-[18px] font-bold text-muted">
+                {label}
+              </span>,
+              ...Array.from({ length: 7 }, (_, d) => {
+                const date = addDays(monday, d);
+                const plan = planByDate.get(date);
+                if (!plan) return <span key={date} />;
+                const s = statuses.get(date) ?? 'future';
+                const isToday = date === today;
+                return (
+                  <span
+                    key={date}
+                    data-date={date}
+                    role="button"
+                    tabIndex={-1}
+                    aria-label={`${formatDayMonth(date)}: ${STATUS_TEXT[s]}`}
+                    className="h-[18px] rounded-full"
+                    style={{
+                      background: isToday ? 'var(--ink)' : STATUS_BG[s],
+                      boxShadow: isToday ? 'inset 0 0 0 3px var(--lime)' : picked === date ? 'inset 0 0 0 2px var(--energy)' : undefined,
+                    }}
+                  />
+                );
+              }),
+            ];
+          })}
+        </div>
+        <p className="min-h-5 px-1 text-sm" role="status">
+          {picked && pickedStatus ? (
+            <>
+              <b>{formatDayMonth(picked)}</b> · {STATUS_TEXT[pickedStatus]}
+            </>
+          ) : (
+            <span className="text-xs text-muted">Тап по клетке — что было в этот день</span>
+          )}
+        </p>
+        <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 px-1 text-xs font-semibold text-muted">
+          {(['gym', 'pool', 'rest', 'missed'] as const).map((s) => (
+            <span key={s} className="flex items-center gap-1.5">
+              <i className="h-3 w-3 rounded" style={{ background: STATUS_BG[s] }} /> {STATUS_TEXT[s]}
+            </span>
+          ))}
+          <span className="flex items-center gap-1.5">
+            <i className="h-3 w-3 rounded" style={{ background: 'var(--ink)', boxShadow: 'inset 0 0 0 2px var(--lime)' }} /> сегодня
+          </span>
+        </div>
+      </Card>
+
+      {nutrition && (
+        <Card className="flex flex-col gap-2 rounded-[26px]! px-5! py-4!">
+          <div className="flex justify-between">
+            <span className="text-[15px] font-extrabold">Питание в цели</span>
+            <span className="font-display text-[15px] font-bold tabular-nums">
+              {nutrition.inTarget} / {nutrition.days}
+            </span>
+          </div>
+          <Bar value={nutrition.inTarget / Math.max(1, nutrition.days)} height={10} color="var(--ink)" label="Дни питания в цели" />
+          <span className="text-[13px] text-muted">ккал ±10% и белок ≥ 90%</span>
+        </Card>
+      )}
+    </div>
+  );
 }

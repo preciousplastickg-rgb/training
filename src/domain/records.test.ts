@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SetLog } from '../db/types';
-import { e1rm, findRecords, repRecords, volume } from './records';
+import { e1rm, findRecords, recordCount, repRecords, volume } from './records';
 
 let n = 0;
 const set = (exerciseId: string, weight: number, reps: number, sessionId = 's', kind: SetLog['kind'] = 'work'): SetLog => ({
@@ -30,5 +30,14 @@ describe('сила', () => {
   });
   it('таблица рекордов', () => {
     expect(repRecords([set('b', 6000, 10), set('b', 6500, 6)])).toEqual([{ reps: 6, weight: 6500 }, { reps: 10, weight: 6000 }]);
+  });
+});
+
+describe('счётчик рекордов', () => {
+  const sess = (id: string, startedAt: number) => ({ id, date: '2026-11-09', workout: 'A' as const, startedAt, finishedAt: startedAt + 1, isDeload: false, isCalibration: false });
+  it('первая сессия — точка отсчёта, дальше каждый рекорд веса и e1RM', () => {
+    const sets = [set('b', 6000, 10, 's1'), set('b', 6250, 10, 's2'), set('b', 6250, 10, 's3')];
+    // s2: вес 62,5 на 10+ (рекорд) и e1RM выше (рекорд); s3 — повтор, без рекордов
+    expect(recordCount(sets, [sess('s1', 1), sess('s2', 2), sess('s3', 3)])).toBe(2);
   });
 });

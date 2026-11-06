@@ -1,39 +1,54 @@
-// Шторки питания: добавить продукт, изменить граммы, быстрая запись, своё блюдо.
+// Шторки питания — макеты BAddFood и BPortion (REDESIGN 4): таблетки приёмов, поиск 56 с чёрной обводкой,
+// результаты на белой карточке, «Недавние» / «Частые», порция с ±64 и чёрной карточкой КБЖУ + «день после».
 
-import { Search, Trash2, Zap } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Minus, Plus, Search, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Sheet } from '../../components/Sheet';
-import { Button, Chip, Field, Stepper } from '../../components/ui';
+import { Button, Caps, Field, HeroCard } from '../../components/ui';
 import { FOOD_CATEGORIES } from '../../data/foods';
 import { addFoodLog, saveRecipe, updateFoodLog } from '../../db/repo';
 import type { Food, FoodCategory, FoodLog } from '../../db/types';
 import { formatInt, formatMacro, NBSP } from '../../domain/format';
-import { frequentFoods, recentFoods, searchFoods } from '../../domain/foodSearch';
-import { MEAL_NAMES, portion, recipePer100, type Meal } from '../../domain/nutrition';
+import { frequentFoods, norm, recentFoods, searchFoods } from '../../domain/foodSearch';
+import { MEAL_NAMES, portion, recipePer100, type DayTargets, type Macros, type Meal } from '../../domain/nutrition';
 
-export function FoodRow({ food, onClick, right }: { food: Food; onClick: () => void; right?: React.ReactNode }) {
-  // У блюд и штучных продуктов главное — сколько в порции, а не в 100 г.
+export type AddMode = 'search' | 'quick' | 'recipe';
+
+/** «в завтрак», «в обед», «в ужин», «в перекус». */
+export const MEAL_ACC: Record<Meal, string> = { breakfast: 'завтрак', lunch: 'обед', dinner: 'ужин', snack: 'перекус' };
+
+export interface DayContext {
+  total: Macros;
+  targets: DayTargets;
+}
+
+/** Строка результата: название (совпадение жирнее), «на 100 г · белок 31 г», ккал Unbounded справа. */
+export function FoodRow({ food, query = '', onClick }: { food: Food; query?: string; onClick: () => void }) {
   const unit = food.unitName && food.unitGrams ? portion(food, food.unitGrams) : null;
+  const q = norm(query);
+  const i = q ? norm(food.name).indexOf(q) : -1;
+  const name: ReactNode =
+    i >= 0 ? (
+      <>
+        {food.name.slice(0, i)}
+        <b className="font-black">{food.name.slice(i, i + q.length)}</b>
+        {food.name.slice(i + q.length)}
+      </>
+    ) : (
+      food.name
+    );
   return (
-    <button type="button" onClick={onClick} className="flex min-h-14 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left active:bg-track">
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">
-          {food.name}
-          {food.approx && <span className="ml-1 text-muted" title="Приблизительно">≈</span>}
+    <button type="button" onClick={onClick} className="flex min-h-16 w-full items-center gap-3 border-t border-line px-[18px] text-left first:border-t-0 active:bg-track">
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-base font-bold">
+          {name}
+          {food.approx && <span className="ml-1 font-normal text-muted">≈</span>}
         </span>
-        <span className="block text-xs text-muted">
-          {unit
-            ? `${food.unitName} ${food.unitGrams} г · Б ${formatMacro(unit.p, false)} · ${food.per100.kcal} ккал на 100 г`
-            : `${food.per100.kcal} ккал · Б ${formatMacro(food.per100.p, false)} · Ж ${formatMacro(food.per100.f, false)} · У ${formatMacro(food.per100.c, false)} на 100 г`}
+        <span className="text-[13px] text-muted">
+          {unit ? `${food.unitName} ${food.unitGrams} г · белок ${formatMacro(unit.p, false)} г` : `на 100 г · белок ${formatMacro(food.per100.p, false)} г`}
         </span>
       </span>
-      {unit && (
-        <span className="shrink-0 text-right leading-tight">
-          <span className="block text-base font-semibold tabular-nums">{unit.kcal}</span>
-          <span className="block text-[10px] text-muted">ккал за {food.unitName}</span>
-        </span>
-      )}
-      {right}
+      <span className="font-display text-base font-bold tabular-nums">{unit ? unit.kcal : food.per100.kcal}</span>
     </button>
   );
 }
@@ -41,7 +56,7 @@ export function FoodRow({ food, onClick, right }: { food: Food; onClick: () => v
 // ---------- Добавить ----------
 
 export function AddFoodSheet({
-  open, onClose, date, meal, foods, logs, initialMode = 'search',
+  open, onClose, date, meal: initialMeal, foods, logs, initialMode = 'search', day,
 }: {
   open: boolean;
   onClose: () => void;
@@ -49,12 +64,15 @@ export function AddFoodSheet({
   meal: Meal;
   foods: Food[];
   logs: FoodLog[];
-  /** «Быстро» из меню «+» — сразу форма быстрой записи. */
-  initialMode?: 'search' | 'quick';
+  /** «Быстро» из меню «+» — сразу форма быстрой записи; «Мои блюда» — рецепт. */
+  initialMode?: AddMode;
+  /** Итоги и цели дня — для «День после» в порции. */
+  day?: DayContext;
 }) {
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<Food | null>(null);
-  const [mode, setMode] = useState<'search' | 'quick' | 'recipe'>(initialMode);
+  const [mode, setMode] = useState<AddMode>(initialMode);
+  const [meal, setMeal] = useState<Meal>(initialMeal);
   const [cat, setCat] = useState<FoodCategory | 'mine' | null>(null);
   const map = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods]);
   // Сброс — при закрытии: при следующем открытии поле поиска есть с первого кадра и получает фокус.
@@ -66,24 +84,35 @@ export function AddFoodSheet({
     }
     setMode(open ? initialMode : 'search');
   }, [open, initialMode]);
+  useEffect(() => {
+    if (open) setMeal(initialMeal);
+  }, [open, initialMeal]);
+
+  const active = foods.filter((f) => !f.archived);
   const results = searchFoods(foods, query);
   const recent = recentFoods(logs, map);
   const frequent = frequentFoods(logs, map, 10, new Set(recent.map((f) => f.id)));
-  const mine = foods.filter((f) => !f.archived && f.source !== 'seed');
+  const counts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of logs) if (l.foodId) m.set(l.foodId, (m.get(l.foodId) ?? 0) + 1);
+    return m;
+  }, [logs]);
+  const mine = active.filter((f) => f.source !== 'seed');
   const catalog = cat
-    ? foods
-        .filter((f) => !f.archived && (cat === 'mine' ? f.source !== 'seed' : f.category === cat))
-        .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+    ? active.filter((f) => (cat === 'mine' ? f.source !== 'seed' : f.category === cat)).sort((a, b) => a.name.localeCompare(b.name, 'ru'))
     : [];
   const catLabel = cat === 'mine' ? 'Мои продукты и блюда' : (FOOD_CATEGORIES.find((c) => c.id === cat)?.label ?? '');
 
-  const title = picked ? picked.name : mode === 'quick' ? 'Быстрая запись' : mode === 'recipe' ? 'Моё блюдо' : `${MEAL_NAMES[meal]}: добавить`;
+  const title = picked ? 'Порция' : mode === 'quick' ? 'Быстрая запись' : mode === 'recipe' ? 'Моё блюдо' : `В ${MEAL_ACC[meal]}`;
   return (
     <Sheet open={open} title={title} onClose={onClose}>
-      <div className="px-2 pb-2">
+      <div className="flex min-h-[70dvh] flex-col gap-3.5 pb-2">
         {picked ? (
           <GramsPicker
             food={picked}
+            mealAcc={MEAL_ACC[meal]}
+            day={day}
+            doneLabel={`Добавить в ${MEAL_ACC[meal]}`}
             onBack={() => setPicked(null)}
             onDone={async (grams) => {
               await addFoodLog({ date, meal, foodId: picked.id, grams });
@@ -91,68 +120,76 @@ export function AddFoodSheet({
             }}
           />
         ) : mode === 'quick' ? (
-          <QuickForm
-            onDone={async (q) => {
-              await addFoodLog({ date, meal, quick: q });
-              onClose();
-            }}
-          />
+          <>
+            <MealPills value={meal} onChange={setMeal} />
+            <QuickForm
+              onDone={async (q) => {
+                await addFoodLog({ date, meal, quick: q });
+                onClose();
+              }}
+            />
+          </>
         ) : mode === 'recipe' ? (
           <RecipeForm foods={foods} onDone={() => setMode('search')} />
         ) : (
           <>
-            <label className="flex min-h-12 items-center gap-2 rounded-xl bg-surface-2 px-3">
-              <Search size={18} className="text-muted" aria-hidden />
+            <MealPills value={meal} onChange={setMeal} />
+            <label className="flex h-14 items-center gap-2.5 rounded-full bg-surface px-[18px] focus-within:shadow-[inset_0_0_0_2px_var(--ink)]">
+              <Search size={18} className="shrink-0 text-muted" aria-hidden />
               <input
                 // Шторка открывается тапом — фокус в том же тике, клавиатура iOS поднимается сразу: поиск → граммы → добавить.
                 autoFocus
                 enterKeyHint="search"
-                className="min-w-0 flex-1 bg-transparent py-2 outline-none"
+                className="min-w-0 flex-1 bg-transparent text-[17px] font-semibold"
+                style={{ outline: 'none' }}
                 placeholder="Поиск: грудка, рис, плов…"
                 aria-label="Поиск продукта"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
+              {query && (
+                <span className="shrink-0 text-[13px] text-muted tabular-nums">
+                  {results.length} из {active.length}
+                </span>
+              )}
             </label>
-            <div className="mt-2 flex gap-2">
-              <Chip onClick={() => setMode('quick')}>
-                <Zap size={16} aria-hidden /> Быстро
-              </Chip>
-              <Chip onClick={() => setMode('recipe')}>Моё блюдо</Chip>
-            </div>
             {query ? (
-              <List title={results.length ? 'Найдено' : 'Ничего не нашлось — попробуй «Быстро»'} items={results} onPick={setPicked} />
+              results.length ? (
+                <ResultsCard items={results} query={query} onPick={setPicked} />
+              ) : (
+                <p className="px-1.5 text-sm text-muted">Ничего не нашлось — попробуй «Быстро» внизу.</p>
+              )
+            ) : cat ? (
+              <ResultsCard title={`${catLabel} · ${catalog.length}`} items={catalog} onPick={setPicked} onBack={() => setCat(null)} />
             ) : (
               <>
-                {/* Каталог: без поиска видно, что в базе уже есть блюда с примерными калориями */}
-                <div className="-mx-2 mt-3 flex gap-2 overflow-x-auto px-2 pb-1" role="tablist" aria-label="Разделы каталога">
-                  <Chip active={cat === null} onClick={() => setCat(null)} role="tab" aria-selected={cat === null}>
-                    Недавние
-                  </Chip>
-                  {FOOD_CATEGORIES.map((c) => (
-                    <Chip key={c.id} active={cat === c.id} onClick={() => setCat(c.id)} role="tab" aria-selected={cat === c.id}>
-                      {c.label}
-                    </Chip>
-                  ))}
-                  {mine.length > 0 && (
-                    <Chip active={cat === 'mine'} onClick={() => setCat('mine')} role="tab" aria-selected={cat === 'mine'}>
-                      Мои
-                    </Chip>
-                  )}
-                </div>
-                {cat ? (
-                  <List title={`${catLabel} · ${catalog.length}`} items={catalog} onPick={setPicked} />
-                ) : (
-                  <>
-                    {recent.length > 0 && <List title="Недавние" items={recent} onPick={setPicked} />}
-                    {frequent.length > 0 && <List title="Частые" items={frequent} onPick={setPicked} />}
-                    {recent.length === 0 && (
-                      <p className="mt-6 pb-4 text-center text-sm text-muted">Начни вводить название или открой раздел: в базе {foods.filter((f) => !f.archived).length} продуктов и блюд</p>
+                {recent.length > 0 && <ChipGroup title="Недавние" items={recent.map((f) => ({ f, label: f.name }))} onPick={setPicked} />}
+                {frequent.length > 0 && <ChipGroup title="Частые" items={frequent.map((f) => ({ f, label: `${f.name} · ${counts.get(f.id) ?? 0}` }))} onPick={setPicked} />}
+                <div className="flex flex-col gap-2.5 px-1.5">
+                  <Caps>Разделы</Caps>
+                  <div className="flex flex-wrap gap-2" role="tablist" aria-label="Разделы каталога">
+                    {FOOD_CATEGORIES.map((c) => (
+                      <PillButton key={c.id} onClick={() => setCat(c.id)} role="tab" aria-selected={false}>
+                        {c.label}
+                      </PillButton>
+                    ))}
+                    {mine.length > 0 && (
+                      <PillButton onClick={() => setCat('mine')} role="tab" aria-selected={false}>
+                        Мои
+                      </PillButton>
                     )}
-                  </>
-                )}
+                  </div>
+                </div>
+                {recent.length === 0 && <p className="px-1.5 text-sm text-muted">Начни вводить название или открой раздел: в базе {active.length} продуктов и блюд.</p>}
               </>
             )}
+            <button
+              type="button"
+              onClick={() => setMode('quick')}
+              className="mt-auto flex h-14 w-full items-center justify-center rounded-full border border-hero-line bg-hero text-[15px] font-extrabold text-white active:opacity-80"
+            >
+              Быстро: только ккал и белок
+            </button>
           </>
         )}
       </div>
@@ -160,25 +197,84 @@ export function AddFoodSheet({
   );
 }
 
-function List({ title, items, onPick }: { title: string; items: Food[]; onPick: (f: Food) => void }) {
+function PillButton({ children, className = '', ...rest }: { children: ReactNode; className?: string } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <section className="mt-3">
-      <h3 className="mb-1 px-2 text-xs font-semibold tracking-wide text-muted uppercase">{title}</h3>
-      {items.map((f) => (
-        <FoodRow key={f.id} food={f} onClick={() => onPick(f)} />
+    <button type="button" className={`min-h-11 rounded-full bg-surface px-3.5 text-sm font-bold active:bg-track ${className}`} {...rest}>
+      {children}
+    </button>
+  );
+}
+
+/** Таблетки приёмов: активная — чёрная с лаймовым текстом. */
+function MealPills({ value, onChange }: { value: Meal; onChange: (m: Meal) => void }) {
+  return (
+    <div className="flex gap-1.5" role="radiogroup" aria-label="Приём пищи">
+      {(['breakfast', 'lunch', 'snack', 'dinner'] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          role="radio"
+          aria-checked={value === m}
+          onClick={() => onChange(m)}
+          className={`min-h-11 flex-1 rounded-full px-2 text-sm font-bold ${value === m ? 'border border-hero-line bg-hero text-primary' : 'bg-surface'}`}
+        >
+          {MEAL_NAMES[m]}
+        </button>
       ))}
+    </div>
+  );
+}
+
+function ChipGroup({ title, items, onPick }: { title: string; items: { f: Food; label: string }[]; onPick: (f: Food) => void }) {
+  return (
+    <div className="flex flex-col gap-2.5 px-1.5">
+      <Caps>{title}</Caps>
+      <div className="flex flex-wrap gap-2">
+        {items.map(({ f, label }) => (
+          <PillButton key={f.id} onClick={() => onPick(f)} aria-label={f.name}>
+            {label}
+          </PillButton>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ResultsCard({ title, items, query, onPick, onBack }: { title?: string; items: Food[]; query?: string; onPick: (f: Food) => void; onBack?: () => void }) {
+  return (
+    <section className="overflow-hidden rounded-[26px] bg-surface">
+      {title && (
+        <div className="flex items-center justify-between px-[18px] pt-3.5 pb-1">
+          <Caps>{title}</Caps>
+          {onBack && (
+            <button type="button" onClick={onBack} className="min-h-11 text-sm font-bold underline underline-offset-2">
+              Все разделы
+            </button>
+          )}
+        </div>
+      )}
+      {items.map((f) => (
+        <FoodRow key={f.id} food={f} query={query} onClick={() => onPick(f)} />
+      ))}
+      {items.length === 0 && <p className="px-[18px] py-4 text-sm text-muted">Пусто</p>}
     </section>
   );
 }
 
+// ---------- Порция (BPortion) ----------
+
 export function GramsPicker({
-  food, initial, onDone, onBack, doneLabel = 'Добавить',
+  food, initial, onDone, onBack, doneLabel = 'Добавить', mealAcc, day,
 }: {
   food: Food;
   initial?: number;
   onDone: (grams: number) => void | Promise<void>;
   onBack?: () => void;
   doneLabel?: string;
+  /** «в ужин» в подзаголовке. */
+  mealAcc?: string;
+  /** Итоги и цели дня — строка «День после». */
+  day?: DayContext;
 }) {
   const [grams, setGrams] = useState(initial ?? food.unitGrams ?? 100);
   const m = portion(food, grams);
@@ -187,42 +283,108 @@ export function GramsPicker({
     { label: '100', g: 100 },
     { label: '150', g: 150 },
     { label: '200', g: 200 },
-    ...(food.unitName && food.unitGrams ? [{ label: food.unitName, g: food.unitGrams }] : []),
+    ...(food.unitName && food.unitGrams ? [{ label: `1 ${food.unitName}`, g: food.unitGrams }] : []),
   ];
+  const after = day ? { kcal: day.total.kcal + m.kcal, p: day.total.p + m.p } : null;
   return (
-    <div className="flex flex-col gap-4">
-      <Stepper big label="Граммы" value={grams} unit="г" onDec={() => setGrams((g) => Math.max(5, g - (g > 100 ? 10 : 5)))} onInc={() => setGrams((g) => g + (g >= 100 ? 10 : 5))} />
-      <div className="flex flex-wrap justify-center gap-2">
+    <div className="flex flex-1 flex-col gap-[18px]">
+      <div className="flex flex-col px-1">
+        <span className="text-lg font-extrabold">
+          {food.name}
+          {food.approx && <span className="ml-1 font-normal text-muted">≈</span>}
+        </span>
+        <span className="text-[13px] text-muted">
+          {mealAcc ? `в ${mealAcc} · ` : ''}
+          {food.per100.kcal} ккал на 100 г
+        </span>
+      </div>
+      <div className="flex items-center justify-between py-2">
+        <button type="button" aria-label="Граммы: меньше" onClick={() => setGrams((g) => Math.max(5, g - (g > 100 ? 10 : 5)))} className="flex h-16 w-16 items-center justify-center rounded-full bg-surface active:scale-95">
+          <Minus size={26} strokeWidth={2.6} aria-hidden />
+        </button>
+        <div className="flex items-baseline gap-1.5" aria-label="Граммы">
+          <span className="font-display text-huge text-[64px] leading-[72px] font-bold tabular-nums">{grams}</span>
+          <span className="text-xl font-bold text-muted">г</span>
+        </div>
+        <button type="button" aria-label="Граммы: больше" onClick={() => setGrams((g) => g + (g >= 100 ? 10 : 5))} className="flex h-16 w-16 items-center justify-center rounded-full bg-surface active:scale-95">
+          <Plus size={26} strokeWidth={2.6} aria-hidden />
+        </button>
+      </div>
+      <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${presets.length}, minmax(0, 1fr))` }}>
         {presets.map((p) => (
-          <Chip key={p.label} active={grams === p.g} onClick={() => setGrams(p.g)}>
+          <button
+            key={p.label}
+            type="button"
+            aria-pressed={grams === p.g}
+            onClick={() => setGrams(p.g)}
+            className={`h-12 truncate rounded-full px-1 text-[15px] font-bold ${grams === p.g ? 'border border-hero-line bg-hero text-primary' : 'bg-surface'}`}
+          >
             {p.label}
-            {/^\d+$/.test(p.label) ? ' г' : ''}
-          </Chip>
+          </button>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-2 text-center">
-        <div className="rounded-2xl bg-surface-2 p-3">
-          <p className="text-2xl font-semibold tabular-nums text-energy">{formatInt(m.kcal)}</p>
-          <p className="text-xs text-muted">ккал{food.approx ? ' ≈' : ''}</p>
+      <HeroCard className="flex flex-col gap-4 rounded-[28px]! p-5!">
+        <div className="grid grid-cols-4 gap-1.5">
+          <Macro value={formatInt(m.kcal)} label="Ккал" color="#FF9A78" />
+          <Macro value={formatMacro(m.p, false)} label="Белок" color="#A6C0FF" />
+          <Macro value={formatMacro(m.f, false)} label="Жиры" />
+          <Macro value={formatMacro(m.c, false)} label="Углев." />
         </div>
-        <div className="rounded-2xl bg-surface-2 p-3">
-          <p className="text-2xl font-semibold tabular-nums text-protein">{formatMacro(m.p, false)}</p>
-          <p className="text-xs text-muted">белок, г</p>
-        </div>
-      </div>
-      <div className="flex gap-2">
+        {day && after && (
+          <>
+            <div className="h-px bg-[#2A2C30]" />
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-on-ink">День после</span>
+                <span className="tabular-nums">
+                  <b>{formatInt(after.kcal)}</b> / {formatInt(day.targets.kcal)} ккал · <b>{Math.round(after.p / 10)}</b> / {day.targets.protein} г
+                </span>
+              </div>
+              <StackBar now={day.total.kcal} add={m.kcal} target={day.targets.kcal} color="var(--energy)" light="#FFB59E" label="Калории после добавления" />
+              <StackBar now={day.total.p} add={m.p} target={day.targets.protein * 10} color="var(--protein)" light="#A6C0FF" label="Белок после добавления" />
+            </div>
+          </>
+        )}
+      </HeroCard>
+      <div className="mt-auto flex gap-2 pt-1">
         {onBack && (
-          <Button variant="secondary" size="lg" onClick={onBack}>
+          <Button variant="secondary" size="lg" className="bg-surface!" onClick={onBack}>
             Назад
           </Button>
         )}
-        <Button size="lg" className="flex-1" onClick={() => void onDone(grams)}>
+        <button type="button" onClick={() => void onDone(grams)} className="h-16 flex-1 rounded-full bg-primary text-lg font-extrabold text-on-primary active:scale-[0.98]">
           {doneLabel}
-        </Button>
+        </button>
       </div>
     </div>
   );
 }
+
+function Macro({ value, label, color }: { value: string; label: string; color?: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="font-display text-[22px] font-bold tabular-nums" style={color ? { color } : undefined}>
+        {value}
+      </span>
+      <Caps className="text-muted-on-ink!">{label}</Caps>
+    </div>
+  );
+}
+
+/** Полоса «сейчас + добавка» на чёрном: добавка светлее. */
+function StackBar({ now, add, target, color, light, label }: { now: number; add: number; target: number; color: string; light: string; label: string }) {
+  const t = Math.max(1, target);
+  const a = Math.min(100, (now / t) * 100);
+  const b = Math.min(100 - a, (add / t) * 100);
+  return (
+    <div className="flex h-2.5 overflow-hidden rounded-[5px] bg-[#2A2C30]" role="img" aria-label={label}>
+      <div style={{ width: `${a}%`, background: color }} />
+      <div style={{ width: `${b}%`, background: light }} />
+    </div>
+  );
+}
+
+// ---------- Быстро и своё блюдо ----------
 
 function QuickForm({ onDone }: { onDone: (q: { name: string; kcal: number; p: number }) => void }) {
   const [name, setName] = useState('');
@@ -232,7 +394,7 @@ function QuickForm({ onDone }: { onDone: (q: { name: string; kcal: number; p: nu
   const pr = Math.round(Number(p.replace(',', '.')) * 10);
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-muted">Когда ешь в кафе и не знаешь состава — запиши на глаз.</p>
+      <p className="px-1 text-sm text-muted">Когда ешь в кафе и не знаешь состава — запиши на глаз.</p>
       <Field label="Что съел" placeholder="Плов в кафе" value={name} onChange={(e) => setName(e.target.value)} />
       <div className="grid grid-cols-2 gap-2">
         <Field label="Калории" suffix="ккал" inputMode="numeric" value={kcal} onChange={(e) => setKcal(e.target.value)} />
@@ -273,30 +435,38 @@ function RecipeForm({ foods, onDone }: { foods: Food[]; onDone: () => void }) {
     <div className="flex flex-col gap-3">
       <Field label="Название" placeholder="Плов домашний" value={name} onChange={(e) => setName(e.target.value)} />
       <div>
-        <p className="mb-1 text-sm text-muted">Состав (сырой вес)</p>
-        {items.map((it, i) => {
-          const f = map.get(it.foodId);
-          return (
-            <div key={i} className="flex min-h-11 items-center gap-2 border-b border-line text-sm">
-              <span className="flex-1 truncate">{f?.name}</span>
-              <span className="tabular-nums">{it.grams}{NBSP}г</span>
-              <button type="button" aria-label="Убрать" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))} className="flex h-11 w-11 items-center justify-center text-muted">
-                <Trash2 size={16} aria-hidden />
-              </button>
-            </div>
-          );
-        })}
-        <label className="mt-2 flex min-h-12 items-center gap-2 rounded-xl bg-surface-2 px-3">
+        <Caps className="mb-1.5 px-1">Состав (сырой вес)</Caps>
+        {items.length > 0 && (
+          <div className="rounded-3xl bg-surface px-4">
+            {items.map((it, i) => {
+              const f = map.get(it.foodId);
+              return (
+                <div key={i} className="flex min-h-12 items-center gap-2 border-t border-line text-[15px] first:border-t-0">
+                  <span className="flex-1 truncate font-semibold">{f?.name}</span>
+                  <span className="text-muted tabular-nums">{it.grams}{NBSP}г</span>
+                  <button type="button" aria-label="Убрать" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))} className="-mr-2 flex h-11 w-11 items-center justify-center text-muted">
+                    <Trash2 size={16} aria-hidden />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <label className="mt-2 flex h-14 items-center gap-2.5 rounded-full bg-surface px-[18px] focus-within:shadow-[inset_0_0_0_2px_var(--ink)]">
           <Search size={18} className="text-muted" aria-hidden />
-          <input className="min-w-0 flex-1 bg-transparent py-2 outline-none" placeholder="Добавить ингредиент" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="min-w-0 flex-1 bg-transparent text-[17px] font-semibold" style={{ outline: 'none' }} placeholder="Добавить ингредиент" value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>
-        {searchFoods(foods.filter((f) => f.source !== 'recipe'), query, 6).map((f) => (
-          <FoodRow key={f.id} food={f} onClick={() => setPicking(f)} />
-        ))}
+        {query && (
+          <div className="mt-2 overflow-hidden rounded-[26px] bg-surface">
+            {searchFoods(foods.filter((f) => f.source !== 'recipe'), query, 6).map((f) => (
+              <FoodRow key={f.id} food={f} query={query} onClick={() => setPicking(f)} />
+            ))}
+          </div>
+        )}
       </div>
       <Field label={`Вес готового блюда (сырой ${raw} г)`} suffix="г" inputMode="numeric" value={cooked} onChange={(e) => setCooked(e.target.value)} />
       {items.length > 0 && (
-        <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm">
+        <p className="rounded-2xl bg-surface px-4 py-2.5 text-sm">
           На 100 г готового: <b>{per100.kcal} ккал</b> · Б {formatMacro(per100.p, false)} · Ж {formatMacro(per100.f, false)} · У {formatMacro(per100.c, false)}
         </p>
       )}
@@ -323,7 +493,7 @@ export function EditEntrySheet({ entry, food, onClose }: { entry: FoodLog | null
   if (!entry) return null;
   return (
     <Sheet open title={food?.name ?? entry.quick?.name ?? 'Запись'} onClose={onClose}>
-      <div className="px-2 pb-2">
+      <div className="flex flex-col pb-2">
         {food && entry.grams ? (
           <GramsPicker
             food={food}
@@ -335,7 +505,7 @@ export function EditEntrySheet({ entry, food, onClose }: { entry: FoodLog | null
             }}
           />
         ) : (
-          <p className="text-muted">Быстрая запись: {entry.quick?.kcal} ккал, белок {formatMacro(entry.quick?.p ?? 0)}. Удалить — свайпом влево.</p>
+          <p className="px-1 text-muted">Быстрая запись: {entry.quick?.kcal} ккал, белок {formatMacro(entry.quick?.p ?? 0)}. Удалить — свайпом влево.</p>
         )}
       </div>
     </Sheet>

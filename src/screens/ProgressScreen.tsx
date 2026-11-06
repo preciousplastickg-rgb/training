@@ -20,7 +20,7 @@ export function ProgressScreen() {
             { value: 'body', label: 'Тело' },
             { value: 'strength', label: 'Сила' },
             { value: 'nutrition', label: 'Питание' },
-            { value: 'discipline', label: 'Дисциплина' },
+            { value: 'discipline', label: 'Режим' },
           ]}
         />
         {tab === 'body' && <BodyTab />}

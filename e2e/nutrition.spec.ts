@@ -9,21 +9,21 @@ test('продукт за 3 тапа, итоги сходятся с ручны�
   await page.getByRole('button', { name: 'Завтрак: добавить' }).click();
   await page.getByRole('textbox', { name: 'Поиск продукта' }).fill('грудка');
   await page.getByRole('button', { name: /^Куриная грудка, сырая/ }).click();
-  await page.getByRole('button', { name: 'Добавить', exact: true }).click();
+  await page.getByRole('button', { name: 'Добавить в завтрак' }).click();
 
   // яйцо: пресет «1 шт» = 55 г
   await page.getByRole('button', { name: 'Завтрак: добавить' }).click();
   await page.getByRole('textbox', { name: 'Поиск продукта' }).fill('яйцо');
   await page.getByRole('button', { name: /^Яйцо куриное/ }).click();
-  await page.getByRole('button', { name: 'Добавить', exact: true }).click();
+  await page.getByRole('button', { name: 'Добавить в завтрак' }).click();
 
   // 100 г грудки = 110 ккал, 23 г белка; 55 г яйца = 85 ккал, 6,9 г белка → 195 ккал, белок 29,9 → 30
-  await expect(page.getByText('Белок').locator('..').getByText(/^30 \/ 155/)).toBeVisible();
-  await expect(page.getByRole('img', { name: /Калории 195 из 2050/ })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Белок 30 из 155 г' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Калории 195 из 2050' })).toBeVisible();
 
   // быстрая запись
   await page.getByRole('button', { name: 'Обед: добавить' }).click();
-  await page.getByRole('button', { name: 'Быстро' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /^Быстро/ }).click();
   await page.getByRole('textbox', { name: 'Что съел' }).fill('Плов в кафе');
   await page.getByRole('textbox', { name: 'Калории' }).fill('700');
   await page.getByRole('textbox', { name: 'Белок' }).fill('25');
