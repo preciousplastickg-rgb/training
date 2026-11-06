@@ -211,6 +211,31 @@ export function Field({
   );
 }
 
+/** Удаление в два тапа без отдельной шторки: «Удалить…» → «Точно удалить? Да / Нет». */
+export function ConfirmDelete({ label, note, onConfirm, className = '' }: { label: string; note?: string; onConfirm: () => void | Promise<void>; className?: string }) {
+  const [asking, setAsking] = useState(false);
+  if (!asking) {
+    return (
+      <Button variant="danger" className={className} onClick={() => setAsking(true)}>
+        {label}
+      </Button>
+    );
+  }
+  return (
+    <div className={`rounded-2xl bg-danger/10 p-3 ${className}`} role="alertdialog" aria-label="Подтверждение удаления">
+      <p className="mb-2 text-sm font-medium text-danger">Точно удалить?{note ? ` ${note}` : ''}</p>
+      <div className="flex gap-2">
+        <Button variant="danger" className="flex-1 bg-danger text-white" onClick={() => void onConfirm()}>
+          Да, удалить
+        </Button>
+        <Button variant="secondary" className="flex-1" onClick={() => setAsking(false)}>
+          Нет
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-2 flex items-center justify-between">

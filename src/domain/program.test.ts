@@ -99,3 +99,27 @@ describe('состав тренировки', () => {
     expect(m).toBeLessThanOrEqual(80);
   });
 });
+
+describe('своё расписание и правки дней', () => {
+  const none = new Set<string>();
+  it('зал вт/чт/сб, бассейн пн/ср: план следует расписанию', () => {
+    const schedule = { gym: [2, 4, 6], pool: [1, 3], poolOptional: [] };
+    const kinds = planDays('2026-11-15', none, '2026-11-09', { schedule }).map((d) => d.kind);
+    // 9 ноября — понедельник
+    expect(kinds).toEqual(['pool', 'gym', 'pool', 'gym', 'rest', 'gym', 'rest']);
+  });
+  it('правка «отдых» на день зала — пропуск без переноса на завтра', () => {
+    const days = planDays('2026-11-10', none, undefined, { overrides: { '2026-11-09': 'rest' } });
+    expect(days[0]).toMatchObject({ kind: 'rest', overridden: true });
+    expect(days[1]!.kind).toBe('pool');
+    expect(days[1]!.makeup).toBeUndefined();
+  });
+  it('правка «зал» на вторник — зал, даже если вчера был зал', () => {
+    const plan = planForDate('2026-11-10', new Set(['2026-11-09']), { overrides: { '2026-11-10': 'gym' } });
+    expect(plan).toMatchObject({ kind: 'gym', overridden: true });
+  });
+  it('без правок и расписания — как в SPEC (зал по плану состоится)', () => {
+    const kinds = planDays('2026-11-15', none, '2026-11-09').map((d) => d.kind);
+    expect(kinds).toEqual(['gym', 'pool', 'gym', 'pool', 'gym', 'pool_optional', 'rest']);
+  });
+});

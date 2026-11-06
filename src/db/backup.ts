@@ -42,6 +42,8 @@ const settings = z.object({
   restLong: int, restShort: int, barWeight: int, plates: z.array(int), sound: z.boolean(), theme: z.enum(['light', 'dark', 'system']),
   substitutions: z.record(z.string(), z.string()), lastBackupAt: z.number().optional(),
   phase3Mode: z.enum(['maintenance', 'deficit']).optional(), onboarded: z.boolean().optional(),
+  schedule: z.object({ gym: z.array(int), pool: z.array(int), poolOptional: z.array(int) }).optional(),
+  dayOverrides: z.record(z.string(), z.enum(['gym', 'pool', 'rest'])).optional(),
 });
 const kv = z.object({ key: z.string(), value: z.unknown() });
 

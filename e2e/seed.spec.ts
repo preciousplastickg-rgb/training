@@ -39,3 +39,30 @@ test('календарь тренировок: A/B по дням, бассейн
   await page.keyboard.press('Escape');
   await expect(page.getByText(/· Бассейн/).first()).toBeVisible();
 });
+
+test('правка дня в календаре и удаление ошибочной тренировки из истории', async ({ page }) => {
+  await page.goto('./#/dev/seed');
+  await page.getByRole('button', { name: 'Заполнить' }).click();
+  await expect(page.getByText(/Готово:/)).toBeVisible();
+  await page.goto('./#/workout');
+  await page.reload();
+  // Вторник 5 января по расписанию — бассейн; делаем его залом.
+  await page.getByRole('button', { name: /^Вторник, 5 января/ }).click();
+  const day = page.getByRole('dialog', { name: 'Вторник, 5 января' });
+  await day.getByRole('radio', { name: 'Зал' }).click();
+  await expect(day.getByText('ПЛАН · ИЗМЕНЁН ВРУЧНУЮ')).toBeVisible();
+  await expect(day.getByText(/^Тренировка [AB]/)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: /^Вторник, 5 января: зал [AB] по плану/ })).toBeVisible();
+
+  // История: тап по тренировке → подходы → удалить.
+  const first = page.getByRole('button', { name: /^\d+ \S+ · Тренировка [AB]/ }).first();
+  const title = (await first.textContent()) ?? '';
+  await first.click();
+  const sheet = page.getByRole('dialog', { name: /^Тренировка [AB] · / });
+  await expect(sheet.getByText(/подходов/)).toBeVisible();
+  await sheet.getByRole('button', { name: 'Удалить тренировку' }).click();
+  await sheet.getByRole('button', { name: 'Да, удалить' }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByRole('button', { name: /^\d+ \S+ · Тренировка [AB]/ }).first()).not.toHaveText(title);
+});

@@ -13,7 +13,10 @@ const uid = () => crypto.randomUUID();
 
 // ---------- Seed ----------
 
-/** Программа и база продуктов при первом запуске. Повторный запуск ничего не меняет. */
+/** Версия базы продуктов: при повышении новые позиции дописываются, а seed-продуктам проставляется раздел. */
+export const FOOD_SEED_VERSION = 2;
+
+/** Программа и база продуктов при первом запуске. Повторный запуск с той же версией ничего не меняет. */
 export async function seedIfNeeded(database: AppDB = db): Promise<void> {
   await ensureSettings(database);
   await database.transaction('rw', database.slots, database.foods, database.kv, async () => {
@@ -21,10 +24,15 @@ export async function seedIfNeeded(database: AppDB = db): Promise<void> {
       await database.slots.bulkPut(SEED_SLOTS);
       await database.kv.put({ key: 'seed:slots', value: 1 });
     }
-    if (!(await database.kv.get('seed:foods'))) {
-      const existing = new Set(await database.foods.toCollection().primaryKeys());
+    if ((await database.kv.get('seed:foods'))?.value !== FOOD_SEED_VERSION) {
+      const existing = new Map((await database.foods.toArray()).map((f) => [f.id, f]));
       await database.foods.bulkAdd(SEED_FOODS.filter((f) => !existing.has(f.id)));
-      await database.kv.put({ key: 'seed:foods', value: 1 });
+      // Раздел — только там, где его нет: правки пользователя (название, КБЖУ) не трогаем.
+      for (const f of SEED_FOODS) {
+        const cur = existing.get(f.id);
+        if (cur && !cur.category && f.category) await database.foods.update(f.id, { category: f.category });
+      }
+      await database.kv.put({ key: 'seed:foods', value: FOOD_SEED_VERSION });
     }
   });
 }

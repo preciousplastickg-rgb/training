@@ -7,7 +7,7 @@ import { addDays, diffDays, isoWeekday, weekStart } from '../../domain/dates';
 import { dayStatuses, disciplineSummary, gymDone, type DayStatus } from '../../domain/discipline';
 import { formatDayMonth, formatInt } from '../../domain/format';
 import { dayTargets, dayTotals, nutritionInTarget } from '../../domain/nutrition';
-import { gymDatesOf, planDays } from '../../domain/program';
+import { gymDatesOf, planDays, planOptionsOf } from '../../domain/program';
 import { useAdjustments, useAllFoodLog, useAllSets, useFoods, usePool, useSessions, useSettings, useSlots } from '../../hooks/useData';
 import { useToday } from '../../hooks/useToday';
 
@@ -107,7 +107,7 @@ export function DisciplineTab() {
   const slots = useSlots();
   const settings = useSettings() ?? DEFAULT_SETTINGS;
   const { plans, statuses, summary } = useMemo(() => {
-    const plans = planDays(PROGRAM_END, gymDatesOf(sessions));
+    const plans = planDays(PROGRAM_END, gymDatesOf(sessions), undefined, planOptionsOf(settings));
     const gym = gymDone(sessions, sets, slots, settings);
     const statuses = dayStatuses(plans, gym, pool, today);
     return { plans, statuses, summary: disciplineSummary(plans, statuses) };

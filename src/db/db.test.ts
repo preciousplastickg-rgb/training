@@ -73,8 +73,21 @@ describe('seed', () => {
     await seedIfNeeded(database);
     expect(await database.slots.count()).toBe(SEED_SLOTS.length);
     const foods = await database.foods.count();
-    expect(foods).toBeGreaterThanOrEqual(120);
-    expect(foods).toBeLessThanOrEqual(150);
+    expect(foods).toBeGreaterThanOrEqual(150);
+    expect(foods).toBeLessThanOrEqual(250);
+  });
+  it('обновление базы: новые блюда дописываются, разделы проставляются, правка пользователя остаётся', async () => {
+    const { seedIfNeeded, FOOD_SEED_VERSION } = await import('./repo');
+    const { SEED_FOODS } = await import('../data/foods');
+    // «Старый телефон»: первые 150 позиций без раздела, одна — с правкой пользователя
+    const old = SEED_FOODS.slice(0, 150).map(({ category: _c, ...f }) => f);
+    old[0] = { ...old[0]!, name: 'Грудка (моя правка)' };
+    await database.foods.bulkAdd(old);
+    await database.kv.put({ key: 'seed:foods', value: 1 });
+    await seedIfNeeded(database);
+    expect(await database.foods.count()).toBe(SEED_FOODS.length);
+    expect((await database.foods.get('seed-001'))).toMatchObject({ name: 'Грудка (моя правка)', category: 'meat' });
+    expect((await database.kv.get('seed:foods'))?.value).toBe(FOOD_SEED_VERSION);
   });
   it('пользовательская правка слота не затирается повторным seed', async () => {
     const { seedIfNeeded } = await import('./repo');

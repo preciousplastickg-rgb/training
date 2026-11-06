@@ -118,7 +118,11 @@ export interface Food {
   source: 'seed' | 'user' | 'recipe';
   approx: boolean;
   archived: boolean;
+  /** Раздел каталога — для просмотра без поиска. */
+  category?: FoodCategory;
 }
+
+export type FoodCategory = 'meat' | 'dairy' | 'grain' | 'veg' | 'fruit' | 'fat' | 'sweet' | 'drink' | 'dish';
 
 export interface Recipe {
   foodId: Id;
@@ -164,7 +168,20 @@ export interface Settings {
   phase3Mode?: 'maintenance' | 'deficit';
   /** Первый запуск пройден (SPEC 6.8). */
   onboarded?: boolean;
+  /** Расписание недели; не задано — пн/ср/пт зал, вт/чт бассейн, сб по желанию (SPEC 3.2). */
+  schedule?: WeekSchedule;
+  /** Правки плана на отдельные даты из календаря. */
+  dayOverrides?: Record<LocalDate, DayOverride>;
 }
+
+/** Дни недели ISO: 1 — понедельник … 7 — воскресенье. Остальные дни — отдых. */
+export interface WeekSchedule {
+  gym: number[];
+  pool: number[];
+  poolOptional: number[];
+}
+
+export type DayOverride = 'gym' | 'pool' | 'rest';
 
 /** Строка настроек в БД — единственная, id = 'main'. */
 export interface SettingsRow extends Settings {

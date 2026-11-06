@@ -17,6 +17,7 @@ import { useActiveSession, useAllSets, usePool, useSessions, useSettings, useSlo
 import { useToday } from '../hooks/useToday';
 import { EmptyState } from '../components/EmptyState';
 import { CalendarCard } from './workout/CalendarCard';
+import { HistorySheet, type HistoryItem } from './workout/HistorySheet';
 
 export function WorkoutScreen() {
   const date = useToday();
@@ -144,10 +145,11 @@ function PlanList({
   );
 }
 
-/** История: зал и бассейн вместе, последние записи сверху. */
+/** История: зал и бассейн вместе, последние записи сверху. Тап — подробности и удаление. */
 function SessionHistory({ sessions }: { sessions: WorkoutSession[] }) {
   const sets = useAllSets();
   const pool = usePool();
+  const [open, setOpen] = useState<HistoryItem | null>(null);
   type Item = { date: string; at: number; gym?: WorkoutSession; pool?: PoolSession };
   const items: Item[] = [
     ...sessions.filter((s) => s.finishedAt !== undefined).map((s) => ({ date: s.date, at: s.finishedAt!, gym: s })),
@@ -155,6 +157,15 @@ function SessionHistory({ sessions }: { sessions: WorkoutSession[] }) {
   ]
     .sort((a, b) => (a.date === b.date ? b.at - a.at : a.date < b.date ? 1 : -1))
     .slice(0, 12);
+  const row = (main: React.ReactNode, right: React.ReactNode, onClick: () => void) => (
+    <button type="button" onClick={onClick} className="flex min-h-12 w-full items-center justify-between gap-3 py-1 text-left text-sm active:bg-track">
+      <span className="min-w-0">{main}</span>
+      <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-muted">
+        {right}
+        <ChevronRight size={16} aria-hidden />
+      </span>
+    </button>
+  );
   return (
     <section>
       <SectionTitle>История</SectionTitle>
@@ -166,33 +177,37 @@ function SessionHistory({ sessions }: { sessions: WorkoutSession[] }) {
             {items.map(({ gym: s, pool: p }) => {
               if (p) {
                 return (
-                  <li key={p.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <b>{formatDayMonth(p.date)}</b> · Бассейн <Waves size={14} className="text-protein" aria-hidden />
-                    </span>
-                    <span className="shrink-0 whitespace-nowrap text-muted">
-                      {p.minutes} мин{p.meters ? ` · ${formatInt(p.meters)} м` : ''}
-                    </span>
+                  <li key={p.id}>
+                    {row(
+                      <span className="flex items-center gap-1.5">
+                        <b>{formatDayMonth(p.date)}</b> · Бассейн <Waves size={14} className="text-protein" aria-hidden />
+                      </span>,
+                      <>{p.minutes} мин{p.meters ? ` · ${formatInt(p.meters)} м` : ''}</>,
+                      () => setOpen({ pool: p }),
+                    )}
                   </li>
                 );
               }
               const v = volume(sets.filter((x) => x.sessionId === s!.id));
               const min = Math.round(((s!.finishedAt ?? s!.startedAt) - s!.startedAt) / 60000);
               return (
-                <li key={s!.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <span className="min-w-0">
-                    <b>{formatDayMonth(s!.date)}</b> · Тренировка {s!.workout}
-                    {(s!.isCalibration || s!.isDeload) && <span className="block text-xs text-muted">{s!.isCalibration ? 'подбор веса' : 'разгрузка'}</span>}
-                  </span>
-                  <span className="shrink-0 whitespace-nowrap text-muted">
-                    {min} мин · {formatInt(Math.round(v / 100))} кг
-                  </span>
+                <li key={s!.id}>
+                  {row(
+                    <>
+                      <b>{formatDayMonth(s!.date)}</b> · Тренировка {s!.workout}
+                      {(s!.isCalibration || s!.isDeload) && <span className="block text-xs text-muted">{s!.isCalibration ? 'подбор веса' : 'разгрузка'}</span>}
+                    </>,
+                    <>{min} мин · {formatInt(Math.round(v / 100))} кг</>,
+                    () => setOpen({ gym: s! }),
+                  )}
                 </li>
               );
             })}
           </ul>
+          <p className="mt-2 text-xs text-muted">Тап по записи — подходы и удаление ошибочной тренировки.</p>
         </Card>
       )}
+      <HistorySheet item={open} sets={sets} onClose={() => setOpen(null)} />
     </section>
   );
 }

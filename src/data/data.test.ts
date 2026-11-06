@@ -25,12 +25,14 @@ describe('seed-данные', () => {
     expect(EXERCISE_BY_ID.bench_press!.cues[1]).toBe('Гриф опускается на низ груди, локти под 45–70° к корпусу');
     expect(EXERCISE_BY_ID.lateral_raise!.mistakes).toEqual(['Раскачка корпусом', 'Подъём плеч к ушам']);
   });
-  it('база продуктов: 120–150 позиций, БЖУ × 10 целые, блюда ≈', () => {
-    expect(SEED_FOODS.length).toBeGreaterThanOrEqual(120);
-    expect(SEED_FOODS.length).toBeLessThanOrEqual(150);
+  it('база продуктов: 150+ позиций с разделами, БЖУ × 10 целые, блюда ≈', () => {
+    expect(SEED_FOODS.length).toBeGreaterThanOrEqual(150);
+    expect(SEED_FOODS.length).toBeLessThanOrEqual(250);
     for (const f of SEED_FOODS) {
       for (const v of Object.values(f.per100)) expect(Number.isInteger(v), f.name).toBe(true);
+      expect(f.category, f.name).toBeDefined();
     }
+    expect(SEED_FOODS.filter((f) => f.category === 'dish').length).toBeGreaterThanOrEqual(40);
     const egg = SEED_FOODS.find((f) => f.name === 'Яйцо куриное')!;
     expect(egg.per100).toEqual({ kcal: 155, p: 126, f: 106, c: 11 });
     expect(egg.unitGrams).toBe(55);

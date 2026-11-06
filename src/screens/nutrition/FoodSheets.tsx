@@ -4,13 +4,16 @@ import { Search, Trash2, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Sheet } from '../../components/Sheet';
 import { Button, Chip, Field, Stepper } from '../../components/ui';
+import { FOOD_CATEGORIES } from '../../data/foods';
 import { addFoodLog, saveRecipe, updateFoodLog } from '../../db/repo';
-import type { Food, FoodLog } from '../../db/types';
+import type { Food, FoodCategory, FoodLog } from '../../db/types';
 import { formatInt, formatMacro, NBSP } from '../../domain/format';
 import { frequentFoods, recentFoods, searchFoods } from '../../domain/foodSearch';
 import { MEAL_NAMES, portion, recipePer100, type Meal } from '../../domain/nutrition';
 
 export function FoodRow({ food, onClick, right }: { food: Food; onClick: () => void; right?: React.ReactNode }) {
+  // У блюд и штучных продуктов главное — сколько в порции, а не в 100 г.
+  const unit = food.unitName && food.unitGrams ? portion(food, food.unitGrams) : null;
   return (
     <button type="button" onClick={onClick} className="flex min-h-14 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left active:bg-track">
       <span className="min-w-0 flex-1">
@@ -19,9 +22,17 @@ export function FoodRow({ food, onClick, right }: { food: Food; onClick: () => v
           {food.approx && <span className="ml-1 text-muted" title="Приблизительно">≈</span>}
         </span>
         <span className="block text-xs text-muted">
-          {food.per100.kcal} ккал · Б {formatMacro(food.per100.p, false)} · Ж {formatMacro(food.per100.f, false)} · У {formatMacro(food.per100.c, false)} на 100 г
+          {unit
+            ? `${food.unitName} ${food.unitGrams} г · Б ${formatMacro(unit.p, false)} · ${food.per100.kcal} ккал на 100 г`
+            : `${food.per100.kcal} ккал · Б ${formatMacro(food.per100.p, false)} · Ж ${formatMacro(food.per100.f, false)} · У ${formatMacro(food.per100.c, false)} на 100 г`}
         </span>
       </span>
+      {unit && (
+        <span className="shrink-0 text-right leading-tight">
+          <span className="block text-base font-semibold tabular-nums">{unit.kcal}</span>
+          <span className="block text-[10px] text-muted">ккал за {food.unitName}</span>
+        </span>
+      )}
       {right}
     </button>
   );
@@ -42,6 +53,7 @@ export function AddFoodSheet({
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<Food | null>(null);
   const [mode, setMode] = useState<'search' | 'quick' | 'recipe'>('search');
+  const [cat, setCat] = useState<FoodCategory | 'mine' | null>(null);
   const map = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods]);
   // Сброс — при закрытии: при следующем открытии поле поиска есть с первого кадра и получает фокус.
   useEffect(() => {
@@ -49,11 +61,19 @@ export function AddFoodSheet({
       setQuery('');
       setPicked(null);
       setMode('search');
+      setCat(null);
     }
   }, [open]);
   const results = searchFoods(foods, query);
   const recent = recentFoods(logs, map);
   const frequent = frequentFoods(logs, map, 10, new Set(recent.map((f) => f.id)));
+  const mine = foods.filter((f) => !f.archived && f.source !== 'seed');
+  const catalog = cat
+    ? foods
+        .filter((f) => !f.archived && (cat === 'mine' ? f.source !== 'seed' : f.category === cat))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+    : [];
+  const catLabel = cat === 'mine' ? 'Мои продукты и блюда' : (FOOD_CATEGORIES.find((c) => c.id === cat)?.label ?? '');
 
   const title = picked ? picked.name : mode === 'quick' ? 'Быстрая запись' : mode === 'recipe' ? 'Моё блюдо' : `${MEAL_NAMES[meal]}: добавить`;
   return (
@@ -102,9 +122,33 @@ export function AddFoodSheet({
               <List title={results.length ? 'Найдено' : 'Ничего не нашлось — попробуй «Быстро»'} items={results} onPick={setPicked} />
             ) : (
               <>
-                {recent.length > 0 && <List title="Недавние" items={recent} onPick={setPicked} />}
-                {frequent.length > 0 && <List title="Частые" items={frequent} onPick={setPicked} />}
-                {recent.length === 0 && <p className="mt-6 pb-4 text-center text-sm text-muted">Начни вводить название — например, «курица»</p>}
+                {/* Каталог: без поиска видно, что в базе уже есть блюда с примерными калориями */}
+                <div className="-mx-2 mt-3 flex gap-2 overflow-x-auto px-2 pb-1" role="tablist" aria-label="Разделы каталога">
+                  <Chip active={cat === null} onClick={() => setCat(null)} role="tab" aria-selected={cat === null}>
+                    Недавние
+                  </Chip>
+                  {FOOD_CATEGORIES.map((c) => (
+                    <Chip key={c.id} active={cat === c.id} onClick={() => setCat(c.id)} role="tab" aria-selected={cat === c.id}>
+                      {c.label}
+                    </Chip>
+                  ))}
+                  {mine.length > 0 && (
+                    <Chip active={cat === 'mine'} onClick={() => setCat('mine')} role="tab" aria-selected={cat === 'mine'}>
+                      Мои
+                    </Chip>
+                  )}
+                </div>
+                {cat ? (
+                  <List title={`${catLabel} · ${catalog.length}`} items={catalog} onPick={setPicked} />
+                ) : (
+                  <>
+                    {recent.length > 0 && <List title="Недавние" items={recent} onPick={setPicked} />}
+                    {frequent.length > 0 && <List title="Частые" items={frequent} onPick={setPicked} />}
+                    {recent.length === 0 && (
+                      <p className="mt-6 pb-4 text-center text-sm text-muted">Начни вводить название или открой раздел: в базе {foods.filter((f) => !f.archived).length} продуктов и блюд</p>
+                    )}
+                  </>
+                )}
               </>
             )}
           </>

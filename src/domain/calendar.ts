@@ -4,7 +4,7 @@ import { PROGRAM_END, PROGRAM_START } from '../data/program';
 import type { LocalDate, PoolSession, WorkoutSession } from '../db/types';
 import { addDays } from './dates';
 import { dayStatuses, POOL_MIN_MINUTES, type DayStatus, type GymDone } from './discipline';
-import { gymDatesOf, nextWorkout, planDays, type DayPlan } from './program';
+import { gymDatesOf, nextWorkout, planDays, type DayPlan, type PlanOptions } from './program';
 
 export interface CalendarDay {
   date: LocalDate;
@@ -31,10 +31,11 @@ export function calendarDays(
   sessions: readonly WorkoutSession[],
   gym: readonly GymDone[],
   pool: readonly PoolSession[],
+  opts: PlanOptions = {},
 ): CalendarDay[] {
   const finished = sessions.filter((s) => s.finishedAt !== undefined).sort((a, b) => (a.finishedAt ?? 0) - (b.finishedAt ?? 0));
   const sessionByDate = new Map(finished.map((s) => [s.date, s]));
-  const plans = planDays(to < PROGRAM_END ? to : PROGRAM_END, gymDatesOf(sessions), today);
+  const plans = planDays(to < PROGRAM_END ? to : PROGRAM_END, gymDatesOf(sessions), today, opts);
   const planByDate = new Map(plans.map((p) => [p.date, p]));
   const statuses = dayStatuses(plans, gym, pool, today);
 

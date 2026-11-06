@@ -6,9 +6,10 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Sheet } from '../components/Sheet';
 import { Button, Card, Chip, Field, Stepper, Tabs } from '../components/ui';
 import { getExercise } from '../data/exercises';
+import { DEFAULT_SCHEDULE } from '../data/program';
 import { DEFAULT_SETTINGS, updateSettings } from '../db/db';
 import { deleteAdjustment, resetProgram, updateSlot } from '../db/repo';
-import type { ProgramSlot, Settings, Theme } from '../db/types';
+import type { ProgramSlot, Settings, Theme, WeekSchedule } from '../db/types';
 import { formatDayMonth, formatKg, formatScaled, parseKg } from '../domain/format';
 import { useAdjustments, useSlots } from '../hooks/useData';
 import { BackupSection } from './settings/BackupSection';
@@ -62,6 +63,7 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
         <ProfileSection settings={settings} />
         {/* Бэкап — вторым: без сервера это самый важный раздел, и с «Сегодня» сюда ведёт подсказка. */}
         <BackupSection settings={settings} persisted={persisted} />
+        <ScheduleSection settings={settings} />
         <ProgramSection />
 
         <Section title="Отдых">
@@ -223,6 +225,61 @@ function ProfileSection({ settings }: { settings: Settings }) {
           onBlur={(e) => commit(e, num(3, 40), String(settings.targetBodyFat), (v) => ({ targetBodyFat: v }))}
         />
       </div>
+    </Section>
+  );
+}
+
+const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+const SCHEDULE_ROWS: { key: keyof WeekSchedule; label: string }[] = [
+  { key: 'gym', label: 'Зал' },
+  { key: 'pool', label: 'Бассейн' },
+  { key: 'poolOptional', label: 'Бассейн по желанию' },
+];
+
+/** Расписание недели: какие дни зал, какие бассейн. День может быть только в одной строке. */
+function ScheduleSection({ settings }: { settings: Settings }) {
+  const schedule = settings.schedule ?? DEFAULT_SCHEDULE;
+  const toggle = (key: keyof WeekSchedule, day: number) => {
+    const next: WeekSchedule = { gym: [...schedule.gym], pool: [...schedule.pool], poolOptional: [...schedule.poolOptional] };
+    const on = next[key].includes(day);
+    for (const k of Object.keys(next) as (keyof WeekSchedule)[]) next[k] = next[k].filter((d) => d !== day);
+    if (!on) next[key] = [...next[key], day].sort((a, b) => a - b);
+    void updateSettings({ schedule: next });
+  };
+  const isDefault = JSON.stringify(schedule) === JSON.stringify(DEFAULT_SCHEDULE);
+  return (
+    <Section title="Расписание недели">
+      <div className="flex flex-col gap-3">
+        {SCHEDULE_ROWS.map(({ key, label }) => (
+          <div key={key}>
+            <p className="mb-1 text-sm text-muted">{label}</p>
+            <div className="flex gap-1" role="group" aria-label={label}>
+              {WEEKDAYS.map((w, i) => {
+                const day = i + 1;
+                const on = schedule[key].includes(day);
+                return (
+                  <button
+                    key={w}
+                    type="button"
+                    aria-pressed={on}
+                    aria-label={`${label}: ${w}`}
+                    onClick={() => toggle(key, day)}
+                    className={`h-11 min-w-0 flex-1 rounded-xl text-sm font-medium ${on ? 'bg-primary text-on-primary' : 'bg-surface-2 text-muted'}`}
+                  >
+                    {w}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-muted">Остальные дни — отдых. Разовые изменения — тапом по дню в календаре на экране «Тренировка».</p>
+      {!isDefault && (
+        <Button variant="ghost" size="sm" className="mt-1" onClick={() => void updateSettings({ schedule: DEFAULT_SCHEDULE })}>
+          Вернуть по плану: пн·ср·пт зал, вт·чт бассейн
+        </Button>
+      )}
     </Section>
   );
 }

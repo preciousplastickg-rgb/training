@@ -24,6 +24,8 @@ import { useActiveSession, useAllSets, useRestTimer, useSessions, useSessionSets
 import { useNow } from '../../hooks/useNow';
 import { useWakeLock } from '../../hooks/useWakeLock';
 
+const HINT_KEY = 'hint:session';
+
 const defaultWeight = (ex: Exercise, settings: Settings): Kg100 =>
   ex.equipment === 'barbell' ? settings.barWeight : ex.equipment === 'dumbbell' ? 1000 : ex.equipment === 'cable' ? 2000 : ex.equipment === 'machine' ? 4000 : 0;
 
@@ -99,6 +101,12 @@ function ActiveWorkoutView({
   const totalDone = plan.reduce((a, x) => a + Math.min(x.sets, workDone(x.exercise.id).length), 0);
   const [info, setInfo] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
+  // Подсказка «как записывать» — до первого «Понятно»; без обращения к БД, чтобы не мигала.
+  const [hint, setHint] = useState(() => localStorage.getItem(HINT_KEY) === null);
+  const dismissHint = () => {
+    localStorage.setItem(HINT_KEY, '1');
+    setHint(false);
+  };
 
   // Текущий чип — всегда на виду: при автопереходе лента докручивается сама.
   const chipRef = useRef<HTMLButtonElement>(null);
@@ -198,6 +206,19 @@ function ActiveWorkoutView({
       </header>
 
       <main className={`flex-1 px-4 ${resting ? 'pb-[calc(20rem+env(safe-area-inset-bottom))]' : 'pb-[calc(2rem+env(safe-area-inset-bottom))]'}`}>
+        {hint && (
+          <aside className="mt-2 rounded-3xl border border-primary/50 bg-surface p-4" aria-label="Как записывать подход">
+            <p className="font-semibold">Как это работает</p>
+            <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-5 text-[15px]">
+              <li>Сделай подход с тем весом, что подсказан (или поставь свой стрелками ±).</li>
+              <li>Поправь повторы, если сделал не столько, и нажми <b>«Подход сделан»</b>.</li>
+              <li>Пойдёт отдых. После него — следующий подход, потом упражнение само сменится.</li>
+            </ol>
+            <Button variant="secondary" className="mt-3 w-full" onClick={dismissHint}>
+              Понятно
+            </Button>
+          </aside>
+        )}
         {p && (
           <ExerciseCard
             key={p.slot.id + p.exercise.id}
@@ -328,14 +349,16 @@ function ExerciseCard({
   const warmups = withWarmup && isKg ? warmupSets(eq, weight, settings.barWeight) : [];
   const side = ex.perSide ? (ex.id === 'db_row' ? ' на руку' : ' на ногу') : '';
   const range = `${p.sets} × ${p.slot.repMin}–${p.slot.repMax}${ex.unit === 'seconds' ? ' с' : ''}${side}`;
-  const head = isKg ? (suggestion.weight === null ? 'Вес — сам' : formatKg(suggestion.weight)) : ex.unit === 'seconds' ? `${suggestion.targets[0]} с` : `${suggestion.targets[0]} повт.`;
+  const head = isKg ? (suggestion.weight === null ? 'Вес подбери сам' : formatKg(suggestion.weight)) : ex.unit === 'seconds' ? `${suggestion.targets[0]} с` : `${suggestion.targets[0]} повт.`;
   const swapLabel = isSub ? `Вернуть: ${getExercise(p.slot.exerciseId).name.toLowerCase()}` : alt ? `Заменить на: ${getExercise(alt).name.toLowerCase()}` : null;
 
   return (
     <article className="mt-2 rounded-3xl bg-surface p-4">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-sm text-muted">Упражнение {index + 1}{p.slot.supersetWith ? ' · суперсет' : ''}</p>
+          <p className="text-sm text-muted">
+            Упражнение {index + 1}{p.slot.supersetWith ? ' · суперсет' : ''} · подход {Math.min(p.sets, work.length + 1)} из {p.sets}
+          </p>
           <h2 className="text-xl font-semibold leading-tight">{ex.name}</h2>
         </div>
         <button
@@ -412,8 +435,6 @@ function ExerciseCard({
                       <div className="flex-1">
                         <Stepper big label={`Вес, подход ${i + 1}`} value={formatKg(weight, false)} unit="кг" onDec={() => setWeight(adjacentWeight(eq, weight, -1))} onInc={() => setWeight(adjacentWeight(eq, weight, 1))} />
                       </div>
-                      {/* Та же ширина, что у галочки в строке повторов: кнопки ± двух степперов стоят друг под другом */}
-                      <span className="w-14 shrink-0" aria-hidden />
                     </div>
                   )}
                   <div className="flex items-center gap-2">
@@ -428,8 +449,17 @@ function ExerciseCard({
                         onInc={() => setReps((r) => r.map((v, j) => (j === i ? v + repStep : v)))}
                       />
                     </div>
-                    <CheckButton i={i} done={false} busy={busy} onClick={() => void check(i)} />
                   </div>
+                  {/* Одна понятная кнопка вместо значка-галочки: что нажать — не нужно угадывать */}
+                  <button
+                    type="button"
+                    aria-label={`Подход ${i + 1}: записать`}
+                    disabled={busy}
+                    onClick={() => void check(i)}
+                    className="mt-1 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-lg font-semibold text-on-primary active:scale-[0.98] disabled:opacity-60"
+                  >
+                    <Check size={24} strokeWidth={2.6} aria-hidden /> Подход {i + 1} сделан
+                  </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
@@ -446,7 +476,7 @@ function ExerciseCard({
                   <CheckButton i={i} done={!!done} busy={busy} onClick={() => (done ? void deleteSet(done.id) : void check(i))} />
                 </div>
               )}
-              {prev && <p className={`mt-0.5 text-xs text-muted ${isActive ? 'pl-20' : 'pl-8'}`}>прошлый раз {valueText(ex, prev.weight, prev.reps)}</p>}
+              {prev && <p className={`mt-1 text-xs text-muted ${isActive ? 'text-center' : 'pl-8'}`}>прошлый раз {valueText(ex, prev.weight, prev.reps)}</p>}
             </div>
           );
         })}

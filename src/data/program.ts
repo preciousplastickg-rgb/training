@@ -1,7 +1,7 @@
 // Программа — SPEC 3 (план тренировок от 5 ноября 2026).
 // Веса и шаги — Kg100; для упражнений на время шаг в секундах, на повторы — в повторах.
 
-import type { Deload, LocalDate, Phase, ProgramSlot } from '../db/types';
+import type { Deload, LocalDate, Phase, ProgramSlot, WeekSchedule } from '../db/types';
 
 export const CALIBRATION_DATE: LocalDate = '2026-11-06';
 export const PROGRAM_START: LocalDate = '2026-11-09';
@@ -102,3 +102,6 @@ export function poolPlan(date: LocalDate, optional: boolean): PoolPlan {
 }
 
 export const REST_DAY_STEPS = 8000;
+
+/** Неделя по плану (SPEC 3.2): пн/ср/пт зал, вт/чт бассейн, сб — по желанию, вс — отдых. */
+export const DEFAULT_SCHEDULE: WeekSchedule = { gym: [1, 3, 5], pool: [2, 4], poolOptional: [6] };

@@ -17,7 +17,7 @@ import { addDays, diffDays } from '../domain/dates';
 import { formatDayMonth, formatInt, formatKcal, formatKg, formatScaled, formatWeekdayDate, parseKg, NBSP } from '../domain/format';
 import { strengthSeries } from '../domain/history';
 import { dayTargets, dayTotals, weeklyAdjustment } from '../domain/nutrition';
-import { estimateMinutes, gymDatesOf, nextWorkout, phaseWeek, planForDate, workoutPlan } from '../domain/program';
+import { estimateMinutes, gymDatesOf, nextWorkout, phaseWeek, planForDate, planOptionsOf, workoutPlan } from '../domain/program';
 import {
   useActiveSession, useAdjustments, useAllSets, useBody, useFoodLog, useFoods, useKv, usePool, useSessions, useSettings, useSlots,
 } from '../hooks/useData';
@@ -160,7 +160,7 @@ function DayCard({ date, settings }: { date: string; settings: Settings }) {
   const pool = usePool();
   const slots = useSlots();
   const active = useActiveSession();
-  const plan = planForDate(date, gymDatesOf(sessions));
+  const plan = planForDate(date, gymDatesOf(sessions), planOptionsOf(settings));
   const workout = nextWorkout(sessions);
   const doneToday = sessions.find((s) => s.date === date && s.finishedAt !== undefined && !s.isCalibration);
   const poolToday = pool.filter((p) => p.date === date).reduce((a, p) => a + p.minutes, 0);
@@ -277,13 +277,13 @@ function ActiveCard({ active, date }: { active: WorkoutSession; date: string }) 
         <Button size="lg" className="flex-1" onClick={() => void finishSession(active.id)}>
           <Check size={20} aria-hidden /> Завершить
         </Button>
-        <Button size="lg" variant="secondary" onClick={() => navigate('session')} aria-label="Открыть тренировку">
-          <Play size={20} aria-hidden />
-        </Button>
-        <Button size="lg" variant="danger" onClick={() => setConfirmDelete(true)} aria-label="Удалить тренировку">
-          <Trash2 size={20} aria-hidden />
+        <Button size="lg" variant="secondary" onClick={() => navigate('session')}>
+          <Play size={20} aria-hidden /> Открыть
         </Button>
       </div>
+      <Button variant="ghost" className="mt-1 w-full text-danger" onClick={() => setConfirmDelete(true)}>
+        <Trash2 size={18} aria-hidden /> Удалить тренировку
+      </Button>
       <Sheet open={confirmDelete} title="Удалить тренировку?" onClose={() => setConfirmDelete(false)}>
         <div className="flex flex-col gap-2 p-2">
           <p className="px-2 pb-2 text-muted">Записанные подходы от {formatDayMonth(active.date)} пропадут из истории.</p>

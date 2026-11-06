@@ -2,14 +2,16 @@ import { ChevronLeft, ChevronRight, Waves } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { openSheet } from '../../app/uiStore';
 import { Sheet } from '../../components/Sheet';
-import { Button, Card } from '../../components/ui';
+import { Button, Card, Chip } from '../../components/ui';
 import { CALIBRATION_DATE, PROGRAM_END, REST_DAY_STEPS } from '../../data/program';
-import { DEFAULT_SETTINGS } from '../../db/db';
+import { DEFAULT_SETTINGS, updateSettings } from '../../db/db';
+import type { DayOverride } from '../../db/types';
 import { calendarDays, type CalendarDay } from '../../domain/calendar';
+import { HistorySheet, type HistoryItem } from './HistorySheet';
 import { addDays, weekStart } from '../../domain/dates';
 import { gymDone } from '../../domain/discipline';
 import { formatInt, formatWeekdayDate } from '../../domain/format';
-import { estimateMinutes, workoutPlan } from '../../domain/program';
+import { estimateMinutes, planOptionsOf, workoutPlan } from '../../domain/program';
 import { volume } from '../../domain/records';
 import { useAllSets, usePool, useSessions, useSettings, useSlots } from '../../hooks/useData';
 import { useToday } from '../../hooks/useToday';
@@ -44,7 +46,7 @@ export function CalendarCard() {
   const gridStart = weekStart(first);
   const gridEnd = addDays(weekStart(last), 6);
   const days = useMemo(
-    () => calendarDays(gridStart, gridEnd, today, sessions, gymDone(sessions, sets, slots, settings), pool),
+    () => calendarDays(gridStart, gridEnd, today, sessions, gymDone(sessions, sets, slots, settings), pool, planOptionsOf(settings)),
     [gridStart, gridEnd, today, sessions, sets, slots, settings, pool],
   );
   const inMonth = days.filter((d) => d.date.startsWith(month));
@@ -164,20 +166,49 @@ function DayCell({ d, today, outside, onClick }: { d: CalendarDay; today: string
   );
 }
 
+const OVERRIDES: { v: DayOverride | 'auto'; label: string }[] = [
+  { v: 'auto', label: 'По расписанию' },
+  { v: 'gym', label: 'Зал' },
+  { v: 'pool', label: 'Бассейн' },
+  { v: 'rest', label: 'Отдых' },
+];
+
 function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: string; onClose: () => void }) {
   const sets = useAllSets();
   const slots = useSlots();
   const settings = useSettings() ?? DEFAULT_SETTINGS;
+  const [details, setDetails] = useState<HistoryItem | null>(null);
   if (!day) return null;
   const { plan } = day;
   const past = day.date <= today;
   const planned = day.workout && !day.session ? workoutPlan(day.workout, day.date, slots, settings) : [];
+  const editable = day.date >= today && plan.kind !== 'prep' && plan.kind !== 'finished';
+  const override = settings.dayOverrides?.[day.date] ?? 'auto';
+  const setOverride = (v: DayOverride | 'auto') => {
+    const next = { ...(settings.dayOverrides ?? {}) };
+    if (v === 'auto') delete next[day.date];
+    else next[day.date] = v;
+    void updateSettings({ dayOverrides: next });
+  };
 
   return (
     <Sheet open title={formatWeekdayDate(day.date)} onClose={onClose}>
       <div className="flex flex-col gap-3 px-2 pb-2">
+        {editable && (
+          <section>
+            <p className="mb-1 text-xs font-semibold text-muted">ЧТО В ЭТОТ ДЕНЬ</p>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="План на день">
+              {OVERRIDES.map((o) => (
+                <Chip key={o.v} active={override === o.v} onClick={() => setOverride(o.v)} role="radio" aria-checked={override === o.v}>
+                  {o.label}
+                </Chip>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-muted">Расписание на всю неделю — в настройках. Буквы A/B чередуются сами.</p>
+          </section>
+        )}
         <section className="rounded-2xl bg-surface-2 p-3">
-          <p className="text-xs font-semibold text-muted">ПЛАН</p>
+          <p className="text-xs font-semibold text-muted">ПЛАН{plan.overridden ? ' · ИЗМЕНЁН ВРУЧНУЮ' : ''}</p>
           {plan.kind === 'gym' && day.workout && (
             <>
               <p className="mt-1 font-semibold">
@@ -216,23 +247,30 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
           <section className="rounded-2xl border border-line p-3">
             <p className="text-xs font-semibold text-muted">СДЕЛАНО</p>
             {day.session && (
-              <p className="mt-1">
-                <b>Тренировка {day.session.workout}</b>
-                {day.session.isCalibration ? ' · подбор веса' : day.session.isDeload ? ' · разгрузка' : ''}
-                <span className="block text-sm text-muted">
-                  {Math.round(((day.session.finishedAt ?? day.session.startedAt) - day.session.startedAt) / 60000)} мин ·{' '}
-                  {formatInt(Math.round(volume(sets.filter((x) => x.sessionId === day.session!.id)) / 100))} кг
+              <button type="button" onClick={() => setDetails({ gym: day.session })} className="mt-1 flex min-h-11 w-full items-center gap-2 text-left">
+                <span className="flex-1">
+                  <b>Тренировка {day.session.workout}</b>
+                  {day.session.isCalibration ? ' · подбор веса' : day.session.isDeload ? ' · разгрузка' : ''}
+                  <span className="block text-sm text-muted">
+                    {Math.round(((day.session.finishedAt ?? day.session.startedAt) - day.session.startedAt) / 60000)} мин ·{' '}
+                    {formatInt(Math.round(volume(sets.filter((x) => x.sessionId === day.session!.id)) / 100))} кг
+                  </span>
                 </span>
-              </p>
+                <ChevronRight size={16} className="text-muted" aria-hidden />
+              </button>
             )}
             {day.pool.map((p) => (
-              <p key={p.id} className="mt-1">
-                <b>Бассейн</b>
-                <span className="block text-sm text-muted">
-                  {[`${p.minutes} мин`, p.meters ? `${formatInt(p.meters)} м` : '', p.feel ? FEEL[p.feel - 1] : ''].filter(Boolean).join(' · ')}
+              <button key={p.id} type="button" onClick={() => setDetails({ pool: p })} className="mt-1 flex min-h-11 w-full items-center gap-2 text-left">
+                <span className="flex-1">
+                  <b>Бассейн</b>
+                  <span className="block text-sm text-muted">
+                    {[`${p.minutes} мин`, p.meters ? `${formatInt(p.meters)} м` : '', p.feel ? FEEL[p.feel - 1] : ''].filter(Boolean).join(' · ')}
+                  </span>
                 </span>
-              </p>
+                <ChevronRight size={16} className="text-muted" aria-hidden />
+              </button>
             ))}
+            {(day.session || day.pool.length > 0) && <p className="mt-1 text-xs text-muted">Тап по записи — подробности и удаление.</p>}
             {!day.session && day.pool.length === 0 && (
               <p className="mt-1 text-sm text-muted">
                 {day.status === 'missed' ? 'Пропущено.' : day.status === 'moved' ? 'Не состоялось — перенесено на следующий день.' : day.status === 'pending' ? 'Пока ничего — день ещё идёт.' : 'Ничего не записано.'}
@@ -253,6 +291,7 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
           </Button>
         )}
       </div>
+      <HistorySheet item={details} sets={sets} onClose={() => setDetails(null)} />
     </Sheet>
   );
 }

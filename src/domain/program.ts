@@ -1,11 +1,11 @@
 // Фазы, разгрузки, «что сегодня» (SPEC 5.1), чередование A/B (SPEC 3.2) и состав тренировки.
 
 import {
-  CALIBRATION_DATE, DELOADS, PHASES, PROGRAM_END, PROGRAM_START, REST_SUPERSET, ALT_STEP, poolPlan,
+  CALIBRATION_DATE, DEFAULT_SCHEDULE, DELOADS, PHASES, PROGRAM_END, PROGRAM_START, REST_SUPERSET, ALT_STEP, poolPlan,
   type PoolPlan,
 } from '../data/program';
 import { getExercise } from '../data/exercises';
-import type { Deload, Exercise, LocalDate, Phase, ProgramSlot, Settings, WorkoutSession } from '../db/types';
+import type { DayOverride, Deload, Exercise, LocalDate, Phase, ProgramSlot, Settings, WeekSchedule, WorkoutSession } from '../db/types';
 import { addDays, diffDays, isBetween, isoWeekday } from './dates';
 
 export function phaseFor(date: LocalDate): Phase | null {
@@ -46,10 +46,21 @@ export interface DayPlan {
   makeup?: boolean;
   /** Зал по расписанию, но вчера уже был зал — сегодня не предлагаем. */
   gymBlocked?: boolean;
+  /** День изменён вручную в календаре. */
+  overridden?: boolean;
   isDeload: boolean;
 }
 
-const GYM_DAYS = new Set([1, 3, 5]);
+/** Расписание недели и правки отдельных дней — из настроек. */
+export interface PlanOptions {
+  schedule?: WeekSchedule;
+  overrides?: Record<LocalDate, DayOverride>;
+}
+
+export const planOptionsOf = (s: Pick<Settings, 'schedule' | 'dayOverrides'>): PlanOptions => ({
+  schedule: s.schedule ?? DEFAULT_SCHEDULE,
+  overrides: s.dayOverrides ?? {},
+});
 
 /**
  * План дней с начала программы по `until` включительно.
@@ -57,13 +68,15 @@ const GYM_DAYS = new Set([1, 3, 5]);
  * План дня зависит от вчерашнего: пропуск зала переносит его на сегодня, два зала подряд не предлагаются.
  * `projectFrom` — для взгляда вперёд: начиная с этой даты зал по плану считается сделанным.
  */
-export function planDays(until: LocalDate, gymDates: ReadonlySet<LocalDate>, projectFrom?: LocalDate): DayPlan[] {
+export function planDays(until: LocalDate, gymDates: ReadonlySet<LocalDate>, projectFrom?: LocalDate, opts: PlanOptions = {}): DayPlan[] {
   const out: DayPlan[] = [];
   // Проекция вперёд (календарь): с `projectFrom` считаем, что зал по плану состоится.
   const gyms = projectFrom ? new Set(gymDates) : gymDates;
+  const schedule = opts.schedule ?? DEFAULT_SCHEDULE;
+  const overrides = opts.overrides ?? {};
   let prev: DayPlan | null = null;
   for (let d = PROGRAM_START; d <= until && d <= PROGRAM_END; d = addDays(d, 1)) {
-    const plan = planOneDay(d, prev, gyms);
+    const plan = planOneDay(d, prev, gyms, schedule, overrides[d]);
     if (projectFrom && d >= projectFrom && plan.kind === 'gym') (gyms as Set<LocalDate>).add(d);
     out.push(plan);
     prev = plan;
@@ -71,35 +84,44 @@ export function planDays(until: LocalDate, gymDates: ReadonlySet<LocalDate>, pro
   return out;
 }
 
-function planOneDay(date: LocalDate, prev: DayPlan | null, gymDates: ReadonlySet<LocalDate>): DayPlan {
+function planOneDay(date: LocalDate, prev: DayPlan | null, gymDates: ReadonlySet<LocalDate>, schedule: WeekSchedule, override?: DayOverride): DayPlan {
   const wd = isoWeekday(date);
   const isDeload = deloadFor(date) !== null;
   const gymYesterday = gymDates.has(addDays(date, -1));
   // Зал переносится, если вчера он был в плане (или был заблокирован), но не состоялся.
-  const carry = !gymYesterday && (prev?.kind === 'gym' || prev?.gymBlocked === true);
-  const regularPool = wd === 2 || wd === 4;
+  // Явный «отдых» из календаря переноса не даёт: это осознанный пропуск.
+  const carry = !gymYesterday && !prev?.overridden && (prev?.kind === 'gym' || prev?.gymBlocked === true);
+  const gymDay = schedule.gym.includes(wd);
+  const regularPool = schedule.pool.includes(wd);
+  const optionalPool = schedule.poolOptional.includes(wd);
 
-  if (gymYesterday && GYM_DAYS.has(wd)) {
+  // Правка дня из календаря — поверх расписания и правила «два зала подряд».
+  if (override === 'gym') return { date, kind: 'gym', overridden: true, isDeload };
+  if (override === 'pool') return { date, kind: 'pool', pool: { ...poolPlan(date, false), optional: false }, overridden: true, isDeload };
+  if (override === 'rest') return { date, kind: 'rest', overridden: true, isDeload };
+
+  if (gymYesterday && gymDay) {
     // Два зала подряд не предлагаем: зал уезжает на завтра, сегодня — бассейн по желанию.
     return { date, kind: 'pool_optional', pool: { ...poolPlan(date, true), optional: true }, gymBlocked: true, isDeload };
   }
-  if (GYM_DAYS.has(wd)) return { date, kind: 'gym', isDeload };
-  if (carry && wd !== 7) {
+  if (gymDay) return { date, kind: 'gym', isDeload };
+  // Перенос — на любой день, кроме «чистого» выходного (по умолчанию — воскресенье).
+  if (carry && (regularPool || optionalPool)) {
     return {
       date, kind: 'gym', makeup: true, isDeload,
-      pool: regularPool || wd === 6 ? { ...poolPlan(date, true), optional: true } : undefined,
+      pool: { ...poolPlan(date, true), optional: true },
     };
   }
   if (regularPool) return { date, kind: 'pool', pool: { ...poolPlan(date, false), optional: false }, isDeload };
-  if (wd === 6) return { date, kind: 'pool_optional', pool: { ...poolPlan(date, true), optional: true }, isDeload };
+  if (optionalPool) return { date, kind: 'pool_optional', pool: { ...poolPlan(date, true), optional: true }, isDeload };
   return { date, kind: 'rest', isDeload };
 }
 
 /** План на конкретный день (в том числе до старта и после конца программы). */
-export function planForDate(date: LocalDate, gymDates: ReadonlySet<LocalDate>): DayPlan {
+export function planForDate(date: LocalDate, gymDates: ReadonlySet<LocalDate>, opts: PlanOptions = {}): DayPlan {
   if (date < PROGRAM_START) return { date, kind: 'prep', isDeload: false };
   if (date > PROGRAM_END) return { date, kind: 'finished', isDeload: false };
-  const plans = planDays(date, gymDates);
+  const plans = planDays(date, gymDates, undefined, opts);
   return plans[plans.length - 1]!;
 }
 
