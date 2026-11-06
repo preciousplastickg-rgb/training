@@ -152,7 +152,9 @@ function ActiveWorkoutView({
   const elapsed = (now - session.startedAt) / 1000;
   const resting = !!timer && timer.sessionId === session.id;
   const mode = session.isCalibration ? ' · подбор веса' : session.isDeload ? ' · разгрузка' : '';
-  const doneHere = p ? workDone(p.exercise.id).length : 0;
+  const workHere = p ? workDone(p.exercise.id).sort((a, b) => a.setIndex - b.setIndex) : [];
+  const doneHere = workHere.length;
+  const currentIdx = p ? firstOpenIndex(p.sets, workHere) : 0;
 
   // Новый подход, отдых или другое упражнение — всегда с начала экрана.
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -189,13 +191,7 @@ function ActiveWorkoutView({
             </button>
           )}
         </div>
-        {p && (
-          <div className="mt-5 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${p.sets}, minmax(0, 1fr))` }} aria-label={`Подходов сделано ${doneHere} из ${p.sets}`} role="img">
-            {Array.from({ length: p.sets }, (_, i) => (
-              <div key={i} className={`h-1.5 rounded-[3px] ${i < doneHere ? 'bg-primary' : i === doneHere && !resting ? 'bg-[#4A4D33]' : 'bg-surface-2'}`} />
-            ))}
-          </div>
-        )}
+        {p && <SetTracker ex={p.exercise} total={p.sets} work={workHere} current={currentIdx} resting={resting} onUndo={(id) => void deleteSet(id)} />}
       </header>
 
       {p &&
@@ -296,6 +292,68 @@ function nextSetText(plan: PlannedExercise[], current: number, sets: SetLog[], s
   return { label: 'Следующий подход', value: valueText(p.exercise, weight, reps) };
 }
 
+/** Первый незаписанный подход: после отмены среднего подхода запись идёт в него, а не поверх следующего. */
+function firstOpenIndex(total: number, work: readonly SetLog[]): number {
+  for (let i = 0; i < total; i++) if (!work.some((s) => s.setIndex === i)) return i;
+  return total - 1;
+}
+
+/**
+ * Трекер подходов под шапкой: ячейка на каждый подход. Сделанные — лаймовые с результатом (тап — отменить запись),
+ * текущий — с лаймовой обводкой и подписью «сейчас» / «дальше» в отдыхе, будущие — серые с номером.
+ */
+function SetTracker({
+  ex, total, work, current, resting, onUndo,
+}: {
+  ex: Exercise;
+  total: number;
+  work: readonly SetLog[];
+  current: number;
+  resting: boolean;
+  onUndo: (id: string) => void;
+}) {
+  const allDone = work.length >= total;
+  return (
+    <div
+      className="mt-4 grid gap-1.5"
+      style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
+      role="group"
+      aria-label={`Подходы: сделано ${work.length} из ${total}`}
+    >
+      {Array.from({ length: total }, (_, i) => {
+        const done = work.find((s) => s.setIndex === i);
+        if (done) {
+          return (
+            <button
+              key={i}
+              type="button"
+              aria-label={`Подход ${i + 1}: отменить запись`}
+              onClick={() => onUndo(done.id)}
+              className="flex h-14 min-w-0 flex-col items-center justify-center rounded-2xl bg-primary px-1 text-on-primary active:opacity-80"
+            >
+              <span className="max-w-full truncate text-[14px] leading-4 font-extrabold tabular-nums">{valueText(ex, done.weight, done.reps)}</span>
+              <span className="mt-0.5 flex items-center gap-0.5 text-[10px] leading-3 font-bold tracking-[.08em] uppercase opacity-70">
+                <Check size={10} strokeWidth={3.5} aria-hidden /> {i + 1}
+              </span>
+            </button>
+          );
+        }
+        const isCurrent = !allDone && i === current;
+        return (
+          <div
+            key={i}
+            aria-hidden
+            className={`flex h-14 flex-col items-center justify-center rounded-2xl ${isCurrent ? 'border-2 border-primary' : 'bg-surface-2 text-muted'}`}
+          >
+            <span className="font-display text-[17px] leading-5 font-bold tabular-nums">{i + 1}</span>
+            {isCurrent && <span className="mt-0.5 text-[10px] leading-3 font-bold tracking-[.08em] text-primary uppercase">{resting ? 'дальше' : 'сейчас'}</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ---------- Подход (BActive) ----------
 
 function Round({ label, size, onClick, children }: { label: string; size: 64 | 56; onClick: () => void; children: ReactNode }) {
@@ -333,8 +391,8 @@ function SetScreen({
   const work = logged.filter((s) => s.kind === 'work').sort((a, b) => a.setIndex - b.setIndex);
   const warm = logged.filter((s) => s.kind === 'warmup');
   const isKg = ex.unit === 'kg';
-  const n = Math.min(p.sets, work.length + 1);
-  const i = Math.min(p.sets - 1, work.length);
+  const i = firstOpenIndex(p.sets, work);
+  const n = i + 1;
   const allDone = work.length >= p.sets;
   const [weight, setWeight] = useState<Kg100>(() => work[work.length - 1]?.weight ?? suggestion.weight ?? defaultWeight(ex, settings));
   const [reps, setReps] = useState<number>(() => suggestion.targets[i] ?? p.slot.repMin);
@@ -477,23 +535,6 @@ function SetScreen({
             >
               <Check size={22} strokeWidth={2.6} aria-hidden />
             </button>
-          </Row>
-        )}
-        {work.length > 0 && (
-          <Row>
-            <span className="flex flex-1 flex-wrap gap-1.5 py-1.5" aria-label="Записанные подходы">
-              {work.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  aria-label={`Подход ${s.setIndex + 1}: отменить запись`}
-                  onClick={() => void deleteSet(s.id)}
-                  className="flex min-h-14 items-center gap-1 rounded-full bg-surface-2 px-3 text-sm font-extrabold tabular-nums active:opacity-70"
-                >
-                  {valueText(ex, s.weight, s.reps)} <Check size={16} strokeWidth={3} className="text-primary" aria-hidden />
-                </button>
-              ))}
-            </span>
           </Row>
         )}
         {last && suggestion.mode !== 'progress' && suggestion.mode !== 'hold' && (
