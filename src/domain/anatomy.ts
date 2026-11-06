@@ -121,7 +121,9 @@ function rot(p: Pt, c: Pt, deg: number): Pt {
 }
 
 const mirror = (p: Pt): Pt => ({ x: 100 - p.x, y: p.y });
-const toWorld = (p: Pt): Pt => ({ x: 100 + (p.x - 50) * MAP_SCALE, y: p.y * MAP_SCALE });
+/** Координаты карты (viewBox 100 × 220) → кадр манекена 200 × 200. */
+export const mapToWorld = (p: Pt): Pt => ({ x: 100 + (p.x - 50) * MAP_SCALE, y: p.y * MAP_SCALE });
+const toWorld = mapToWorld;
 
 export interface FrontFigure {
   /** Суставы в кадре (без смещения к полу) — для снарядов, опор и подсказок углов. */

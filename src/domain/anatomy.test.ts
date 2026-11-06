@@ -90,3 +90,27 @@ describe('опора', () => {
     expect(Math.abs(low('armR-extensors') - low('leg-foot'))).toBeLessThan(2.5);
   });
 });
+
+describe('гладкая кожа (skin)', () => {
+  it('вид сбоку: слои — дальняя рука, нога, тело, ближняя рука; контуры — замкнутые пути', async () => {
+    const { sideSkin, smoothClosed } = await import('./skin');
+    const { sidePose } = await import('./pose');
+    const { ANIMATION_BY_ID } = await import('../data/animations');
+    const anim = ANIMATION_BY_ID.goblet_squat!;
+    const shapes = sideSkin(sidePose(anim, anim.keyframes[0]!.joints));
+    expect(shapes.map((s) => s.layer)).toEqual(['farArm', 'farArm', 'body', 'body', 'body', 'body', 'body', 'body', 'body', 'nearArm', 'nearArm']);
+    for (const s of shapes) expect(s.d.startsWith('M') && s.d.endsWith('Z'), s.key).toBe(true);
+    expect(smoothClosed([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])).toMatch(/^M0 0C.*Z$/);
+  });
+  it('вид спереди: голова над корпусом, стопы под голеностопами, руки — верхний слой', async () => {
+    const { frontSkin } = await import('./skin');
+    const { ANIMATION_BY_ID } = await import('../data/animations');
+    const anim = ANIMATION_BY_ID.lateral_raise!;
+    const pose = frontFigure(anim, anim.keyframes[0]!.joints).pose;
+    const shapes = frontSkin(pose);
+    const head = shapes.find((s) => s.key === 'head')!;
+    expect(head.grad.o.y).toBeLessThan(pose.neck.y);
+    expect(shapes.filter((s) => s.layer === 'nearArm')).toHaveLength(4);
+    expect(shapes.find((s) => s.key === 'footL')!.grad.o).toEqual(pose.ankleL);
+  });
+});

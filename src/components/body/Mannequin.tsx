@@ -1,10 +1,11 @@
-// Анимированный манекен — SPEC 6.7.2. Фигура в языке карты мышц (6.7.1): мышцы — пластины
-// с тонким зазором, рабочие подсвечиваются и «загораются» в фазе усилия.
-// Свой SVG, requestAnimationFrame, без библиотек.
+// Анимированный манекен — SPEC 6.7.2. Сплошная гладкая фигура с объёмом (src/domain/skin.ts);
+// рабочие мышцы светятся под кожей (пластины из anatomy.ts — только как области свечения)
+// и «загораются» в фазе усилия. Свой SVG, requestAnimationFrame, без библиотек.
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ANIMATION_BY_ID, type AngleGuide, type ExerciseAnimation, type Prop } from '../../data/animations';
 import { frontFigure, handPoint, sidePlates, type Placed } from '../../domain/anatomy';
+import { frontSkin, sideSkin, type SkinLayer, type SkinShape } from '../../domain/skin';
 import { angleTo, cycleAt, dir, lerpJoints, SEG, sidePose, type CycleState, type Joints, type Phase, type Pose, type Pt, type SidePose } from '../../domain/pose';
 
 const W = 200;
@@ -133,16 +134,18 @@ function placedSide(anim: ExerciseAnimation, joints: Joints, base: Fit): SidePos
 }
 
 /** Поза и пластины кадра. */
-function figureAt(anim: ExerciseAnimation, joints: Joints, base: Fit): { pose: Pose; plates: Placed[] } {
+function figureAt(anim: ExerciseAnimation, joints: Joints, base: Fit): { pose: Pose; plates: Placed[]; skin: SkinShape[] } {
   if (anim.view === 'front') {
     const fig = frontFigure(anim, joints);
+    const pose = translate(fig.pose, base.dx, base.dy);
     return {
-      pose: translate(fig.pose, base.dx, base.dy),
+      pose,
       plates: fig.plates.map((pl) => ({ ...pl, pts: pl.pts.map((q) => ({ x: q.x + base.dx, y: q.y + base.dy })) })),
+      skin: frontSkin(pose),
     };
   }
   const pose = placedSide(anim, joints, base);
-  return { pose, plates: sidePlates(pose) };
+  return { pose, plates: sidePlates(pose), skin: sideSkin(pose) };
 }
 
 // ---------- Мышцы ----------
@@ -157,38 +160,89 @@ function highlightOf(anim: ExerciseAnimation, state: CycleState, still: boolean)
   };
 }
 
-const GAP = { stroke: 'var(--fig-bg)', strokeWidth: 0.85, strokeLinejoin: 'round' as const };
+const LAYERS: SkinLayer[] = ['farArm', 'farLeg', 'body', 'nearArm'];
 
-/** Ближняя рука на тон светлее корпуса: лежит поверх него и иначе сливается. */
-const NEAR_IDLE = 'color-mix(in oklab, var(--m-idle) 62%, var(--fig-bg))';
+/** Слой пластины-мышцы: по префиксу (вид сбоку) или по части тела карты (вид спереди). */
+function layerOf(pl: Placed): SkinLayer {
+  if (pl.key.startsWith('armL-')) return 'farArm';
+  if (pl.key.startsWith('legB-')) return 'farLeg';
+  if (pl.key.startsWith('armR-')) return 'nearArm';
+  if (/^(biceps|triceps|forearm|front-deltoids|back-deltoids)-/.test(pl.key)) return 'nearArm';
+  return 'body';
+}
 
-function Plates({ plates, hl }: { plates: Placed[]; hl: ReturnType<typeof highlightOf> }) {
-  const nearArm = (p: Placed) => p.key.startsWith('armR-');
-  const render = (pl: Placed) => {
-    const pts = ptsAttr(pl.pts);
-    const h = pl.muscles.length ? hl(pl.muscles) : null;
-    const base = pl.tone === 'neutral' ? 'var(--m-outline)' : nearArm(pl) ? NEAR_IDLE : 'var(--m-idle)';
-    return (
-      <g key={pl.key}>
-        <polygon points={pts} fill={base} {...GAP} />
-        {h && (
-          <polygon
-            points={pts}
-            fill={h.color}
-            {...GAP}
-            style={{ opacity: h.opacity, transition: 'opacity 260ms ease-out', filter: h.glow ? 'drop-shadow(0 0 2.5px var(--m-glow))' : undefined }}
-          />
-        )}
-      </g>
-    );
-  };
-  // Дальние рука и нога — за телом и бледнее: так читается глубина. Ближняя рука часто лежит
-  // поверх корпуса — светлее тоном и с мягкой тенью, иначе видно только контур.
+const DARK = 'color-mix(in oklab, var(--body-a) 76%, black)';
+
+/**
+ * Тело: сплошная кожа с объёмом. Каждый слой — контур (под заливкой, чтобы швы между сегментами
+ * одной цепочки скрылись), заливка с градиентом поперёк сегмента и мышцы, светящиеся под кожей
+ * (размытые пластины, обрезанные по телу). Дальние конечности темнее, ближняя рука — с мягкой тенью.
+ */
+function Body({ skin, plates, hl, gid, symmetric }: { skin: SkinShape[]; plates: Placed[]; hl: ReturnType<typeof highlightOf>; gid: string; symmetric: boolean }) {
+  const glow = plates.filter((pl) => pl.muscles.length > 0);
   return (
     <>
-      <g opacity={0.55}>{plates.filter((p) => p.far).map(render)}</g>
-      {plates.filter((p) => !p.far && !nearArm(p)).map(render)}
-      <g style={{ filter: 'drop-shadow(0 0.5px 1.4px rgb(0 0 0 / 0.32))' }}>{plates.filter(nearArm).map(render)}</g>
+      <defs>
+        {skin.map((sh) => {
+          const { o, n, half } = sh.grad;
+          return (
+            <linearGradient
+              key={sh.key}
+              id={`${gid}-${sh.key}`}
+              gradientUnits="userSpaceOnUse"
+              x1={f1(o.x - n.x * half)}
+              y1={f1(o.y - n.y * half)}
+              x2={f1(o.x + n.x * half)}
+              y2={f1(o.y + n.y * half)}
+            >
+              <stop offset="0" stopColor={symmetric ? 'var(--body-a)' : DARK} />
+              <stop offset={symmetric ? '0.5' : '0.58'} stopColor="var(--body-b)" />
+              <stop offset="1" stopColor="var(--body-a)" />
+            </linearGradient>
+          );
+        })}
+        {LAYERS.map((l) => (
+          <clipPath key={l} id={`${gid}-clip-${l}`}>
+            {skin.filter((sh) => l === 'nearArm' || sh.layer === l).map((sh) => <path key={sh.key} d={sh.d} />)}
+          </clipPath>
+        ))}
+        <filter id={`${gid}-blur`} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="1.6" />
+        </filter>
+        <filter id={`${gid}-core`} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="0.6" />
+        </filter>
+      </defs>
+      {LAYERS.map((layer) => {
+        const shapes = skin.filter((sh) => sh.layer === layer);
+        if (!shapes.length) return null;
+        const far = layer === 'farArm' || layer === 'farLeg';
+        return (
+          <g key={layer} style={far ? { filter: 'brightness(0.78)' } : layer === 'nearArm' ? { filter: 'drop-shadow(0 0.6px 1.3px rgb(0 0 0 / 0.38))' } : undefined}>
+            <g fill="none" stroke="var(--body-line)" strokeWidth={1} strokeLinejoin="round">
+              {shapes.map((sh) => <path key={sh.key} d={sh.d} />)}
+            </g>
+            <g>
+              {shapes.map((sh) => <path key={sh.key} d={sh.d} fill={`url(#${gid}-${sh.key})`} />)}
+            </g>
+            {/* Мышцы под кожей: широкое мягкое свечение и более чёткое ядро, обрезанные по телу */}
+            <g clipPath={`url(#${gid}-clip-${layer})`}>
+              {(['blur', 'core'] as const).map((pass) => (
+                <g key={pass} filter={`url(#${gid}-${pass})`}>
+                  {glow.filter((pl) => layerOf(pl) === layer).map((pl) => {
+                    const h = hl(pl.muscles);
+                    if (!h) return null;
+                    const k = pass === 'blur' ? 0.85 : h.glow ? 0.55 : 0.3;
+                    return (
+                      <polygon key={pl.key} points={ptsAttr(pl.pts)} fill={h.color} style={{ opacity: h.opacity * k, transition: 'opacity 260ms ease-out' }} />
+                    );
+                  })}
+                </g>
+              ))}
+            </g>
+          </g>
+        );
+      })}
     </>
   );
 }
@@ -454,6 +508,7 @@ interface MannequinProps {
 
 export function Mannequin({ exerciseId, frame, playing = true, size = 220, showGuides = true, onPhase }: MannequinProps) {
   const anim = ANIMATION_BY_ID[exerciseId];
+  const gid = useId().replace(/:/g, '');
   const [elapsed, setElapsed] = useState(0);
   const ref = useRef<SVGSVGElement>(null);
   const [visible, setVisible] = useState(true);
@@ -497,7 +552,7 @@ export function Mannequin({ exerciseId, frame, playing = true, size = 220, showG
   if (!anim || !state || !startPose) return null;
 
   const joints = lerpJoints(kf(anim, 'start'), kf(anim, 'end'), state.t);
-  const { pose, plates } = figureAt(anim, joints, offset);
+  const { pose, plates, skin } = figureAt(anim, joints, offset);
   const hl = highlightOf(anim, state, !!frame || anim.direction === 'static');
   // Размеры подсказок — в пикселях экрана, независимо от размера рисунка.
   const k = (W / size) * (offset.scale < 1 ? 1 / offset.scale : 1);
@@ -525,7 +580,7 @@ export function Mannequin({ exerciseId, frame, playing = true, size = 220, showG
     >
       <g transform={offset.scale < 1 ? `translate(${W / 2} ${BAR_Y}) scale(${offset.scale}) translate(${-W / 2} ${-BAR_Y})` : undefined}>
         <Props anim={anim} p={pose} start={startPose} />
-        <Plates plates={plates} hl={hl} />
+        <Body skin={skin} plates={plates} hl={hl} gid={gid} symmetric={anim.view === 'front'} />
         <Equipment anim={anim} p={pose} start={startPose} />
         {groups.map(
           ({ name, vis, geoms }) =>
