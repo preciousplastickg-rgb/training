@@ -1,19 +1,20 @@
-import { Camera, Check, ChevronRight, CloudDownload, Dumbbell, Flag, Footprints, Minus, Play, Plus, Settings as SettingsIcon, Waves } from 'lucide-react';
+import { Camera, Check, ChevronRight, CloudDownload, Dumbbell, Flag, Footprints, Minus, Play, Plus, Settings as SettingsIcon, Trash2, Waves } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { navigate } from '../app/router';
 import { unlockAudio } from '../app/sound';
 import { openSheet } from '../app/uiStore';
 import { Rings } from '../components/Rings';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { Sheet } from '../components/Sheet';
 import { SilhouetteMini } from '../components/body/Silhouette';
 import { Button, Card } from '../components/ui';
 import { CALIBRATION_DATE, CHECKPOINTS, PHASES, PROGRAM_END, PROGRAM_START, REST_DAY_STEPS } from '../data/program';
 import { DEFAULT_SETTINGS } from '../db/db';
-import { applyAdjustment, dismissAdjustment, putBody, setPhase3Mode, startSession } from '../db/repo';
-import type { BodyEntry, Settings } from '../db/types';
+import { applyAdjustment, discardSession, dismissAdjustment, finishSession, putBody, setPhase3Mode, startSession } from '../db/repo';
+import type { BodyEntry, Settings, WorkoutSession } from '../db/types';
 import { avg7, forecastDate, pathProgress, weeklyChange } from '../domain/body';
 import { addDays, diffDays } from '../domain/dates';
-import { formatDayMonth, formatInt, formatKcal, formatKg, formatScaled, formatWeekdayDate, NBSP } from '../domain/format';
+import { formatDayMonth, formatInt, formatKcal, formatKg, formatScaled, formatWeekdayDate, parseKg, NBSP } from '../domain/format';
 import { strengthSeries } from '../domain/history';
 import { dayTargets, dayTotals, weeklyAdjustment } from '../domain/nutrition';
 import { estimateMinutes, gymDatesOf, nextWorkout, phaseWeek, planForDate, workoutPlan } from '../domain/program';
@@ -47,7 +48,7 @@ export function TodayScreen() {
         <PathCard date={date} settings={settings} body={body} />
         <DayCard date={date} settings={settings} />
         <NutritionCard date={date} settings={settings} />
-        <WeightCard date={date} body={body} />
+        <WeightCard date={date} body={body} fallback={settings.startWeight} />
         <Hints date={date} settings={settings} body={body} />
       </div>
     </>
@@ -171,16 +172,7 @@ function DayCard({ date, settings }: { date: string; settings: Settings }) {
     navigate('session');
   };
 
-  if (active) {
-    return (
-      <Card className="border-2 border-primary">
-        <DayRow icon={Dumbbell} title={`Тренировка ${active.workout} идёт`} text="Незавершённая тренировка сохранена" />
-        <Button size="lg" className="mt-3 w-full" onClick={() => navigate('session')}>
-          <Play size={20} aria-hidden /> Продолжить
-        </Button>
-      </Card>
-    );
-  }
+  if (active) return <ActiveCard active={active} date={date} />;
 
   if (plan.kind === 'prep') {
     const calibrated = sessions.some((s) => s.isCalibration && s.finishedAt !== undefined);
@@ -252,7 +244,57 @@ function DayCard({ date, settings }: { date: string; settings: Settings }) {
 
   return (
     <Card>
-      <DayRow icon={Footprints} title="Отдых" text={`${formatInt(REST_DAY_STEPS)} шагов`} />
+      <DayRow icon={Footprints} title="Отдых" text={`Цель — ${formatInt(REST_DAY_STEPS)} шагов`} />
+      <Button variant="secondary" className="mt-3 w-full" onClick={() => openSheet('weight')}>
+        <Footprints size={20} aria-hidden /> Записать шаги
+      </Button>
+    </Card>
+  );
+}
+
+/**
+ * Незавершённая тренировка. Сегодняшняя — «Продолжить». Вчерашняя и старше — забыли нажать
+ * «Завершить»: предлагаем закрыть её (конец — по последнему подходу) или удалить, иначе она
+ * подменяет карточку дня бесконечно.
+ */
+function ActiveCard({ active, date }: { active: WorkoutSession; date: string }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const stale = active.date < date;
+  if (!stale) {
+    return (
+      <Card className="border-2 border-primary">
+        <DayRow icon={Dumbbell} title={`Тренировка ${active.workout} идёт`} text="Незавершённая тренировка сохранена" />
+        <Button size="lg" className="mt-3 w-full" onClick={() => navigate('session')}>
+          <Play size={20} aria-hidden /> Продолжить
+        </Button>
+      </Card>
+    );
+  }
+  return (
+    <Card className="border-l-4 border-warn">
+      <DayRow icon={Dumbbell} title={`Тренировка ${active.workout} не завершена`} text={`Начата ${formatDayMonth(active.date)}. Завершить и сохранить сделанное?`} />
+      <div className="mt-3 flex gap-2">
+        <Button size="lg" className="flex-1" onClick={() => void finishSession(active.id)}>
+          <Check size={20} aria-hidden /> Завершить
+        </Button>
+        <Button size="lg" variant="secondary" onClick={() => navigate('session')} aria-label="Открыть тренировку">
+          <Play size={20} aria-hidden />
+        </Button>
+        <Button size="lg" variant="danger" onClick={() => setConfirmDelete(true)} aria-label="Удалить тренировку">
+          <Trash2 size={20} aria-hidden />
+        </Button>
+      </div>
+      <Sheet open={confirmDelete} title="Удалить тренировку?" onClose={() => setConfirmDelete(false)}>
+        <div className="flex flex-col gap-2 p-2">
+          <p className="px-2 pb-2 text-muted">Записанные подходы от {formatDayMonth(active.date)} пропадут из истории.</p>
+          <Button size="lg" variant="danger" onClick={() => void discardSession(active.id).then(() => setConfirmDelete(false))}>
+            <Trash2 size={20} aria-hidden /> Удалить
+          </Button>
+          <Button size="lg" variant="secondary" onClick={() => setConfirmDelete(false)}>
+            Отмена
+          </Button>
+        </div>
+      </Sheet>
     </Card>
   );
 }
@@ -281,27 +323,29 @@ function NutritionCard({ date, settings }: { date: string; settings: Settings })
   const t = dayTargets(date, adjustments, settings);
   const { total } = dayTotals(logs, foodMap);
   const protein = Math.round(total.p / 10);
+  const over = total.kcal - t.kcal;
   return (
     <Card onClick={() => navigate('nutrition')}>
       <div className="flex items-center gap-4">
         <Rings
           size={124}
           rings={[
-            { value: total.kcal / t.kcal, color: 'var(--energy)', label: `Калории ${total.kcal} из ${t.kcal}` },
+            { value: total.kcal / t.kcal, color: 'var(--energy)', overColor: 'var(--warn)', label: `Калории ${total.kcal} из ${t.kcal}` },
             { value: protein / t.protein, color: 'var(--protein)', label: `Белок ${protein} из ${t.protein} г` },
           ]}
         >
-          <span className="text-base leading-tight font-semibold tabular-nums">{formatInt(total.kcal)}</span>
+          <span className={`text-base leading-tight font-semibold tabular-nums ${over > 0 ? 'text-warn' : ''}`}>{formatInt(total.kcal)}</span>
           <span className="text-[11px] text-muted">/ {formatKcal(t.kcal)}</span>
         </Rings>
         <div className="flex-1">
           <h2 className="text-sm font-semibold text-muted">Питание сегодня</h2>
-          <p className="mt-1 flex items-center gap-2">
-            <i className="h-2.5 w-2.5 rounded-full bg-energy" /> {formatInt(total.kcal)} / {formatKcal(t.kcal)}
+          <p className="mt-1 flex items-center gap-1.5 text-[15px] whitespace-nowrap">
+            <i className={`h-2.5 w-2.5 shrink-0 rounded-full ${over > 0 ? 'bg-warn' : 'bg-energy'}`} /> {formatInt(total.kcal)} / {formatKcal(t.kcal)}
           </p>
-          <p className="flex items-center gap-2">
-            <i className="h-2.5 w-2.5 rounded-full bg-protein" /> Белок {protein} / {t.protein}{NBSP}г
+          <p className="flex items-center gap-1.5 text-[15px] whitespace-nowrap">
+            <i className="h-2.5 w-2.5 shrink-0 rounded-full bg-protein" /> Белок {protein} / {t.protein}{NBSP}г
           </p>
+          {over > 0 && <p className="mt-1 text-xs font-medium text-warn">Перебор {formatKcal(over)}</p>}
           {t.maintenance && <p className="mt-1 text-xs text-muted">Неделя на поддержке</p>}
         </div>
         <ChevronRight className="text-muted" aria-hidden />
@@ -312,21 +356,22 @@ function NutritionCard({ date, settings }: { date: string; settings: Settings })
 
 // ---------- Вес ----------
 
-function WeightCard({ date, body }: { date: string; body: BodyEntry[] }) {
+function WeightCard({ date, body, fallback }: { date: string; body: BodyEntry[]; fallback: number }) {
   const todayEntry = body.find((b) => b.date === date && b.weight !== undefined);
   const last = [...body].reverse().find((b) => b.weight !== undefined);
-  const [value, setValue] = useState<number>(todayEntry?.weight ?? last?.weight ?? 8100);
+  const [value, setValue] = useState<number>(todayEntry?.weight ?? last?.weight ?? fallback);
+  const [editing, setEditing] = useState(false);
   useEffect(() => {
     if (todayEntry?.weight) setValue(todayEntry.weight);
     else if (last?.weight) setValue(last.weight);
   }, [todayEntry?.weight, last?.weight]);
   const avg = avg7(body, date);
   const change = weeklyChange(body, date);
-  const bump = (d: number) => {
-    const v = value + d;
+  const set = (v: number) => {
     setValue(v);
     if (todayEntry) void putBody(date, { weight: v });
   };
+  const bump = (d: number) => set(value + d);
   return (
     <Card>
       <h2 className="text-sm font-semibold text-muted">Вес сегодня</h2>
@@ -334,10 +379,28 @@ function WeightCard({ date, body }: { date: string; body: BodyEntry[] }) {
         <button type="button" aria-label="Минус 0,1 кг" onClick={() => bump(-10)} className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-2">
           <Minus size={20} aria-hidden />
         </button>
-        <span className="flex-1 text-center text-3xl font-semibold tabular-nums">
-          {formatScaled(value, 100, 2)}
-          <span className="ml-1 text-sm font-normal text-muted">кг</span>
-        </span>
+        {editing ? (
+          <input
+            autoFocus
+            inputMode="decimal"
+            enterKeyHint="done"
+            aria-label="Вес, кг"
+            defaultValue={formatScaled(value, 100, 2)}
+            onFocus={(e) => e.target.select()}
+            onBlur={(e) => {
+              setEditing(false);
+              const v = parseKg(e.target.value);
+              if (v && v > 3000 && v < 25000) set(v);
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            className="min-w-0 flex-1 border-b-2 border-accent bg-transparent text-center text-3xl font-semibold tabular-nums outline-none"
+          />
+        ) : (
+          <button type="button" onClick={() => setEditing(true)} aria-label="Ввести вес" className="min-h-12 flex-1 rounded-lg text-center text-3xl font-semibold tabular-nums active:bg-track">
+            {formatScaled(value, 100, 2)}
+            <span className="ml-1 text-sm font-normal text-muted">кг</span>
+          </button>
+        )}
         <button type="button" aria-label="Плюс 0,1 кг" onClick={() => bump(10)} className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-2">
           <Plus size={20} aria-hidden />
         </button>

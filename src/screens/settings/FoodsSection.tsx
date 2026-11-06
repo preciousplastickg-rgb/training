@@ -80,7 +80,7 @@ function FoodEditSheet({ food, onClose }: { food: Omit<Food, 'id'> & { id?: stri
   };
   return (
     <Sheet open title={food.id ? 'Продукт' : 'Новый продукт'} onClose={onClose}>
-      <div className="flex max-h-[75vh] flex-col gap-3 overflow-y-auto px-2 pb-2">
+      <div className="flex flex-col gap-3 px-2 pb-2">
         <Field label="Название" value={name} onChange={(e) => setName(e.target.value)} />
         <Field label="Синонимы для поиска (через запятую)" value={aliases} onChange={(e) => setAliases(e.target.value)} />
         <p className="text-sm text-muted">На 100 г{food.approx ? ' (приблизительно)' : ''}</p>

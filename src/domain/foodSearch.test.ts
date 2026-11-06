@@ -31,6 +31,10 @@ describe('недавние и частые', () => {
   it('частые — по числу записей', () => {
     expect(frequentFoods(logs, foods)[0]?.id).toBe('seed-001');
   });
+  it('частые не повторяют недавние', () => {
+    const recent = new Set(recentFoods(logs, foods).map((f) => f.id));
+    expect(frequentFoods(logs, foods, 10, recent).some((f) => recent.has(f.id))).toBe(false);
+  });
   it('приём по времени', () => {
     expect(mealByHour(8)).toBe('breakfast');
     expect(mealByHour(13)).toBe('lunch');

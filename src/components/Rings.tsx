@@ -5,6 +5,8 @@ interface Ring {
   value: number;
   color: string;
   label: string;
+  /** Цвет, когда значение выше 100% (перебор калорий). Без него кольцо просто полное. */
+  overColor?: string;
 }
 
 /** Концентрические кольца: толщина 12 px, скруглённые концы, заполнение 400 мс (SPEC 9). */
@@ -24,6 +26,7 @@ export function Rings({ rings, size = 148, children }: { rings: Ring[]; size?: n
           const radius = size / 2 - stroke / 2 - i * (stroke + gap);
           const c = 2 * Math.PI * radius;
           const v = Math.max(0, Math.min(1, r.value));
+          const over = r.overColor && r.value > 1;
           return (
             <g key={i} transform={`rotate(-90 ${size / 2} ${size / 2})`}>
               <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--track)" strokeWidth={stroke} />
@@ -32,7 +35,7 @@ export function Rings({ rings, size = 148, children }: { rings: Ring[]; size?: n
                 cy={size / 2}
                 r={radius}
                 fill="none"
-                stroke={r.color}
+                stroke={over ? r.overColor : r.color}
                 strokeWidth={stroke}
                 strokeLinecap="round"
                 strokeDasharray={c}

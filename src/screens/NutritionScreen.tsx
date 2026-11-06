@@ -50,6 +50,7 @@ export function NutritionScreen() {
   const protein = Math.round(total.p / 10);
   const fat = Math.round(total.f / 10);
   const carbs = Math.round(total.c / 10);
+  const over = total.kcal - t.kcal;
   const label = date === today ? 'Сегодня' : date === addDays(today, -1) ? 'Вчера' : formatDayMonth(date);
 
   return (
@@ -58,7 +59,12 @@ export function NutritionScreen() {
         title="Питание"
         subtitle={date === today || date === addDays(today, -1) ? `${label}, ${formatDayMonth(date)}` : label}
         action={
-          <div className="-mr-2 flex">
+          <div className="-mr-2 flex items-center">
+            {date !== today && (
+              <button type="button" onClick={() => setDate(today)} className="min-h-11 rounded-full px-3 text-sm font-medium text-accent active:bg-track">
+                Сегодня
+              </button>
+            )}
             <button type="button" aria-label="Предыдущий день" onClick={() => setDate((d) => addDays(d, -1))} className="flex h-11 w-11 items-center justify-center rounded-full active:bg-track">
               <ChevronLeft size={24} />
             </button>
@@ -74,19 +80,25 @@ export function NutritionScreen() {
             <Rings
               size={148}
               rings={[
-                { value: total.kcal / t.kcal, color: 'var(--energy)', label: `Калории ${total.kcal} из ${t.kcal}` },
+                { value: total.kcal / t.kcal, color: 'var(--energy)', overColor: 'var(--warn)', label: `Калории ${total.kcal} из ${t.kcal}` },
                 { value: protein / t.protein, color: 'var(--protein)', label: `Белок ${protein} из ${t.protein} г` },
               ]}
             >
-              <span className="text-lg leading-tight font-semibold tabular-nums">{formatInt(total.kcal)}</span>
+              <span className={`text-lg leading-tight font-semibold tabular-nums ${over > 0 ? 'text-warn' : ''}`}>{formatInt(total.kcal)}</span>
               <span className="text-[11px] text-muted">/ {formatKcal(t.kcal)}</span>
+              {over > 0 ? (
+                <span className="mt-0.5 text-[11px] font-medium text-warn">+{formatInt(over)}</span>
+              ) : (
+                <span className="mt-0.5 text-[11px] text-muted">осталось {formatInt(-over)}</span>
+              )}
             </Rings>
             <div className="flex flex-1 flex-col gap-2.5 text-sm">
               <Macro label="Белок" value={protein} target={t.protein} color="var(--protein)" />
-              <Macro label="Жиры" value={fat} target={t.fat} color="var(--warn)" />
-              <Macro label="Углеводы" value={carbs} target={t.carbs} color="var(--progress)" />
+              <Macro label="Жиры" value={fat} target={t.fat} color="var(--fat)" overColor="var(--warn)" />
+              <Macro label="Углеводы" value={carbs} target={t.carbs} color="var(--progress)" overColor="var(--warn)" />
             </div>
           </div>
+          {over > 0 && <p className="mt-2 text-sm font-medium text-warn">Перебор {formatKcal(over)} к цели дня</p>}
           {t.maintenance && <p className="mt-2 text-xs text-muted">Неделя разгрузки — калории на поддержке.</p>}
         </Card>
 
@@ -147,17 +159,18 @@ export function NutritionScreen() {
   );
 }
 
-function Macro({ label, value, target, color }: { label: string; value: number; target: number; color: string }) {
+function Macro({ label, value, target, color, overColor }: { label: string; value: number; target: number; color: string; overColor?: string }) {
+  const over = overColor !== undefined && value > target;
   return (
     <div>
       <div className="flex justify-between">
         <span>{label}</span>
-        <span className="tabular-nums text-muted">
+        <span className={`tabular-nums ${over ? 'font-medium text-warn' : 'text-muted'}`}>
           {value} / {target}
           {NBSP}г
         </span>
       </div>
-      <Bar value={value / Math.max(1, target)} color={color} height={6} label={label} />
+      <Bar value={value / Math.max(1, target)} color={color} overColor={overColor} height={6} label={label} />
     </div>
   );
 }
@@ -175,7 +188,11 @@ function SwipeRow({ entry, food, kcal, onTap, onDelete }: { entry: FoodLog; food
       <div
         className="relative flex min-h-14 items-center gap-3 bg-surface px-4 transition-transform"
         style={{ transform: `translateX(${dx}px)`, transitionDuration: start.current ? '0ms' : '180ms', touchAction: 'pan-y' }}
-        onPointerDown={(e) => (start.current = { x: e.clientX - dx, y: e.clientY, moved: false })}
+        onPointerDown={(e) => {
+          start.current = { x: e.clientX - dx, y: e.clientY, moved: false };
+          // Палец ушёл за пределы строки — pointerup всё равно придёт сюда, строка не зависнет сдвинутой.
+          e.currentTarget.setPointerCapture?.(e.pointerId);
+        }}
         onPointerMove={(e) => {
           const s = start.current;
           if (!s) return;

@@ -10,7 +10,7 @@ import { putBody } from '../db/repo';
 import type { Settings } from '../db/types';
 import { bodyFatPercent, leanMass, targetWeightFor } from '../domain/body';
 import { appToday as today } from '../app/clock';
-import { formatKg, formatScaled } from '../domain/format';
+import { formatKg, formatScaled, parseKg } from '../domain/format';
 
 export function Onboarding({ settings }: { settings: Settings }) {
   const [step, setStep] = useState(0);
@@ -35,20 +35,55 @@ export function Onboarding({ settings }: { settings: Settings }) {
     });
   };
 
+  // Тап по числу — ввод с клавиатуры: до нужного значения не нужно щёлкать степпером десятки раз.
+  const parse10 = (raw: string, min: number, max: number) => {
+    const v = Number(raw.replace(',', '.').trim());
+    return Number.isFinite(v) && v >= min && v <= max ? Math.round(v * 10) : null;
+  };
+  const hint = <p className="mt-2 text-center text-xs text-muted">Тап по числу — ввести с клавиатуры</p>;
+
   const steps = [
     {
       title: 'Рост',
-      body: <Stepper big label="Рост" value={formatScaled(height, 10, 1)} unit="см" onDec={() => setHeight((h) => h - 5)} onInc={() => setHeight((h) => h + 5)} />,
+      body: (
+        <>
+          <Stepper
+            big
+            label="Рост"
+            value={formatScaled(height, 10, 1)}
+            unit="см"
+            onDec={() => setHeight((h) => h - 5)}
+            onInc={() => setHeight((h) => h + 5)}
+            onEdit={(raw) => {
+              const v = parse10(raw, 120, 230);
+              if (v !== null) setHeight(v);
+            }}
+          />
+          {hint}
+        </>
+      ),
     },
     {
       title: 'Вес сегодня утром',
       body: (
         <>
-          <Stepper big label="Вес" value={formatScaled(weight, 100, 2)} unit="кг" onDec={() => setWeight((w) => w - 10)} onInc={() => setWeight((w) => w + 10)} />
+          <Stepper
+            big
+            label="Вес"
+            value={formatScaled(weight, 100, 2)}
+            unit="кг"
+            onDec={() => setWeight((w) => w - 10)}
+            onInc={() => setWeight((w) => w + 10)}
+            onEdit={(raw) => {
+              const v = parseKg(raw);
+              if (v && v > 3000 && v < 25000) setWeight(v);
+            }}
+          />
           <div className="mt-2 flex justify-center gap-2">
             <Button size="sm" variant="secondary" onClick={() => setWeight((w) => w - 100)}>−1 кг</Button>
             <Button size="sm" variant="secondary" onClick={() => setWeight((w) => w + 100)}>+1 кг</Button>
           </div>
+          {hint}
         </>
       ),
     },
@@ -59,11 +94,33 @@ export function Onboarding({ settings }: { settings: Settings }) {
           <p className="text-sm text-muted">Талия — на уровне пупка, шея — под кадыком. Сантиметровой лентой, без втягивания.</p>
           <div>
             <p className="mb-1 text-sm text-muted">Талия</p>
-            <Stepper big label="Талия" value={formatScaled(waist, 10, 1)} unit="см" onDec={() => setWaist((w) => w - 5)} onInc={() => setWaist((w) => w + 5)} />
+            <Stepper
+              big
+              label="Талия"
+              value={formatScaled(waist, 10, 1)}
+              unit="см"
+              onDec={() => setWaist((w) => w - 5)}
+              onInc={() => setWaist((w) => w + 5)}
+              onEdit={(raw) => {
+                const v = parse10(raw, 50, 200);
+                if (v !== null) setWaist(v);
+              }}
+            />
           </div>
           <div>
             <p className="mb-1 text-sm text-muted">Шея</p>
-            <Stepper big label="Шея" value={formatScaled(neck, 10, 1)} unit="см" onDec={() => setNeck((n) => n - 5)} onInc={() => setNeck((n) => n + 5)} />
+            <Stepper
+              big
+              label="Шея"
+              value={formatScaled(neck, 10, 1)}
+              unit="см"
+              onDec={() => setNeck((n) => n - 5)}
+              onInc={() => setNeck((n) => n + 5)}
+              onEdit={(raw) => {
+                const v = parse10(raw, 25, 60);
+                if (v !== null) setNeck(v);
+              }}
+            />
           </div>
           {fat !== null && (
             <div className="rounded-2xl bg-surface-2 p-3">

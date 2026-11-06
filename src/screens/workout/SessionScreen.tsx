@@ -56,7 +56,7 @@ export function SessionScreen() {
   }
   if (!active) return <div className="theme-dark fixed inset-0" />;
   return (
-    <div className="theme-dark fixed inset-0 z-10 overflow-y-auto">
+    <div className="theme-dark fixed inset-0 z-10">
       <ActiveWorkout session={active} onFinished={setSummaryId} />
     </div>
   );
@@ -99,6 +99,12 @@ function ActiveWorkoutView({
   const totalDone = plan.reduce((a, x) => a + Math.min(x.sets, workDone(x.exercise.id).length), 0);
   const [info, setInfo] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
+
+  // Текущий чип — всегда на виду: при автопереходе лента докручивается сама.
+  const chipRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    chipRef.current?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [current]);
 
   const suggestions = new Map(
     plan.map((x) => [x.exercise.id, suggestionFor(x, allSets, sessions, { sessionId: session.id, isDeload: session.isDeload, isCalibration: session.isCalibration })]),
@@ -147,10 +153,12 @@ function ActiveWorkoutView({
   };
 
   const elapsed = (now - session.startedAt) / 1000;
+  const resting = !!timer && timer.sessionId === session.id;
 
   return (
-    <div className="flex min-h-full flex-col bg-bg text-ink">
-      <header className="pt-safe sticky top-0 z-20 bg-bg/95 backdrop-blur">
+    // scroll-pb: панель отдыха внизу не накрывает активную строку, когда она докручивается в вид.
+    <div className={`flex h-full flex-col overflow-y-auto bg-bg text-ink ${resting ? 'scroll-pb-[20rem]' : ''}`}>
+      <header className="pt-safe sticky top-0 z-20 bg-bg">
         <div className="flex items-center gap-3 px-4 pt-2">
           <div className="flex-1">
             <h1 className="text-lg font-semibold">Тренировка {session.workout}</h1>
@@ -172,22 +180,24 @@ function ActiveWorkoutView({
             return (
               <button
                 key={x.slot.id}
+                ref={i === current ? chipRef : undefined}
                 type="button"
                 onClick={() => setIdx(i)}
                 aria-current={i === current ? 'step' : undefined}
-                className={`flex min-h-11 shrink-0 items-center gap-1 rounded-full px-3 text-sm ${
-                  i === current ? 'bg-primary text-on-primary' : done ? 'bg-progress/20 text-progress' : 'bg-surface-2 text-muted'
+                aria-label={`${i + 1}. ${x.exercise.name}${done ? ', сделано' : ''}`}
+                className={`flex min-h-11 shrink-0 items-center gap-1 rounded-full px-3 text-sm whitespace-nowrap ${
+                  i === current ? 'bg-primary font-medium text-on-primary' : done ? 'bg-progress/20 text-progress' : 'bg-surface-2 text-muted'
                 }`}
               >
                 {done && <Check size={14} aria-hidden />}
-                {i + 1}. {x.exercise.name.split(' ')[0]}
+                {i + 1}. {x.exercise.short ?? x.exercise.name}
               </button>
             );
           })}
         </nav>
       </header>
 
-      <main className="flex-1 px-4 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+      <main className={`flex-1 px-4 ${resting ? 'pb-[calc(20rem+env(safe-area-inset-bottom))]' : 'pb-[calc(2rem+env(safe-area-inset-bottom))]'}`}>
         {p && (
           <ExerciseCard
             key={p.slot.id + p.exercise.id}
@@ -199,13 +209,14 @@ function ActiveWorkoutView({
             logged={sessionSets.filter((s) => s.exerciseId === p.exercise.id)}
             last={lastSessionSets(p.exercise.id, allSets, sessions, session.id)}
             withWarmup={current === firstLongIdx && !session.isCalibration}
+            resting={resting}
             onInfo={() => setInfo(p.exercise.id)}
             onLogged={() => afterSet(current)}
           />
         )}
       </main>
 
-      {timer && timer.sessionId === session.id && (
+      {resting && (
         <RestPanel
           timer={timer}
           now={now}
@@ -252,13 +263,13 @@ function nextSetText(plan: PlannedExercise[], current: number, sets: SetLog[], s
   const s = sug.get(p.exercise.id);
   const weight = done[done.length - 1]?.weight ?? s?.weight ?? 0;
   const reps = s?.targets[done.length] ?? p.slot.repMin;
-  return `${p.exercise.name}: ${valueText(p.exercise, weight, reps)}`;
+  return `${p.exercise.short ?? p.exercise.name} · ${valueText(p.exercise, weight, reps)}`;
 }
 
 // ---------- Карточка упражнения ----------
 
 function ExerciseCard({
-  p, index, suggestion, settings, session, logged, last, withWarmup, onInfo, onLogged,
+  p, index, suggestion, settings, session, logged, last, withWarmup, resting, onInfo, onLogged,
 }: {
   p: PlannedExercise;
   index: number;
@@ -268,6 +279,8 @@ function ExerciseCard({
   logged: SetLog[];
   last: ReturnType<typeof lastSessionSets>;
   withWarmup: boolean;
+  /** Внизу панель отдыха: отступ под неё появляется позже записи подхода, поэтому докрутка повторяется. */
+  resting: boolean;
   onInfo: () => void;
   onLogged: () => void;
 }) {
@@ -285,6 +298,12 @@ function ExerciseCard({
   const firstOpenRow = Array.from({ length: p.sets }, (_, i) => i).find((i) => !work.some((s) => s.setIndex === i)) ?? -1;
   const [chosenRow, setActiveRow] = useState<number | null>(null);
   const activeRow = chosenRow !== null && !work.some((s) => s.setIndex === chosenRow) ? chosenRow : firstOpenRow;
+
+  // Активная строка — в поле зрения (после записи подхода следующая строка может быть под панелью отдыха).
+  const activeRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [activeRow, resting]);
 
   const check = async (i: number) => {
     if (busy) return;
@@ -307,26 +326,26 @@ function ExerciseCard({
 
   const plates = eq === 'barbell' ? platesPerSide(weight, settings.barWeight, settings.plates) : null;
   const warmups = withWarmup && isKg ? warmupSets(eq, weight, settings.barWeight) : [];
-  const range = `${p.sets} × ${p.slot.repMin}–${p.slot.repMax}${ex.unit === 'seconds' ? ' с' : ''}`;
+  const side = ex.perSide ? (ex.id === 'db_row' ? ' на руку' : ' на ногу') : '';
+  const range = `${p.sets} × ${p.slot.repMin}–${p.slot.repMax}${ex.unit === 'seconds' ? ' с' : ''}${side}`;
   const head = isKg ? (suggestion.weight === null ? 'Вес — сам' : formatKg(suggestion.weight)) : ex.unit === 'seconds' ? `${suggestion.targets[0]} с` : `${suggestion.targets[0]} повт.`;
+  const swapLabel = isSub ? `Вернуть: ${getExercise(p.slot.exerciseId).name.toLowerCase()}` : alt ? `Заменить на: ${getExercise(alt).name.toLowerCase()}` : null;
 
   return (
     <article className="mt-2 rounded-3xl bg-surface p-4">
-      <div className="flex items-start gap-2">
-        <div className="flex-1">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
           <p className="text-sm text-muted">Упражнение {index + 1}{p.slot.supersetWith ? ' · суперсет' : ''}</p>
           <h2 className="text-xl font-semibold leading-tight">{ex.name}</h2>
         </div>
-      </div>
-      <div className="mt-3 flex gap-2">
-        <Button variant="secondary" className="min-h-14 flex-1" onClick={onInfo}>
-          <Info size={18} aria-hidden /> Как делать
-        </Button>
-        {(alt || isSub) && (
-          <Button variant="secondary" className="min-h-14 flex-1" onClick={() => void swap()}>
-            <ArrowLeftRight size={18} aria-hidden /> {isSub ? 'Вернуть' : 'Заменить'}
-          </Button>
-        )}
+        <button
+          type="button"
+          aria-label="Как делать"
+          onClick={onInfo}
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-surface-2 text-accent active:scale-95"
+        >
+          <Info size={26} aria-hidden />
+        </button>
       </div>
 
       <p className="mt-3 rounded-2xl bg-surface-2 px-3 py-2 text-[15px]">
@@ -345,9 +364,14 @@ function ExerciseCard({
           {plates.remainder > 0 && ` (не хватает ${formatKg(plates.remainder)})`}
         </p>
       )}
+      {swapLabel && (
+        <button type="button" onClick={() => void swap()} className="mt-1 flex min-h-14 w-full items-center gap-2 text-left text-sm text-accent">
+          <ArrowLeftRight size={18} aria-hidden /> {swapLabel}
+        </button>
+      )}
 
       {warmups.length > 0 && (
-        <div className="mt-4">
+        <div className="mt-3">
           <p className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Разминка</p>
           {warmups.map((w, i) => {
             const done = warm.find((s) => s.setIndex === i);
@@ -379,19 +403,21 @@ function ExerciseCard({
           const prev = last?.sets[i];
           const isActive = !done && i === activeRow;
           return (
-            <div key={i} className={`border-b border-line py-2 last:border-0 ${isActive ? 'rounded-2xl bg-surface-2/60 px-2' : ''}`}>
+            <div key={i} ref={isActive ? activeRef : undefined} className={`border-b border-line py-2 last:border-0 ${isActive ? 'rounded-2xl bg-surface-2/60 px-2' : ''}`}>
               {isActive ? (
                 <div className="flex flex-col gap-2">
                   {isKg && (
                     <div className="flex items-center gap-2">
-                      <span className="w-16 text-sm text-muted">Вес</span>
+                      <span className="w-18 shrink-0 text-sm text-muted">Вес</span>
                       <div className="flex-1">
                         <Stepper big label={`Вес, подход ${i + 1}`} value={formatKg(weight, false)} unit="кг" onDec={() => setWeight(adjacentWeight(eq, weight, -1))} onInc={() => setWeight(adjacentWeight(eq, weight, 1))} />
                       </div>
+                      {/* Та же ширина, что у галочки в строке повторов: кнопки ± двух степперов стоят друг под другом */}
+                      <span className="w-14 shrink-0" aria-hidden />
                     </div>
                   )}
                   <div className="flex items-center gap-2">
-                    <span className="w-16 text-sm text-muted">{isKg ? (ex.perSide ? 'Повт. на сторону' : 'Повторы') : `Подход ${i + 1}`}</span>
+                    <span className="w-18 shrink-0 text-sm text-muted">{ex.unit === 'seconds' ? 'Секунды' : isKg ? 'Повторы' : `Подход ${i + 1}`}</span>
                     <div className="flex-1">
                       <Stepper
                         big
@@ -420,7 +446,7 @@ function ExerciseCard({
                   <CheckButton i={i} done={!!done} busy={busy} onClick={() => (done ? void deleteSet(done.id) : void check(i))} />
                 </div>
               )}
-              {prev && <p className={`mt-0.5 text-xs text-muted ${isActive ? 'pl-[72px]' : 'pl-8'}`}>прошлый раз {valueText(ex, prev.weight, prev.reps)}</p>}
+              {prev && <p className={`mt-0.5 text-xs text-muted ${isActive ? 'pl-20' : 'pl-8'}`}>прошлый раз {valueText(ex, prev.weight, prev.reps)}</p>}
             </div>
           );
         })}
@@ -447,6 +473,11 @@ function CheckButton({ i, done, busy, onClick }: { i: number; done: boolean; bus
 
 // ---------- Отдых ----------
 
+/**
+ * Панель отдыха внизу экрана: карточка упражнения остаётся доступной — можно поправить вес
+ * следующего подхода или открыть «Как делать», пока идёт отсчёт. Следующая галочка сама
+ * запускает новый отдых, отдельный тап «Продолжить» не нужен.
+ */
 function RestPanel({ timer, now, sound, nextText, lastSet }: { timer: RestTimer; now: number; sound: boolean; nextText: string | null; lastSet?: SetLog }) {
   const left = (timer.endsAt - now) / 1000;
   const done = left <= 0;
@@ -458,69 +489,84 @@ function RestPanel({ timer, now, sound, nextText, lastSet }: { timer: RestTimer;
       beep();
     }
   }, [done, sound, timer.endsAt, now]);
-  const size = Math.min(300, window.innerWidth - 64);
-  const stroke = 14;
+  const size = 104;
+  const stroke = 8;
   const r = size / 2 - stroke;
   const c = 2 * Math.PI * r;
   const frac = done ? 1 : Math.max(0, Math.min(1, left / timer.total));
   return (
-    <div className="fixed inset-0 z-30 flex flex-col items-center justify-center bg-bg/96 px-6 text-ink animate-fade-in" role="dialog" aria-label="Отдых">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90">
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--track)" strokeWidth={stroke} />
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke={done ? 'var(--progress)' : 'var(--energy)'}
-            strokeWidth={stroke}
-            strokeLinecap="round"
-            strokeDasharray={c}
-            strokeDashoffset={c * (1 - frac)}
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[72px] leading-none font-semibold tabular-nums" role="timer">{done ? '0:00' : fmtClock(Math.ceil(left))}</span>
-          <span className={`mt-2 text-sm ${done ? 'text-progress' : 'text-muted'}`}>{done ? 'Отдых окончен' : 'Отдых'}</span>
+    <div className="vv-bottom animate-sheet-in fixed inset-x-0 bottom-0 z-30 mx-auto max-w-xl" role="region" aria-label="Отдых">
+      <div className="pb-safe rounded-t-3xl border-t border-line bg-surface px-4 pt-3 text-ink shadow-[0_-12px_32px_rgb(0_0_0/0.45)]">
+        <div className="flex items-center gap-4">
+          <div className="relative shrink-0" style={{ width: size, height: size }}>
+            <svg width={size} height={size} className="-rotate-90">
+              <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--track)" strokeWidth={stroke} />
+              <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={r}
+                fill="none"
+                stroke={done ? 'var(--progress)' : 'var(--energy)'}
+                strokeWidth={stroke}
+                strokeLinecap="round"
+                strokeDasharray={c}
+                strokeDashoffset={c * (1 - frac)}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className={`text-[28px] leading-none font-semibold tabular-nums ${done ? 'text-progress' : ''}`} role="timer">
+                {done ? '0:00' : fmtClock(Math.ceil(left))}
+              </span>
+            </div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className={`text-sm font-medium ${done ? 'text-progress' : 'text-muted'}`}>{done ? 'Отдых окончен' : 'Отдых'}</p>
+            {nextText ? (
+              <p className="mt-0.5 leading-snug">
+                <span className="text-sm text-muted">Следующий подход</span>
+                <br />
+                <b className="text-lg">{nextText}</b>
+              </p>
+            ) : (
+              <p className="mt-0.5 text-lg font-semibold">Дальше — следующее упражнение</p>
+            )}
+          </div>
         </div>
-      </div>
-      {nextText && <p className="mt-4 text-center text-lg">Следующий подход: <b>{nextText}</b></p>}
 
-      {lastSet && (
-        <div className="mt-5 flex flex-col items-center gap-2">
-          <p className="text-sm text-muted">Сколько ещё мог? (необязательно)</p>
-          <div className="flex gap-2">
+        {lastSet && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="w-18 shrink-0 text-sm leading-tight text-muted">Ещё мог, повторов</span>
             {([0, 1, 2, 3] as const).map((v) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => void updateSet(lastSet.id, { rir: lastSet.rir === v ? undefined : v })}
                 aria-pressed={lastSet.rir === v}
-                className={`h-14 min-w-14 rounded-2xl px-3 text-lg font-semibold ${lastSet.rir === v ? 'bg-primary text-on-primary' : 'bg-surface-2'}`}
+                aria-label={`Ещё мог: ${v === 3 ? '3 и больше' : v}`}
+                className={`h-11 flex-1 rounded-xl text-base font-semibold ${lastSet.rir === v ? 'bg-primary text-on-primary' : 'bg-surface-2'}`}
               >
                 {v === 3 ? '3+' : v}
               </button>
             ))}
           </div>
-        </div>
-      )}
-
-      <div className="mt-6 flex w-full max-w-sm gap-3 pb-safe">
-        {done ? (
-          <Button size="lg" className="flex-1" onClick={() => void stopRest()}>
-            Продолжить
-          </Button>
-        ) : (
-          <>
-            <Button size="lg" variant="secondary" className="flex-1" onClick={() => void extendRest(30)}>
-              <Plus size={20} aria-hidden /> 30 с
-            </Button>
-            <Button size="lg" variant="secondary" className="flex-1" onClick={() => void stopRest()}>
-              <SkipForward size={20} aria-hidden /> Пропустить
-            </Button>
-          </>
         )}
+
+        <div className="mt-3 flex gap-2 pb-3">
+          {done ? (
+            <Button size="lg" className="flex-1" onClick={() => void stopRest()}>
+              <Check size={20} aria-hidden /> Готов
+            </Button>
+          ) : (
+            <>
+              <Button size="lg" variant="secondary" className="flex-1" onClick={() => void extendRest(30)}>
+                <Plus size={20} aria-hidden /> 30 с
+              </Button>
+              <Button size="lg" variant="secondary" className="flex-1" onClick={() => void stopRest()}>
+                <SkipForward size={20} aria-hidden /> Пропустить
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

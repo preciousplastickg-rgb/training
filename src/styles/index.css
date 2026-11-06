@@ -18,6 +18,7 @@
   --progress: #34b36b;
   --energy: #f0883e;
   --protein: #5b8def;
+  --fat: #b58ad6; /* полоска жиров: не --warn, норма жиров — не предупреждение */
   --warn: #c27c0e;
   --danger: #d64545;
   --guide: #5b8def;
@@ -54,6 +55,7 @@
     --progress: #5ed493;
     --energy: #f5a05f;
     --protein: #8fb0ff;
+    --fat: #c9a6e6;
     --warn: #f2c14e;
     --danger: #f07070;
     --guide: #8fb0ff;
@@ -90,6 +92,7 @@
   --progress: #5ed493;
   --energy: #f5a05f;
   --protein: #8fb0ff;
+  --fat: #c9a6e6;
   --warn: #f2c14e;
   --danger: #f07070;
   --guide: #8fb0ff;
@@ -124,6 +127,7 @@
   --color-progress: var(--progress);
   --color-energy: var(--energy);
   --color-protein: var(--protein);
+  --color-fat: var(--fat);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;

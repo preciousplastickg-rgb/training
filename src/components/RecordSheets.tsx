@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { putBody, addPool } from '../db/repo';
 import type { BodyEntry } from '../db/types';
 import { bodyFatPercent, latestWith } from '../domain/body';
-import { formatDayMonth, formatScaled } from '../domain/format';
+import { formatDayMonth, formatScaled, parseKg } from '../domain/format';
 import { useToday } from '../hooks/useToday';
 import { poolPlan } from '../data/program';
 import { Sheet } from './Sheet';
@@ -16,26 +16,28 @@ const toNum = (s: string): number | null => {
 };
 
 export function WeightSheet({
-  open, onClose, date, body, heightCm,
+  open, onClose, date, body, heightCm, fallbackWeight,
 }: {
   open: boolean;
   onClose: () => void;
   date: string;
   body: BodyEntry[];
   heightCm: number;
+  /** Пока записей веса нет — стартовый вес из настроек. */
+  fallbackWeight: number;
 }) {
   const todayEntry = body.find((b) => b.date === date);
   const last = latestWith(body, 'weight');
   const lastWaist = latestWith(body, 'waist');
   const lastNeck = latestWith(body, 'neck');
-  const [weight, setWeight] = useState(8000);
+  const [weight, setWeight] = useState(fallbackWeight);
   const [waist, setWaist] = useState('');
   const [neck, setNeck] = useState('');
   const [steps, setSteps] = useState('');
 
   useEffect(() => {
     if (!open) return;
-    setWeight(todayEntry?.weight ?? last?.weight ?? 8000);
+    setWeight(todayEntry?.weight ?? last?.weight ?? fallbackWeight);
     setWaist(todayEntry?.waist ? formatScaled(todayEntry.waist, 10, 1) : '');
     setNeck(todayEntry?.neck ? formatScaled(todayEntry.neck, 10, 1) : '');
     setSteps(todayEntry?.steps ? String(todayEntry.steps) : '');
@@ -60,7 +62,18 @@ export function WeightSheet({
       <div className="flex flex-col gap-4 px-2 pb-2">
         <div>
           <p className="mb-1 text-sm text-muted">Утренний вес</p>
-          <Stepper big label="Вес" value={formatScaled(weight, 100, 2)} unit="кг" onDec={() => setWeight((w) => w - 10)} onInc={() => setWeight((w) => w + 10)} />
+          <Stepper
+            big
+            label="Вес"
+            value={formatScaled(weight, 100, 2)}
+            unit="кг"
+            onDec={() => setWeight((w) => w - 10)}
+            onInc={() => setWeight((w) => w + 10)}
+            onEdit={(raw) => {
+              const v = parseKg(raw);
+              if (v && v > 3000 && v < 25000) setWeight(v);
+            }}
+          />
           <div className="mt-2 flex justify-center gap-2">
             {[-50, 50].map((d) => (
               <Button key={d} size="sm" variant="secondary" onClick={() => setWeight((w) => w + d)}>

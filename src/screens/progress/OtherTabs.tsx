@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart } from '../../components/charts/Charts';
 import { Card, SectionTitle } from '../../components/ui';
 import { DEFAULT_SETTINGS } from '../../db/db';
@@ -119,6 +119,16 @@ export function DisciplineTab() {
   const GAP = 3;
   const left = 18;
   const top = 16;
+  const [picked, setPicked] = useState<string | null>(null);
+  // Карта шире экрана: открываем её на текущей неделе, а не на ноябре.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const w = Math.floor(Math.max(0, diffDays(startMonday, today)) / 7);
+    el.scrollLeft = Math.max(0, left + (w + 1) * (CELL + GAP) - el.clientWidth);
+  }, [today, startMonday]);
+  const pickedStatus = picked ? (statuses.get(picked) ?? 'future') : null;
   const months: { x: number; label: string }[] = [];
   for (let w = 0; w < weeks; w++) {
     const d = addDays(startMonday, w * 7);
@@ -131,8 +141,17 @@ export function DisciplineTab() {
         <p className="text-lg font-semibold">
           Выполнено {summary.done} из {summary.planned} тренировок · серия {summary.streak} {plural(summary.streak)}
         </p>
-        <div className="mt-3 overflow-x-auto pb-1">
-          <svg width={left + weeks * (CELL + GAP)} height={top + 7 * (CELL + GAP)} role="img" aria-label="Тепловая карта дисциплины">
+        <div ref={scrollRef} className="mt-3 overflow-x-auto pb-1">
+          <svg
+            width={left + weeks * (CELL + GAP)}
+            height={top + 7 * (CELL + GAP)}
+            role="img"
+            aria-label="Тепловая карта дисциплины"
+            onClick={(e) => {
+              const d = (e.target as SVGElement).getAttribute('data-date');
+              setPicked((p) => (d && d !== p ? d : null));
+            }}
+          >
             {months.map((m) => (
               <text key={m.x} x={m.x} y={10} fontSize={10} fill="var(--muted)">
                 {m.label}
@@ -150,6 +169,7 @@ export function DisciplineTab() {
               return (
                 <rect
                   key={p.date}
+                  data-date={p.date}
                   x={left + w * (CELL + GAP)}
                   y={top + row * (CELL + GAP)}
                   width={CELL}
@@ -157,8 +177,8 @@ export function DisciplineTab() {
                   rx={3}
                   fill={STATUS_COLOR[s]}
                   opacity={s === 'future' ? 0.5 : 1}
-                  stroke={p.date === today ? 'var(--ink)' : undefined}
-                  strokeWidth={p.date === today ? 1.5 : undefined}
+                  stroke={p.date === today || p.date === picked ? 'var(--ink)' : undefined}
+                  strokeWidth={p.date === picked ? 2 : p.date === today ? 1.5 : undefined}
                 >
                   <title>{`${formatDayMonth(p.date)}: ${STATUS_TEXT[s]}`}</title>
                 </rect>
@@ -166,6 +186,15 @@ export function DisciplineTab() {
             })}
           </svg>
         </div>
+        <p className="mt-1 min-h-5 text-sm" role="status">
+          {picked && pickedStatus ? (
+            <>
+              <b>{formatDayMonth(picked)}</b> · {STATUS_TEXT[pickedStatus]}
+            </>
+          ) : (
+            <span className="text-xs text-muted">Тап по клетке — что было в этот день</span>
+          )}
+        </p>
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
           {(['gym', 'pool', 'rest', 'missed', 'moved'] as const).map((s) => (
             <span key={s} className="flex items-center gap-1">

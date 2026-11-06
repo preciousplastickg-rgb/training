@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import { AddMenu } from '../components/AddMenu';
 import { BottomNav } from '../components/BottomNav';
 import { PoolSheet, WeightSheet } from '../components/RecordSheets';
@@ -7,8 +7,6 @@ import { DEFAULT_SETTINGS } from '../db/db';
 import { seedIfNeeded } from '../db/repo';
 import { prefetchData, useBody, useSettings } from '../hooks/useData';
 import { useToday } from '../hooks/useToday';
-import { DevAnimations } from '../screens/dev/DevAnimations';
-import { DevSeed } from '../screens/dev/DevSeed';
 import { NutritionScreen } from '../screens/NutritionScreen';
 import { Onboarding } from '../screens/Onboarding';
 import { ProgressScreen } from '../screens/ProgressScreen';
@@ -20,6 +18,10 @@ import { useRoute } from './router';
 import { requestPersistentStorage } from './storage';
 import { globalSheetDate, openSheet, useGlobalSheet } from './uiStore';
 import { useApplyTheme } from './useTheme';
+
+// Служебные страницы — отдельными чанками: в основной бандл не входят.
+const DevAnimations = lazy(() => import('../screens/dev/DevAnimations').then((m) => ({ default: m.DevAnimations })));
+const DevSeed = lazy(() => import('../screens/dev/DevSeed').then((m) => ({ default: m.DevSeed })));
 
 export function App() {
   const route = useRoute();
@@ -65,12 +67,21 @@ export function App() {
         {route === 'nutrition' && <NutritionScreen />}
         {route === 'progress' && <ProgressScreen />}
         {route === 'settings' && <SettingsScreen settings={settings} persisted={persisted} />}
-        {route === 'dev/animations' && <DevAnimations />}
-        {route === 'dev/seed' && <DevSeed />}
+        <Suspense fallback={null}>
+          {route === 'dev/animations' && <DevAnimations />}
+          {route === 'dev/seed' && <DevSeed />}
+        </Suspense>
       </main>
       {route !== 'session' && <BottomNav route={route} onAdd={() => setAddOpen(true)} />}
       <AddMenu open={addOpen} onClose={() => setAddOpen(false)} />
-      <WeightSheet open={sheet === 'weight'} onClose={() => openSheet(null)} date={date} body={body} heightCm={settings.heightCm ?? DEFAULT_SETTINGS.heightCm} />
+      <WeightSheet
+        open={sheet === 'weight'}
+        onClose={() => openSheet(null)}
+        date={date}
+        body={body}
+        heightCm={settings.heightCm ?? DEFAULT_SETTINGS.heightCm}
+        fallbackWeight={settings.startWeight ?? DEFAULT_SETTINGS.startWeight}
+      />
       <PoolSheet open={sheet === 'pool'} onClose={() => openSheet(null)} date={globalSheetDate() ?? date} />
       <UpdateBanner />
     </div>

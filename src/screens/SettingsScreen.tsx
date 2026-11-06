@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, MonitorSmartphone, Moon, Sun, Volume2, type LucideIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MonitorSmartphone, Moon, Sun, Trash2, Volume2, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { navigate } from '../app/router';
 import { beep, unlockAudio } from '../app/sound';
@@ -7,13 +7,10 @@ import { Sheet } from '../components/Sheet';
 import { Button, Card, Chip, Field, Stepper, Tabs } from '../components/ui';
 import { getExercise } from '../data/exercises';
 import { DEFAULT_SETTINGS, updateSettings } from '../db/db';
-import { resetProgram, updateSlot } from '../db/repo';
+import { deleteAdjustment, resetProgram, updateSlot } from '../db/repo';
 import type { ProgramSlot, Settings, Theme } from '../db/types';
-import { formatKg, formatScaled, parseKg } from '../domain/format';
-import { Trash2 } from 'lucide-react';
+import { formatDayMonth, formatKg, formatScaled, parseKg } from '../domain/format';
 import { useAdjustments, useSlots } from '../hooks/useData';
-import { db } from '../db/db';
-import { formatDayMonth } from '../domain/format';
 import { BackupSection } from './settings/BackupSection';
 import { ViewportDiagnostics } from './settings/ViewportDiagnostics';
 import { FoodsSection } from './settings/FoodsSection';
@@ -63,6 +60,8 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
       />
       <div className="flex flex-col gap-5 px-4 pb-8">
         <ProfileSection settings={settings} />
+        {/* Бэкап — вторым: без сервера это самый важный раздел, и с «Сегодня» сюда ведёт подсказка. */}
+        <BackupSection settings={settings} persisted={persisted} />
         <ProgramSection />
 
         <Section title="Отдых">
@@ -139,7 +138,6 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
         </Section>
 
         <FoodsSection />
-        <BackupSection settings={settings} persisted={persisted} />
 
         <Section title="О приложении">
           <p>Тренировки и питание · версия {__APP_VERSION__}</p>
@@ -178,6 +176,20 @@ export function Toggle({ value, onChange, label }: { value: boolean; onChange: (
 
 function ProfileSection({ settings }: { settings: Settings }) {
   const save = (patch: Partial<Settings>) => void updateSettings(patch);
+  /** Неверное значение не сохраняется и не остаётся в поле — возвращаем прежнее, чтобы было видно, что ввод не принят. */
+  const commit = (e: React.FocusEvent<HTMLInputElement>, parse: (s: string) => number | null, shown: string, patch: (v: number) => Partial<Settings>) => {
+    const v = parse(e.target.value);
+    if (v === null) e.target.value = shown;
+    else save(patch(v));
+  };
+  const num = (min: number, max: number) => (s: string) => {
+    const v = Number(s.replace(',', '.'));
+    return Number.isFinite(v) && v > min && v < max ? v : null;
+  };
+  const kg = (s: string) => {
+    const v = parseKg(s);
+    return v && v > 3000 && v < 25000 ? v : null;
+  };
   return (
     <Section title="Профиль">
       <div className="grid grid-cols-2 gap-3">
@@ -186,10 +198,7 @@ function ProfileSection({ settings }: { settings: Settings }) {
           suffix="см"
           inputMode="decimal"
           defaultValue={String(settings.heightCm).replace('.', ',')}
-          onBlur={(e) => {
-            const v = Number(e.target.value.replace(',', '.'));
-            if (v > 100 && v < 250) save({ heightCm: v });
-          }}
+          onBlur={(e) => commit(e, num(100, 250), String(settings.heightCm).replace('.', ','), (v) => ({ heightCm: v }))}
         />
         <Field label="Старт программы" type="date" defaultValue={settings.startDate} onBlur={(e) => e.target.value && save({ startDate: e.target.value })} />
         <Field
@@ -197,30 +206,21 @@ function ProfileSection({ settings }: { settings: Settings }) {
           suffix="кг"
           inputMode="decimal"
           defaultValue={formatScaled(settings.startWeight, 100, 2)}
-          onBlur={(e) => {
-            const v = parseKg(e.target.value);
-            if (v) save({ startWeight: v });
-          }}
+          onBlur={(e) => commit(e, kg, formatScaled(settings.startWeight, 100, 2), (v) => ({ startWeight: v }))}
         />
         <Field
           label="Цель"
           suffix="кг"
           inputMode="decimal"
           defaultValue={formatScaled(settings.targetWeight, 100, 2)}
-          onBlur={(e) => {
-            const v = parseKg(e.target.value);
-            if (v) save({ targetWeight: v });
-          }}
+          onBlur={(e) => commit(e, kg, formatScaled(settings.targetWeight, 100, 2), (v) => ({ targetWeight: v }))}
         />
         <Field
           label="Цель по жиру"
           suffix="%"
           inputMode="numeric"
           defaultValue={String(settings.targetBodyFat)}
-          onBlur={(e) => {
-            const v = Number(e.target.value);
-            if (v > 3 && v < 40) save({ targetBodyFat: v });
-          }}
+          onBlur={(e) => commit(e, num(3, 40), String(settings.targetBodyFat), (v) => ({ targetBodyFat: v }))}
         />
       </div>
     </Section>
@@ -339,7 +339,7 @@ function AdjustmentsList() {
             </b>{' '}
             с {formatDayMonth(a.date)}
           </span>
-          <button type="button" aria-label="Отменить корректировку" onClick={() => void db.adjustments.delete(a.id)} className="flex h-11 w-11 items-center justify-center text-muted">
+          <button type="button" aria-label="Отменить корректировку" onClick={() => void deleteAdjustment(a.id)} className="flex h-11 w-11 items-center justify-center text-muted">
             <Trash2 size={16} aria-hidden />
           </button>
         </li>

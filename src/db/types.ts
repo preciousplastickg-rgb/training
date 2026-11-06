@@ -14,6 +14,8 @@ export type Muscle =
 export interface Exercise {
   id: string;
   name: string;
+  /** Короткое имя для чипов в режиме тренировки: «Жим лёжа». */
+  short?: string;
   equipment: 'barbell' | 'dumbbell' | 'cable' | 'machine' | 'bodyweight';
   unit: 'kg' | 'seconds' | 'reps';
   perSide: boolean;

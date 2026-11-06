@@ -1,12 +1,24 @@
 import { Minus, Plus } from 'lucide-react';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 export function Card({ children, className = '', onClick }: { children: ReactNode; className?: string; onClick?: () => void }) {
   if (onClick) {
+    // Не <button>: внутри карточки заголовки и абзацы, в кнопке им нельзя. role=button + клавиатура.
     return (
-      <button type="button" onClick={onClick} className={`block w-full rounded-2xl bg-surface p-4 text-left shadow-[0_1px_2px_rgb(0_0_0/0.04)] active:opacity-80 ${className}`}>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+        className={`block w-full cursor-pointer rounded-2xl bg-surface p-4 text-left shadow-[0_1px_2px_rgb(0_0_0/0.04)] active:opacity-80 ${className}`}
+      >
         {children}
-      </button>
+      </div>
     );
   }
   return <section className={`rounded-2xl bg-surface p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)] ${className}`}>{children}</section>;
@@ -52,7 +64,10 @@ export function IconButton({ label, children, className = '', ...rest }: ButtonH
   );
 }
 
-/** Степпер ±: крупные кнопки (в режиме тренировки — 56 px). */
+/**
+ * Степпер ±: крупные кнопки (в режиме тренировки — 56 px).
+ * С `onEdit` число можно и набрать: тап по нему открывает ввод, Enter или уход из поля — сохраняет.
+ */
 export function Stepper({
   value,
   onDec,
@@ -60,6 +75,8 @@ export function Stepper({
   label,
   big = false,
   unit,
+  onEdit,
+  editValue,
 }: {
   value: ReactNode;
   onDec: () => void;
@@ -67,17 +84,51 @@ export function Stepper({
   label: string;
   big?: boolean;
   unit?: string;
+  onEdit?: (raw: string) => void;
+  /** Текст в поле ввода, если `value` — не строка и не число. */
+  editValue?: string;
 }) {
   const btn = big ? 'h-14 w-14' : 'h-11 w-11';
+  const [editing, setEditing] = useState(false);
+  const text = `${big ? 'text-[22px]' : 'text-lg'} font-semibold tabular-nums`;
+  const initial = editValue ?? (typeof value === 'string' || typeof value === 'number' ? String(value) : '');
+  const commit = (raw: string) => {
+    setEditing(false);
+    onEdit?.(raw);
+  };
   return (
     <div className="flex items-center gap-1">
       <button type="button" aria-label={`${label}: меньше`} onClick={onDec} className={`${btn} flex shrink-0 items-center justify-center rounded-xl bg-surface-2 active:scale-95`}>
         <Minus size={big ? 22 : 18} aria-hidden />
       </button>
-      <div className={`min-w-0 flex-1 text-center font-semibold tabular-nums ${big ? 'text-[22px]' : 'text-lg'}`} aria-label={label}>
-        {value}
-        {unit && <span className="ml-0.5 text-xs font-normal text-muted">{unit}</span>}
-      </div>
+      {editing ? (
+        <input
+          autoFocus
+          inputMode="decimal"
+          enterKeyHint="done"
+          aria-label={label}
+          defaultValue={initial}
+          onFocus={(e) => e.target.select()}
+          onBlur={(e) => commit(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          className={`min-w-0 flex-1 border-b-2 border-accent bg-transparent text-center outline-none ${text}`}
+        />
+      ) : onEdit ? (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          aria-label={`${label}: ввести число`}
+          className={`min-h-11 min-w-0 flex-1 rounded-lg text-center active:bg-track ${text}`}
+        >
+          {value}
+          {unit && <span className="ml-0.5 text-xs font-normal text-muted">{unit}</span>}
+        </button>
+      ) : (
+        <div className={`min-w-0 flex-1 text-center ${text}`} aria-label={label}>
+          {value}
+          {unit && <span className="ml-0.5 text-xs font-normal text-muted">{unit}</span>}
+        </div>
+      )}
       <button type="button" aria-label={`${label}: больше`} onClick={onInc} className={`${btn} flex shrink-0 items-center justify-center rounded-xl bg-surface-2 active:scale-95`}>
         <Plus size={big ? 22 : 18} aria-hidden />
       </button>
@@ -126,11 +177,20 @@ export function Tabs<T extends string>({ value, onChange, items }: { value: T; o
   );
 }
 
-export function Bar({ value, color = 'var(--progress)', height = 8, label }: { value: number; color?: string; height?: number; label?: string }) {
+export function Bar({
+  value, color = 'var(--progress)', overColor, height = 8, label,
+}: {
+  value: number;
+  color?: string;
+  /** Цвет при значении выше 100% — перебор виден, а не выглядит как «выполнено». */
+  overColor?: string;
+  height?: number;
+  label?: string;
+}) {
   const pct = Math.max(0, Math.min(1, value)) * 100;
   return (
-    <div className="w-full overflow-hidden rounded-full bg-track" style={{ height }} role="progressbar" aria-label={label} aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
-      <div className="h-full rounded-full transition-[width] duration-400 ease-out" style={{ width: `${pct}%`, background: color }} />
+    <div className="w-full overflow-hidden rounded-full bg-track" style={{ height }} role="progressbar" aria-label={label} aria-valuenow={Math.round(value * 100)} aria-valuemin={0} aria-valuemax={100}>
+      <div className="h-full rounded-full transition-[width] duration-400 ease-out" style={{ width: `${pct}%`, background: overColor && value > 1 ? overColor : color }} />
     </div>
   );
 }

@@ -30,7 +30,7 @@ function ExerciseBody({ ex }: { ex: Exercise }) {
   const [mode, setMode] = useState<Mode>(reduced ? 'end' : 'play');
   const [phase, setPhase] = useState<Phase>('rest');
   return (
-    <div className="max-h-[78dvh] overflow-y-auto overscroll-contain px-2 pb-2">
+    <div className="px-2 pb-2">
       {anim && <FigureCard anim={anim} mode={mode} onMode={setMode} phase={phase} onPhase={setPhase} />}
       {anim && anim.angles.length > 0 && <AngleList anim={anim} mode={mode} phase={phase} />}
       <Muscles ex={ex} />

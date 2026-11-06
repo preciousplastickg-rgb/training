@@ -23,6 +23,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'goblet_squat',
     name: 'Гоблет-присед',
+    short: 'Гоблет-присед',
     equipment: 'dumbbell',
     unit: 'kg',
     perSide: false,
@@ -39,6 +40,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'barbell_squat',
     name: 'Присед со штангой',
+    short: 'Присед',
     equipment: 'barbell',
     unit: 'kg',
     perSide: false,
@@ -55,6 +57,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'bench_press',
     name: 'Жим штанги лёжа',
+    short: 'Жим лёжа',
     equipment: 'barbell',
     unit: 'kg',
     perSide: false,
@@ -71,6 +74,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'db_row',
     name: 'Тяга гантели одной рукой в наклоне',
+    short: 'Тяга гантели',
     equipment: 'dumbbell',
     unit: 'kg',
     perSide: true,
@@ -87,6 +91,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'db_rdl',
     name: 'Румынская тяга с гантелями',
+    short: 'Румынская',
     equipment: 'dumbbell',
     unit: 'kg',
     perSide: false,
@@ -103,6 +108,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'barbell_rdl',
     name: 'Румынская тяга со штангой',
+    short: 'Румынская',
     equipment: 'barbell',
     unit: 'kg',
     perSide: false,
@@ -119,6 +125,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'lateral_raise',
     name: 'Махи гантелями в стороны',
+    short: 'Махи',
     equipment: 'dumbbell',
     unit: 'kg',
     perSide: false,
@@ -135,6 +142,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'plank',
     name: 'Планка',
+    short: 'Планка',
     equipment: 'bodyweight',
     unit: 'seconds',
     perSide: false,
@@ -147,6 +155,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'db_shoulder_press',
     name: 'Жим гантелей сидя вверх',
+    short: 'Жим сидя',
     equipment: 'dumbbell',
     unit: 'kg',
     perSide: false,
@@ -163,6 +172,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'lat_pulldown',
     name: 'Тяга верхнего блока к груди',
+    short: 'Тяга блока',
     equipment: 'cable',
     unit: 'kg',
     perSide: false,
@@ -179,6 +189,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'pullup',
     name: 'Подтягивания',
+    short: 'Подтягивания',
     equipment: 'bodyweight',
     unit: 'reps',
     perSide: false,
@@ -195,6 +206,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'bulgarian_split_squat',
     name: 'Болгарские выпады с гантелями',
+    short: 'Выпады',
     equipment: 'dumbbell',
     unit: 'kg',
     perSide: true,
@@ -211,6 +223,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'leg_press',
     name: 'Жим ногами',
+    short: 'Жим ногами',
     equipment: 'machine',
     unit: 'kg',
     perSide: false,
@@ -227,6 +240,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'incline_db_press',
     name: 'Жим гантелей на наклонной скамье 30°',
+    short: 'Жим наклонный',
     equipment: 'dumbbell',
     unit: 'kg',
     perSide: false,
@@ -243,6 +257,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'db_bench_press',
     name: 'Жим гантелей лёжа',
+    short: 'Жим гантелей',
     equipment: 'dumbbell',
     unit: 'kg',
     perSide: false,
@@ -259,6 +274,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'biceps_curl',
     name: 'Сгибания на бицепс',
+    short: 'Бицепс',
     equipment: 'dumbbell',
     unit: 'kg',
     perSide: false,
@@ -271,6 +287,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'triceps_pushdown',
     name: 'Разгибания на блоке',
+    short: 'Трицепс',
     equipment: 'cable',
     unit: 'kg',
     perSide: false,
@@ -283,6 +300,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'hanging_leg_raise',
     name: 'Подъём ног в висе',
+    short: 'Подъём ног',
     equipment: 'bodyweight',
     unit: 'reps',
     perSide: false,
@@ -295,6 +313,7 @@ export const EXERCISES: Exercise[] = [
   {
     id: 'cable_crunch',
     name: 'Скручивания на блоке',
+    short: 'Скручивания',
     equipment: 'cable',
     unit: 'kg',
     perSide: false,

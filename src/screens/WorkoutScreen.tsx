@@ -4,7 +4,7 @@ import { navigate } from '../app/router';
 import { unlockAudio } from '../app/sound';
 import { ExerciseSheet } from '../components/ExerciseSheet';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { Button, Card, Chip, SectionTitle, Tabs } from '../components/ui';
+import { Button, Card, Chip, SectionTitle } from '../components/ui';
 import { DEFAULT_SETTINGS } from '../db/db';
 import { startSession } from '../db/repo';
 import type { PoolSession, WorkoutSession } from '../db/types';
@@ -29,7 +29,6 @@ export function WorkoutScreen() {
   const auto = nextWorkout(sessions);
   const [override, setOverride] = useState<'A' | 'B' | null>(null);
   const workout = override ?? auto;
-  const [tab, setTab] = useState<'A' | 'B'>(auto);
   const beforeStart = date < PROGRAM_START;
   const isDeload = deloadFor(date) !== null;
   const plan = useMemo(() => workoutPlan(workout, date, slots, settings), [workout, date, slots, settings]);
@@ -70,7 +69,7 @@ export function WorkoutScreen() {
                   {plan.length} упражнений · ≈ {estimateMinutes(plan)} мин{isDeload ? ' · разгрузка' : ''}
                 </p>
               </div>
-              <div className="flex gap-1">
+              <div className="flex gap-1" role="group" aria-label="Какую тренировку показать">
                 {(['A', 'B'] as const).map((w) => (
                   <Chip key={w} active={workout === w} onClick={() => setOverride(w === auto ? null : w)} aria-label={`Тренировка ${w}`}>
                     {w}
@@ -79,6 +78,7 @@ export function WorkoutScreen() {
               </div>
             </div>
             <PlanList plan={plan} sets={sets} sessions={sessions} isDeload={isDeload} onInfo={setInfo} />
+            <p className="mt-1 px-1 text-xs text-muted">Тап по упражнению — как делать. Подходы, повторы и шаги правятся в настройках.</p>
             {beforeStart ? (
               <div className="mt-3 flex flex-col gap-2">
                 <Button size="lg" onClick={() => void start(true)}>
@@ -95,29 +95,6 @@ export function WorkoutScreen() {
         )}
 
         <CalendarCard />
-
-        <section>
-          <SectionTitle>Программа</SectionTitle>
-          <Tabs value={tab} onChange={setTab} items={[{ value: 'A', label: 'Тренировка A' }, { value: 'B', label: 'Тренировка B' }]} />
-          <Card className="mt-2">
-            <ul className="divide-y divide-line">
-              {workoutPlan(tab, date, slots, settings).map((p) => (
-                <li key={p.slot.id}>
-                  <button type="button" onClick={() => setInfo(p.exercise.id)} className="flex min-h-14 w-full items-center gap-3 py-2 text-left">
-                    <span className="w-6 text-center text-sm text-muted">{p.slot.order}</span>
-                    <span className="flex-1">
-                      <span className="block font-medium">{p.exercise.name}</span>
-                      <span className="block text-sm text-muted">
-                        {setsLabel(p)} · отдых {p.restSeconds} с{p.slot.supersetWith ? ' · суперсет' : ''}
-                      </span>
-                    </span>
-                    <Info size={18} className="text-muted" aria-label="Как делать" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </section>
 
         <SessionHistory sessions={sessions} />
       </div>
@@ -154,7 +131,9 @@ function PlanList({
               <Dumbbell size={18} className="shrink-0 text-muted" aria-hidden />
               <span className="flex-1">
                 <span className="block text-[15px] font-medium">{p.exercise.name}</span>
-                <span className="block text-sm text-muted">{target}</span>
+                <span className="block text-sm text-muted">
+                  {target} · отдых {p.restSeconds} с{p.slot.supersetWith ? ' · суперсет' : ''}
+                </span>
               </span>
               <Info size={18} className="text-muted" aria-label="Как делать" />
             </button>

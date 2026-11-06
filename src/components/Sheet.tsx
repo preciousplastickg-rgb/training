@@ -18,7 +18,9 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     // Без прокрутки к элементу: на iOS focus() двигает документ, и закреплённые элементы дёргаются.
-    panelRef.current?.focus({ preventScroll: true });
+    // Если содержимое уже поставило фокус (поле поиска с autoFocus) — не перехватываем.
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 

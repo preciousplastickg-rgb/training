@@ -90,8 +90,15 @@ export async function deleteSet(id: string): Promise<void> {
   await db.sets.delete(id);
 }
 
+/** Через столько после последнего подхода тренировка считается забытой: конец — по последнему подходу, а не «сейчас». */
+export const STALE_SESSION_MS = 3 * 3600_000;
+
 export async function finishSession(id: string, note?: string): Promise<void> {
-  await db.sessions.update(id, { finishedAt: Date.now(), ...(note ? { note } : {}) });
+  const now = Date.now();
+  const sets = await db.sets.where('sessionId').equals(id).toArray();
+  const lastDone = sets.reduce((a, s) => Math.max(a, s.doneAt), 0);
+  const finishedAt = lastDone > 0 && now - lastDone > STALE_SESSION_MS ? lastDone : now;
+  await db.sessions.update(id, { finishedAt, ...(note ? { note } : {}) });
   await kvDel('restTimer');
 }
 
@@ -210,6 +217,10 @@ export async function saveRecipe(food: Omit<Food, 'id' | 'source'> & { id?: stri
 
 export async function applyAdjustment(date: LocalDate, deltaKcal: number, reason: string): Promise<void> {
   await db.adjustments.add({ id: uid(), date, deltaKcal, reason } satisfies Adjustment);
+}
+
+export async function deleteAdjustment(id: string): Promise<void> {
+  await db.adjustments.delete(id);
 }
 
 export async function dismissAdjustment(weekOf: LocalDate): Promise<void> {

@@ -12,6 +12,9 @@ test('подход 1 тапом, таймер от endsAt, восстановл�
   await page.getByRole('button', { name: 'Подход 1: записать' }).click();
   const timer = page.getByRole('timer');
   await expect(timer).toHaveText('2:30');
+  // Панель отдыха не закрывает карточку: следующий подход можно записать прямо во время отсчёта
+  await expect(page.getByRole('button', { name: 'Подход 2: записать' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Вес, подход 2: больше' })).toBeVisible();
 
   // «2 минуты в фоне»: время идёт, остаток считается от сохранённого endsAt
   await page.clock.fastForward('02:00');

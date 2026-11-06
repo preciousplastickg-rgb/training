@@ -47,11 +47,13 @@ export function recentFoods(logs: readonly FoodLog[], foods: ReadonlyMap<string,
   return out;
 }
 
-export function frequentFoods(logs: readonly FoodLog[], foods: ReadonlyMap<string, Food>, limit = 10): Food[] {
+/** По числу записей. `exclude` — что уже показано в «Недавних»: иначе списки дублируют друг друга. */
+export function frequentFoods(logs: readonly FoodLog[], foods: ReadonlyMap<string, Food>, limit = 10, exclude: ReadonlySet<string> = new Set()): Food[] {
   const count = new Map<string, number>();
   for (const l of logs) if (l.foodId) count.set(l.foodId, (count.get(l.foodId) ?? 0) + 1);
   return [...count.entries()]
     .sort((a, b) => b[1] - a[1])
+    .filter(([id]) => !exclude.has(id))
     .map(([id]) => foods.get(id))
     .filter((f): f is Food => !!f && !f.archived)
     .slice(0, limit);

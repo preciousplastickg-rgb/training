@@ -27,6 +27,7 @@ export function StrengthTab() {
   const colors: MuscleColors = Object.fromEntries(ALL_MUSCLES.map((m) => [m, LOAD_COLORS[loadLevel(load[m])]]));
   const weak = underloaded(load);
   const over = ALL_MUSCLES.filter((m) => loadLevel(load[m]) === 4);
+  const anyLoad = ALL_MUSCLES.some((m) => load[m] > 0);
 
   const list = EXERCISES.map((e) => ({ e, series: e1rmSeries(sets.filter((s) => s.exerciseId === e.id), dates) })).filter((x) => x.series.length > 0);
 
@@ -43,10 +44,16 @@ export function StrengthTab() {
             </span>
           ))}
         </div>
-        <p className="mt-3 text-sm">
-          Недогружены: <b>{weak.map((m) => `${MUSCLE_NAMES[m].toLowerCase()} (${fmtSets(load[m])})`).join(', ')}</b>
-        </p>
-        {over.length > 0 && <p className="mt-1 text-sm text-warn">Перебор: {over.map((m) => MUSCLE_NAMES[m].toLowerCase()).join(', ')}</p>}
+        {anyLoad ? (
+          <>
+            <p className="mt-3 text-sm">
+              Недогружены: <b>{weak.map((m) => `${MUSCLE_NAMES[m].toLowerCase()} (${fmtSets(load[m])})`).join(', ')}</b>
+            </p>
+            {over.length > 0 && <p className="mt-1 text-sm text-warn">Перебор: {over.map((m) => MUSCLE_NAMES[m].toLowerCase()).join(', ')}</p>}
+          </>
+        ) : (
+          <p className="mt-3 text-center text-sm text-muted">За последние 7 дней тренировок не было — карта заполнится после первой</p>
+        )}
         <p className="mt-1 text-xs text-muted">Рабочие подходы за 7 дней: основная мышца — 1, помогающая — 0,5.</p>
       </Card>
 
@@ -99,7 +106,7 @@ function ExerciseDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const recs = repRecords(mine);
   return (
     <Sheet open title={ex.name} onClose={onClose}>
-      <div className="max-h-[75dvh] overflow-y-auto overscroll-contain px-2 pb-2">
+      <div className="px-2 pb-2">
         {from && (
           <LineChart
             ariaLabel={`Рабочий вес и e1RM: ${ex.name}`}

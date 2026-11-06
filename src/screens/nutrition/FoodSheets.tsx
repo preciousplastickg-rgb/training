@@ -1,7 +1,7 @@
 // Шторки питания: добавить продукт, изменить граммы, быстрая запись, своё блюдо.
 
 import { Search, Trash2, Zap } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Sheet } from '../../components/Sheet';
 import { Button, Chip, Field, Stepper } from '../../components/ui';
 import { addFoodLog, saveRecipe, updateFoodLog } from '../../db/repo';
@@ -43,9 +43,9 @@ export function AddFoodSheet({
   const [picked, setPicked] = useState<Food | null>(null);
   const [mode, setMode] = useState<'search' | 'quick' | 'recipe'>('search');
   const map = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  // Сброс — при закрытии: при следующем открытии поле поиска есть с первого кадра и получает фокус.
   useEffect(() => {
-    if (open) {
+    if (!open) {
       setQuery('');
       setPicked(null);
       setMode('search');
@@ -53,12 +53,12 @@ export function AddFoodSheet({
   }, [open]);
   const results = searchFoods(foods, query);
   const recent = recentFoods(logs, map);
-  const frequent = frequentFoods(logs, map);
+  const frequent = frequentFoods(logs, map, 10, new Set(recent.map((f) => f.id)));
 
   const title = picked ? picked.name : mode === 'quick' ? 'Быстрая запись' : mode === 'recipe' ? 'Моё блюдо' : `${MEAL_NAMES[meal]}: добавить`;
   return (
     <Sheet open={open} title={title} onClose={onClose}>
-      <div className="max-h-[75dvh] overflow-y-auto overscroll-contain px-2 pb-2">
+      <div className="px-2 pb-2">
         {picked ? (
           <GramsPicker
             food={picked}
@@ -82,7 +82,9 @@ export function AddFoodSheet({
             <label className="flex min-h-12 items-center gap-2 rounded-xl bg-surface-2 px-3">
               <Search size={18} className="text-muted" aria-hidden />
               <input
-                ref={inputRef}
+                // Шторка открывается тапом — фокус в том же тике, клавиатура iOS поднимается сразу: поиск → граммы → добавить.
+                autoFocus
+                enterKeyHint="search"
                 className="min-w-0 flex-1 bg-transparent py-2 outline-none"
                 placeholder="Поиск: грудка, рис, плов…"
                 aria-label="Поиск продукта"
@@ -102,7 +104,7 @@ export function AddFoodSheet({
               <>
                 {recent.length > 0 && <List title="Недавние" items={recent} onPick={setPicked} />}
                 {frequent.length > 0 && <List title="Частые" items={frequent} onPick={setPicked} />}
-                {recent.length === 0 && <p className="mt-6 text-center text-sm text-muted">Начни вводить название — например, «курица»</p>}
+                {recent.length === 0 && <p className="mt-6 pb-4 text-center text-sm text-muted">Начни вводить название — например, «курица»</p>}
               </>
             )}
           </>
