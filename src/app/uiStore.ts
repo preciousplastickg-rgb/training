@@ -1,7 +1,8 @@
 // Глобальные шторки (меню «+» открывает их с любого экрана).
 import { useSyncExternalStore } from 'react';
 
-export type GlobalSheet = 'weight' | 'pool' | 'food' | null;
+/** food_quick — «Быстро: ккал + белок» из меню «+»: сразу форма быстрой записи. */
+export type GlobalSheet = 'weight' | 'pool' | 'food' | 'food_quick' | null;
 
 let current: GlobalSheet = null;
 /** Дата записи для шторки (бассейн за прошедший день из календаря); по умолчанию — сегодня. */

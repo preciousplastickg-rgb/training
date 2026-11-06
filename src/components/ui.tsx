@@ -3,9 +3,9 @@
 // кнопки ± круглые на --track, капс-метки 12/800.
 
 import { Minus, Plus } from 'lucide-react';
-import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 
-export function Card({ children, className = '', onClick }: { children: ReactNode; className?: string; onClick?: () => void }) {
+export function Card({ children, className = '', onClick, style }: { children: ReactNode; className?: string; onClick?: () => void; style?: CSSProperties }) {
   if (onClick) {
     // Не <button>: внутри карточки заголовки и абзацы, в кнопке им нельзя. role=button + клавиатура.
     return (
@@ -19,13 +19,18 @@ export function Card({ children, className = '', onClick }: { children: ReactNod
             onClick();
           }
         }}
+        style={style}
         className={`block w-full cursor-pointer rounded-[26px] bg-surface p-4 text-left active:opacity-80 ${className}`}
       >
         {children}
       </div>
     );
   }
-  return <section className={`rounded-[26px] bg-surface p-4 ${className}`}>{children}</section>;
+  return (
+    <section style={style} className={`rounded-[26px] bg-surface p-4 ${className}`}>
+      {children}
+    </section>
+  );
 }
 
 /** Тёмная карточка-«герой» (тренировка дня, итоги питания, профиль): `--hero`, белый текст, акцент лаймом. */
@@ -33,7 +38,7 @@ export function HeroCard({ children, className = '' }: { children: ReactNode; cl
   return <section className={`rounded-[28px] border border-hero-line bg-hero p-5 text-white ${className}`}>{children}</section>;
 }
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'dark';
 
 /**
  * Кнопка-таблетка. `primary` — лайм, 58 px (`lg`) для главного действия экрана;
@@ -51,6 +56,8 @@ export function Button({
     secondary: 'bg-track text-ink font-bold',
     ghost: 'text-accent font-bold',
     danger: 'bg-danger/10 text-danger font-bold',
+    /** Вторичная кнопка на чёрной карточке-герое. */
+    dark: 'bg-[#2A2C30] text-white font-bold',
   };
   const s = size === 'lg' ? 'min-h-[58px] px-6 text-[17px]' : size === 'sm' ? 'min-h-11 px-4 text-sm' : 'min-h-12 px-5 text-[15px]';
   return (

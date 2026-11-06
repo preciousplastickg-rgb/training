@@ -1,166 +1,153 @@
-import { ChevronLeft, ChevronRight, MonitorSmartphone, Moon, Sun, Trash2, Volume2, type LucideIcon } from 'lucide-react';
+// Настройки — SPEC 6.5, макет BSettings (REDESIGN 4): чёрная карточка профиля, группы строк на белом.
+
+import { ChevronLeft, ChevronRight, Volume2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { navigate } from '../app/router';
 import { beep, unlockAudio } from '../app/sound';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Sheet } from '../components/Sheet';
-import { Button, Card, Chip, Field, Stepper, Tabs } from '../components/ui';
-import { getExercise } from '../data/exercises';
-import { DEFAULT_SCHEDULE } from '../data/program';
+import { Button, Caps, Field } from '../components/ui';
 import { DEFAULT_SETTINGS, updateSettings } from '../db/db';
-import { deleteAdjustment, resetProgram, updateSlot } from '../db/repo';
-import type { ProgramSlot, Settings, Theme, WeekSchedule } from '../db/types';
+import type { Settings, Theme } from '../db/types';
+import { roundTargetKg } from '../domain/body';
 import { formatDayMonth, formatKg, formatScaled, parseKg } from '../domain/format';
-import { useAdjustments, useSlots } from '../hooks/useData';
-import { BackupSection } from './settings/BackupSection';
+import { useAdjustments, useFoods, useSlots } from '../hooks/useData';
+import { BackupRows } from './settings/BackupSection';
+import { FoodsSheet } from './settings/FoodsSection';
+import { CaloriesSheet, Group, PlatesSheet, ProgramSheet, RestSheet, ScheduleSheet, scheduleText } from './settings/ProgramSheets';
 import { ViewportDiagnostics } from './settings/ViewportDiagnostics';
-import { FoodsSection } from './settings/FoodsSection';
 
-const THEMES: { value: Theme; label: string; icon: LucideIcon }[] = [
-  { value: 'light', label: 'Светлая', icon: Sun },
-  { value: 'dark', label: 'Тёмная', icon: Moon },
-  { value: 'system', label: 'Как в системе', icon: MonitorSmartphone },
+const THEMES: { value: Theme; label: string }[] = [
+  { value: 'light', label: 'Светлая' },
+  { value: 'dark', label: 'Тёмная' },
+  { value: 'system', label: 'Авто' },
 ];
-
-const ALL_PLATES = [2500, 2000, 1500, 1000, 500, 250, 125, 50];
 
 interface SettingsScreenProps {
   settings: Settings | undefined;
   persisted: boolean | undefined;
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+type Open = 'profile' | 'program' | 'rest' | 'plates' | 'schedule' | 'calories' | 'foods' | null;
+
+/** Строка-кнопка группы: подпись, значение, шеврон. Отступы 22 px — классом, не глобальным сбросом. */
+export function SettingsRow({ label, value, onClick, ariaLabel }: { label: string; value?: string; onClick: () => void; ariaLabel?: string }) {
   return (
-    <section>
-      <h2 className="mb-2 px-1 text-sm font-semibold text-muted">{title}</h2>
-      <Card>{children}</Card>
-    </section>
+    <button type="button" onClick={onClick} aria-label={ariaLabel} className="flex min-h-[58px] w-full items-center gap-3 border-t border-line px-[22px] text-left first:border-t-0 active:bg-track">
+      <span className="flex-1 text-[16px] font-semibold">{label}</span>
+      {value && <span className="truncate text-[15px] text-muted">{value}</span>}
+      <ChevronRight size={16} strokeWidth={2.4} className="shrink-0 text-muted" aria-hidden />
+    </button>
   );
 }
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex min-h-14 items-center gap-3 border-b border-line py-1 last:border-0">
-      <span className="flex-1">{label}</span>
-      <div className="w-44">{children}</div>
-    </div>
-  );
+function GroupTitle({ children }: { children: ReactNode }) {
+  return <Caps className="mb-2 px-[22px]">{children}</Caps>;
 }
 
 export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenProps) {
   const settings = maybe ?? DEFAULT_SETTINGS;
+  const [open, setOpen] = useState<Open>(null);
+  const slots = useSlots();
+  const foods = useFoods();
+  const adjustments = useAdjustments();
+  const close = () => setOpen(null);
+  const countA = slots.filter((s) => s.workout === 'A' && (s.toPhase ?? 3) >= 2).length;
+  const countB = slots.filter((s) => s.workout === 'B' && (s.toPhase ?? 3) >= 2).length;
   return (
     <>
       <ScreenHeader
         title="Настройки"
         leading={
-          <button type="button" aria-label="Назад" onClick={() => navigate('today')} className="-ml-2 flex h-11 w-11 items-center justify-center rounded-full active:bg-track">
-            <ChevronLeft size={26} />
+          <button type="button" aria-label="Назад" onClick={() => navigate('today')} className="mr-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface active:bg-track">
+            <ChevronLeft size={22} strokeWidth={2.2} aria-hidden />
           </button>
         }
       />
       <div className="flex flex-col gap-5 px-4 pb-8">
-        <ProfileSection settings={settings} />
-        {/* Бэкап — вторым: без сервера это самый важный раздел, и с «Сегодня» сюда ведёт подсказка. */}
-        <BackupSection settings={settings} persisted={persisted} />
-        <ScheduleSection settings={settings} />
-        <ProgramSection />
+        <ProfileHero settings={settings} onEdit={() => setOpen('profile')} />
 
-        <Section title="Отдых">
-          <Row label="Долгий (присед, жимы, тяги)">
-            <Stepper label="Долгий отдых" value={`${settings.restLong} с`} onDec={() => void updateSettings({ restLong: Math.max(30, settings.restLong - 15) })} onInc={() => void updateSettings({ restLong: settings.restLong + 15 })} />
-          </Row>
-          <Row label="Обычный">
-            <Stepper label="Обычный отдых" value={`${settings.restShort} с`} onDec={() => void updateSettings({ restShort: Math.max(30, settings.restShort - 15) })} onInc={() => void updateSettings({ restShort: settings.restShort + 15 })} />
-          </Row>
-        </Section>
+        <section>
+          <GroupTitle>Программа</GroupTitle>
+          <Group className="px-0!">
+            <SettingsRow label="Тренировки A и B" value={`${countA} и ${countB}`} onClick={() => setOpen('program')} />
+            <SettingsRow label="Отдых" value={`${settings.restLong} / ${settings.restShort} / 60 с`} onClick={() => setOpen('rest')} />
+            <SettingsRow label="Гриф и блины" value={`${formatKg(settings.barWeight)} · ${settings.plates.length} видов`} onClick={() => setOpen('plates')} />
+            <SettingsRow label="Расписание" value={scheduleText(settings)} onClick={() => setOpen('schedule')} />
+            <SettingsRow label="Калории" value={adjustments.length ? `${adjustments.length} корр.` : settings.phase3Mode === 'maintenance' ? 'фаза 3: поддержка' : 'по плану'} onClick={() => setOpen('calories')} />
+          </Group>
+        </section>
 
-        <Section title="Гриф и блины">
-          <Row label="Гриф">
-            <Stepper label="Вес грифа" value={formatKg(settings.barWeight)} onDec={() => void updateSettings({ barWeight: Math.max(500, settings.barWeight - 250) })} onInc={() => void updateSettings({ barWeight: settings.barWeight + 250 })} />
-          </Row>
-          <p className="mt-3 mb-2 text-sm text-muted">Блины в зале (на одну сторону)</p>
-          <div className="flex flex-wrap gap-2">
-            {ALL_PLATES.map((pl) => {
-              const on = settings.plates.includes(pl);
-              return (
-                <Chip
-                  key={pl}
-                  active={on}
-                  onClick={() => void updateSettings({ plates: on ? settings.plates.filter((x) => x !== pl) : [...settings.plates, pl].sort((a, b) => b - a) })}
-                >
-                  {formatKg(pl, false)}
-                </Chip>
-              );
-            })}
-          </div>
-        </Section>
+        <section>
+          <GroupTitle>Данные</GroupTitle>
+          <Group className="px-0!">
+            <SettingsRow label="База продуктов" value={String(foods.filter((f) => !f.archived).length)} onClick={() => setOpen('foods')} />
+            <BackupRows settings={settings} persisted={persisted} />
+          </Group>
+        </section>
 
-        <Section title="Звук и тема">
-          <div className="flex min-h-14 items-center gap-3">
-            <span className="flex-1">Сигнал конца отдыха</span>
-            <Button variant="secondary" size="sm" onClick={() => (unlockAudio(), beep())} aria-label="Проверить звук">
-              <Volume2 size={18} aria-hidden />
-            </Button>
-            <Toggle label="Звук" value={settings.sound} onChange={(v) => void updateSettings({ sound: v })} />
-          </div>
-          <div role="radiogroup" aria-label="Тема" className="mt-3 grid grid-cols-3 gap-2">
-            {THEMES.map(({ value, label, icon: Icon }) => {
-              const checked = settings.theme === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={checked}
-                  onClick={() => void updateSettings({ theme: value })}
-                  className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border text-sm ${
-                    checked ? 'border-primary bg-primary text-on-primary' : 'border-line text-ink'
-                  }`}
-                >
-                  <Icon size={20} aria-hidden />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </Section>
+        <section>
+          <GroupTitle>Приложение</GroupTitle>
+          <Group className="px-0!">
+            <div className="flex min-h-[58px] items-center gap-3 px-[22px]">
+              <span className="flex-1 text-[16px] font-semibold">Сигнал конца отдыха</span>
+              <button type="button" onClick={() => (unlockAudio(), beep())} aria-label="Проверить звук" className="flex h-11 w-11 items-center justify-center rounded-full text-muted active:bg-track">
+                <Volume2 size={18} aria-hidden />
+              </button>
+              <Toggle label="Звук" value={settings.sound} onChange={(v) => void updateSettings({ sound: v })} />
+            </div>
+            <div className="flex flex-col gap-3 border-t border-line px-[22px] py-4">
+              <span className="text-[16px] font-semibold">Тема</span>
+              <div role="radiogroup" aria-label="Тема" className="grid grid-cols-3 gap-1.5">
+                {THEMES.map(({ value, label }) => {
+                  const checked = settings.theme === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={checked}
+                      onClick={() => void updateSettings({ theme: value })}
+                      className={`h-11 rounded-full text-sm ${checked ? 'bg-ink font-bold text-bg' : 'bg-track font-semibold text-ink'}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </Group>
+        </section>
 
-        <Section title="Калории">
-          <AdjustmentsList />
-          <p className="mt-3 mb-2 text-sm text-muted">Фаза 3 (с 1 марта)</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Chip active={settings.phase3Mode !== 'maintenance'} onClick={() => void updateSettings({ phase3Mode: 'deficit' })} className="justify-center">
-              Дефицит (как сейчас)
-            </Chip>
-            <Chip active={settings.phase3Mode === 'maintenance'} onClick={() => void updateSettings({ phase3Mode: 'maintenance' })} className="justify-center">
-              Поддержка ≈ 2 400
-            </Chip>
-          </div>
-        </Section>
-
-        <FoodsSection />
-
-        <Section title="О приложении">
-          <p>Тренировки и питание · версия {__APP_VERSION__}</p>
-          <p className="text-sm text-muted">Сборка {__APP_BUILD__}</p>
-          <ViewportDiagnostics />
-          <p className="mt-1 text-sm text-muted">Карта мышц: body-highlighter, MIT</p>
-          <p className="text-sm text-muted">Шрифты: Unbounded и Manrope, SIL Open Font License 1.1</p>
-          <button type="button" onClick={() => navigate('dev/animations')} className="mt-2 flex min-h-11 w-full items-center justify-between text-left text-accent">
-            Позы упражнений (проверка манекена) <ChevronRight size={18} aria-hidden />
-          </button>
-          {import.meta.env.DEV && (
-            <button type="button" onClick={() => navigate('dev/seed')} className="flex min-h-11 w-full items-center justify-between text-left text-accent">
-              Демо-данные за 8 недель (dev) <ChevronRight size={18} aria-hidden />
-            </button>
-          )}
-        </Section>
+        <section>
+          <GroupTitle>О приложении</GroupTitle>
+          <Group className="px-0!">
+            <div className="px-[22px] py-4">
+              <p className="text-[16px] font-semibold">Тренировки и питание · версия {__APP_VERSION__}</p>
+              <p className="text-sm text-muted">Сборка {__APP_BUILD__}</p>
+              <ViewportDiagnostics />
+              <p className="mt-1 text-sm text-muted">Карта мышц: body-highlighter, MIT</p>
+              <p className="text-sm text-muted">Шрифты: Unbounded и Manrope, SIL Open Font License 1.1</p>
+            </div>
+            <SettingsRow label="Позы упражнений" value="манекен" onClick={() => navigate('dev/animations')} />
+            {import.meta.env.DEV && <SettingsRow label="Демо-данные за 8 недель" value="dev" onClick={() => navigate('dev/seed')} />}
+          </Group>
+        </section>
+        <p className="text-center text-xs text-muted">Данные хранятся только на этом телефоне</p>
       </div>
+
+      <ProfileSheet open={open === 'profile'} onClose={close} settings={settings} />
+      <ProgramSheet open={open === 'program'} onClose={close} />
+      <RestSheet open={open === 'rest'} onClose={close} settings={settings} />
+      <PlatesSheet open={open === 'plates'} onClose={close} settings={settings} />
+      <ScheduleSheet open={open === 'schedule'} onClose={close} settings={settings} />
+      <CaloriesSheet open={open === 'calories'} onClose={close} settings={settings} />
+      <FoodsSheet open={open === 'foods'} onClose={close} />
     </>
   );
 }
 
+/** Переключатель: чёрная дорожка, лаймовая ручка. */
 export function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
@@ -169,14 +156,39 @@ export function Toggle({ value, onChange, label }: { value: boolean; onChange: (
       aria-checked={value}
       aria-label={label}
       onClick={() => onChange(!value)}
-      className={`relative h-8 w-14 shrink-0 rounded-full transition-colors ${value ? 'bg-progress' : 'bg-surface-2'}`}
+      className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${value ? 'bg-ink' : 'bg-track'}`}
     >
-      <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-[left] ${value ? 'left-7' : 'left-1'}`} />
+      <span className={`absolute top-[3px] h-[26px] w-[26px] rounded-full transition-[left] ${value ? 'left-[23px] bg-primary' : 'left-[3px] bg-surface'}`} />
     </button>
   );
 }
 
-function ProfileSection({ settings }: { settings: Settings }) {
+function ProfileHero({ settings, onEdit }: { settings: Settings; onEdit: () => void }) {
+  const cell = (label: string, value: ReactNode, note: string, lime = false) => (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-muted-on-ink">{label}</span>
+      <span className={`font-display text-xl font-bold tabular-nums ${lime ? 'text-primary' : ''}`}>{value}</span>
+      <span className="text-xs text-muted-on-ink">{note}</span>
+    </div>
+  );
+  return (
+    <section className="flex flex-col gap-4 rounded-[28px] border border-hero-line bg-hero px-[22px] py-5 text-white">
+      <div className="flex items-center justify-between">
+        <span className="font-display text-[22px] font-bold">{settings.name?.trim() || 'Профиль'}</span>
+        <button type="button" onClick={onEdit} className="h-11 rounded-full bg-[#2A2C30] px-4 text-[13px] font-bold text-white active:opacity-80">
+          Изменить
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-2.5">
+        {cell('Рост', formatScaled(Math.round(settings.heightCm * 10), 10, 1), 'см')}
+        {cell('Старт', formatScaled(settings.startWeight, 100, 1), formatDayMonth(settings.startDate))}
+        {cell('Цель', `≈ ${formatScaled(roundTargetKg(settings.targetWeight), 100, 0)}`, `при ${settings.targetBodyFat}% жира`, true)}
+      </div>
+    </section>
+  );
+}
+
+function ProfileSheet({ open, onClose, settings }: { open: boolean; onClose: () => void; settings: Settings }) {
   const save = (patch: Partial<Settings>) => void updateSettings(patch);
   /** Неверное значение не сохраняется и не остаётся в поле — возвращаем прежнее, чтобы было видно, что ввод не принят. */
   const commit = (e: React.FocusEvent<HTMLInputElement>, parse: (s: string) => number | null, shown: string, patch: (v: number) => Partial<Settings>) => {
@@ -193,214 +205,45 @@ function ProfileSection({ settings }: { settings: Settings }) {
     return v && v > 3000 && v < 25000 ? v : null;
   };
   return (
-    <Section title="Профиль">
-      <div className="grid grid-cols-2 gap-3">
-        <Field
-          label="Рост"
-          suffix="см"
-          inputMode="decimal"
-          defaultValue={String(settings.heightCm).replace('.', ',')}
-          onBlur={(e) => commit(e, num(100, 250), String(settings.heightCm).replace('.', ','), (v) => ({ heightCm: v }))}
-        />
-        <Field label="Старт программы" type="date" defaultValue={settings.startDate} onBlur={(e) => e.target.value && save({ startDate: e.target.value })} />
-        <Field
-          label="Стартовый вес"
-          suffix="кг"
-          inputMode="decimal"
-          defaultValue={formatScaled(settings.startWeight, 100, 2)}
-          onBlur={(e) => commit(e, kg, formatScaled(settings.startWeight, 100, 2), (v) => ({ startWeight: v }))}
-        />
-        <Field
-          label="Цель"
-          suffix="кг"
-          inputMode="decimal"
-          defaultValue={formatScaled(settings.targetWeight, 100, 2)}
-          onBlur={(e) => commit(e, kg, formatScaled(settings.targetWeight, 100, 2), (v) => ({ targetWeight: v }))}
-        />
-        <Field
-          label="Цель по жиру"
-          suffix="%"
-          inputMode="numeric"
-          defaultValue={String(settings.targetBodyFat)}
-          onBlur={(e) => commit(e, num(3, 40), String(settings.targetBodyFat), (v) => ({ targetBodyFat: v }))}
-        />
-      </div>
-    </Section>
-  );
-}
-
-const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
-const SCHEDULE_ROWS: { key: keyof WeekSchedule; label: string }[] = [
-  { key: 'gym', label: 'Зал' },
-  { key: 'pool', label: 'Бассейн' },
-  { key: 'poolOptional', label: 'Бассейн по желанию' },
-];
-
-/** Расписание недели: какие дни зал, какие бассейн. День может быть только в одной строке. */
-function ScheduleSection({ settings }: { settings: Settings }) {
-  const schedule = settings.schedule ?? DEFAULT_SCHEDULE;
-  const toggle = (key: keyof WeekSchedule, day: number) => {
-    const next: WeekSchedule = { gym: [...schedule.gym], pool: [...schedule.pool], poolOptional: [...schedule.poolOptional] };
-    const on = next[key].includes(day);
-    for (const k of Object.keys(next) as (keyof WeekSchedule)[]) next[k] = next[k].filter((d) => d !== day);
-    if (!on) next[key] = [...next[key], day].sort((a, b) => a - b);
-    void updateSettings({ schedule: next });
-  };
-  const isDefault = JSON.stringify(schedule) === JSON.stringify(DEFAULT_SCHEDULE);
-  return (
-    <Section title="Расписание недели">
-      <div className="flex flex-col gap-3">
-        {SCHEDULE_ROWS.map(({ key, label }) => (
-          <div key={key}>
-            <p className="mb-1 text-sm text-muted">{label}</p>
-            <div className="flex gap-1" role="group" aria-label={label}>
-              {WEEKDAYS.map((w, i) => {
-                const day = i + 1;
-                const on = schedule[key].includes(day);
-                return (
-                  <button
-                    key={w}
-                    type="button"
-                    aria-pressed={on}
-                    aria-label={`${label}: ${w}`}
-                    onClick={() => toggle(key, day)}
-                    className={`h-11 min-w-0 flex-1 rounded-xl text-sm font-medium ${on ? 'bg-primary text-on-primary' : 'bg-surface-2 text-muted'}`}
-                  >
-                    {w}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-      <p className="mt-3 text-xs text-muted">Остальные дни — отдых. Разовые изменения — тапом по дню в календаре на экране «Тренировка».</p>
-      {!isDefault && (
-        <Button variant="ghost" size="sm" className="mt-1" onClick={() => void updateSettings({ schedule: DEFAULT_SCHEDULE })}>
-          Вернуть по плану: пн·ср·пт зал, вт·чт бассейн
-        </Button>
-      )}
-    </Section>
-  );
-}
-
-function ProgramSection() {
-  const slots = useSlots();
-  const [tab, setTab] = useState<'A' | 'B'>('A');
-  const [edit, setEdit] = useState<ProgramSlot | null>(null);
-  const [confirmReset, setConfirmReset] = useState(false);
-  const list = slots.filter((s) => s.workout === tab).sort((a, b) => a.order - b.order || (a.fromPhase ?? 1) - (b.fromPhase ?? 1));
-  return (
-    <section>
-      <h2 className="mb-2 px-1 text-sm font-semibold text-muted">Программа</h2>
-      <Tabs value={tab} onChange={setTab} items={[{ value: 'A', label: 'A' }, { value: 'B', label: 'B' }]} />
-      <Card className="mt-2">
-        <ul className="divide-y divide-line">
-          {list.map((s) => {
-            const ex = getExercise(s.exerciseId);
-            const phase = s.toPhase === 1 ? ' · фаза 1' : s.fromPhase === 2 ? ' · с фазы 2' : '';
-            return (
-              <li key={s.id}>
-                <button type="button" onClick={() => setEdit(s)} className="flex min-h-14 w-full items-center gap-2 py-2 text-left">
-                  <span className="flex-1">
-                    <span className="block font-medium">{ex.name}</span>
-                    <span className="block text-sm text-muted">
-                      {s.sets} × {s.repMin}–{s.repMax}
-                      {ex.unit === 'seconds' ? ' с' : ''} · шаг {stepText(s)}
-                      {phase}
-                    </span>
-                  </span>
-                  <ChevronRight size={18} className="text-muted" aria-hidden />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-        <Button variant="ghost" size="sm" className="mt-2" onClick={() => setConfirmReset(true)}>
-          Вернуть программу из плана
-        </Button>
-      </Card>
-      {edit && <SlotSheet slot={slots.find((s) => s.id === edit.id) ?? edit} onClose={() => setEdit(null)} />}
-      <Sheet open={confirmReset} title="Вернуть исходную программу?" onClose={() => setConfirmReset(false)}>
-        <div className="flex flex-col gap-2 p-2">
-          <p className="px-2 pb-2 text-muted">Подходы, повторы и шаги станут как в плане от 5 ноября. История тренировок не изменится.</p>
-          <Button size="lg" onClick={() => void resetProgram().then(() => setConfirmReset(false))}>
-            Вернуть
-          </Button>
-          <Button size="lg" variant="secondary" onClick={() => setConfirmReset(false)}>
-            Отмена
-          </Button>
+    <Sheet open={open} kicker="Настройки" title="Профиль" onClose={onClose}>
+      <div className="flex flex-col gap-3 rounded-[26px] bg-surface p-4">
+        <Field label="Имя" placeholder="Как к тебе обращаться" defaultValue={settings.name ?? ''} onBlur={(e) => save({ name: e.target.value.trim() })} />
+        <div className="grid grid-cols-2 gap-3">
+          <Field
+            label="Рост"
+            suffix="см"
+            inputMode="decimal"
+            defaultValue={String(settings.heightCm).replace('.', ',')}
+            onBlur={(e) => commit(e, num(100, 250), String(settings.heightCm).replace('.', ','), (v) => ({ heightCm: v }))}
+          />
+          <Field label="Старт программы" type="date" defaultValue={settings.startDate} onBlur={(e) => e.target.value && save({ startDate: e.target.value })} />
+          <Field
+            label="Стартовый вес"
+            suffix="кг"
+            inputMode="decimal"
+            defaultValue={formatScaled(settings.startWeight, 100, 2)}
+            onBlur={(e) => commit(e, kg, formatScaled(settings.startWeight, 100, 2), (v) => ({ startWeight: v }))}
+          />
+          <Field
+            label="Цель"
+            suffix="кг"
+            inputMode="decimal"
+            defaultValue={formatScaled(settings.targetWeight, 100, 2)}
+            onBlur={(e) => commit(e, kg, formatScaled(settings.targetWeight, 100, 2), (v) => ({ targetWeight: v }))}
+          />
+          <Field
+            label="Цель по жиру"
+            suffix="%"
+            inputMode="numeric"
+            defaultValue={String(settings.targetBodyFat)}
+            onBlur={(e) => commit(e, num(3, 40), String(settings.targetBodyFat), (v) => ({ targetBodyFat: v }))}
+          />
         </div>
-      </Sheet>
-    </section>
-  );
-}
-
-function stepText(s: ProgramSlot): string {
-  const ex = getExercise(s.exerciseId);
-  if (ex.unit === 'seconds') return `+${s.step} с`;
-  if (ex.unit === 'reps') return `+${s.step} повт.`;
-  return `+${formatKg(s.step)}`;
-}
-
-function SlotSheet({ slot, onClose }: { slot: ProgramSlot; onClose: () => void }) {
-  const ex = getExercise(slot.exerciseId);
-  const up = (patch: Partial<ProgramSlot>) => void updateSlot(slot.id, patch);
-  const stepDelta = ex.unit === 'kg' ? 50 : ex.unit === 'seconds' ? 5 : 1;
-  const restOptions: { v: ProgramSlot['rest']; label: string }[] = [
-    { v: 'long', label: 'Долгий' },
-    { v: 'short', label: 'Обычный' },
-    { v: 60, label: '60 с' },
-  ];
-  return (
-    <Sheet open title={ex.name} onClose={onClose}>
-      <div className="px-2 pb-2">
-        <Row label="Подходов">
-          <Stepper label="Подходов" value={slot.sets} onDec={() => up({ sets: Math.max(1, slot.sets - 1) })} onInc={() => up({ sets: Math.min(8, slot.sets + 1) })} />
-        </Row>
-        <Row label={ex.unit === 'seconds' ? 'Секунд от' : 'Повторов от'}>
-          <Stepper label="Минимум" value={slot.repMin} onDec={() => up({ repMin: Math.max(1, slot.repMin - (ex.unit === 'seconds' ? 5 : 1)) })} onInc={() => up({ repMin: Math.min(slot.repMax, slot.repMin + (ex.unit === 'seconds' ? 5 : 1)) })} />
-        </Row>
-        <Row label="до">
-          <Stepper label="Максимум" value={slot.repMax} onDec={() => up({ repMax: Math.max(slot.repMin, slot.repMax - (ex.unit === 'seconds' ? 5 : 1)) })} onInc={() => up({ repMax: slot.repMax + (ex.unit === 'seconds' ? 5 : 1) })} />
-        </Row>
-        <Row label="Шаг прогрессии">
-          <Stepper label="Шаг" value={stepText(slot)} onDec={() => up({ step: Math.max(stepDelta, slot.step - stepDelta) })} onInc={() => up({ step: slot.step + stepDelta })} />
-        </Row>
-        <p className="mt-3 mb-2 text-sm text-muted">Отдых</p>
-        <div className="flex gap-2">
-          {restOptions.map((o) => (
-            <Chip key={String(o.v)} active={slot.rest === o.v} onClick={() => up({ rest: o.v })}>
-              {o.label}
-            </Chip>
-          ))}
-        </div>
+        <p className="text-xs text-muted">Цель по весу — ориентир от сухой массы; на контрольных точках приложение предложит уточнить её по новым замерам.</p>
       </div>
+      <Button variant="secondary" className="mt-3 w-full" onClick={onClose}>
+        Готово
+      </Button>
     </Sheet>
-  );
-}
-
-function AdjustmentsList() {
-  const adjustments = useAdjustments();
-  if (adjustments.length === 0) {
-    return <p className="text-sm text-muted">Корректировок пока нет. Приложение предложит их по понедельникам с 3-й недели.</p>;
-  }
-  return (
-    <ul className="divide-y divide-line">
-      {adjustments.map((a) => (
-        <li key={a.id} className="flex min-h-12 items-center gap-2 text-sm">
-          <span className="flex-1">
-            <b className={a.deltaKcal < 0 ? 'text-energy' : 'text-accent'}>
-              {a.deltaKcal > 0 ? '+' : '−'}
-              {Math.abs(a.deltaKcal)} ккал
-            </b>{' '}
-            с {formatDayMonth(a.date)}
-          </span>
-          <button type="button" aria-label="Отменить корректировку" onClick={() => void deleteAdjustment(a.id)} className="flex h-11 w-11 items-center justify-center text-muted">
-            <Trash2 size={16} aria-hidden />
-          </button>
-        </li>
-      ))}
-    </ul>
   );
 }

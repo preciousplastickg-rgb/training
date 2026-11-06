@@ -13,8 +13,8 @@ const EMPTY: Omit<Food, 'id'> = {
   name: '', aliases: [], per100: { kcal: 0, p: 0, f: 0, c: 0 }, source: 'user', approx: false, archived: false,
 };
 
-/** База продуктов: добавить, изменить (включая seed), архив (SPEC 6.5, 7). */
-export function FoodsSection() {
+/** База продуктов: добавить, изменить (включая seed), архив (SPEC 6.5, 7). Шторка из настроек. */
+export function FoodsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const foods = useFoods();
   const [query, setQuery] = useState('');
   const [edit, setEdit] = useState<(Omit<Food, 'id'> & { id?: string }) | null>(null);
@@ -22,10 +22,9 @@ export function FoodsSection() {
   const list = query ? searchFoods(foods, query, 20) : foods.filter((f) => f.source !== 'seed' && !f.archived).slice(0, 20);
   const archived = foods.filter((f) => f.archived);
   return (
-    <section>
-      <h2 className="mb-2 px-1 text-sm font-semibold text-muted">База продуктов · {foods.filter((f) => !f.archived).length}</h2>
+    <Sheet open={open} kicker="Данные" title={`База продуктов · ${foods.filter((f) => !f.archived).length}`} onClose={onClose}>
       <Card>
-        <label className="flex min-h-12 items-center gap-2 rounded-xl bg-surface-2 px-3">
+        <label className="flex min-h-12 items-center gap-2 rounded-full bg-track px-4">
           <Search size={18} className="text-muted" aria-hidden />
           <input className="min-w-0 flex-1 bg-transparent py-2 outline-none" placeholder="Найти продукт" aria-label="Найти продукт в базе" value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>
@@ -48,7 +47,7 @@ export function FoodsSection() {
         {showArchived && archived.map((f) => <FoodRow key={f.id} food={f} onClick={() => setEdit(f)} />)}
       </Card>
       {edit && <FoodEditSheet food={edit} onClose={() => setEdit(null)} />}
-    </section>
+    </Sheet>
   );
 }
 

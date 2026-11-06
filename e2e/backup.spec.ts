@@ -38,6 +38,6 @@ test('экспорт → удалить приложение → постави�
   await b.goto('./#/nutrition');
   await expect(b.getByRole('img', { name: /Калории 735 из/ })).toBeVisible();
   await b.goto('./#/today');
-  await expect(b.getByText(/^Записано/)).toBeVisible();
+  await expect(b.getByText(/кг · записано/)).toBeVisible();
   await ctxB.close();
 });

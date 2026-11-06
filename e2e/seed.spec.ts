@@ -6,7 +6,8 @@ test('на демо-данных за 8 недель все графики от�
   await expect(page.getByText(/Готово:/)).toBeVisible();
   await page.goto('./#/today');
   await page.reload();
-  await expect(page.getByText(/прогноз: \d+ \S+/)).toBeVisible();
+  await expect(page.getByText('прогноз', { exact: true })).toBeVisible();
+  await expect(page.getByText(/^\d+ [а-я]+$/).first()).toBeVisible();
 
   await page.goto('./#/progress');
   await expect(page.getByRole('img', { name: 'Силуэт прогресса' })).toBeVisible();

@@ -1,7 +1,7 @@
 import { Download, Image as ImageIcon, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet } from '../../components/Sheet';
-import { Button, Card } from '../../components/ui';
+import { Button } from '../../components/ui';
 import { updateSettings } from '../../db/db';
 import { backupFileName, exportBackup, exportPhotosZip, parseBackup, replaceAll, shareOrDownload, type ParseResult, type TableName } from '../../db/backup';
 import type { Settings } from '../../db/types';
@@ -26,7 +26,8 @@ async function exportNow(): Promise<'shared' | 'downloaded' | 'cancelled'> {
   return r;
 }
 
-export function BackupSection({ settings, persisted }: { settings: Settings; persisted: boolean | undefined }) {
+/** Строки группы «Данные»: бэкап, фото, импорт; статус хранилища под ними. */
+export function BackupRows({ settings, persisted }: { settings: Settings; persisted: boolean | undefined }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParseResult | null>(null);
   const [step, setStep] = useState<'preview' | 'saving' | 'unsaved'>('preview');
@@ -37,60 +38,60 @@ export function BackupSection({ settings, persisted }: { settings: Settings; per
     location.reload();
   };
 
+  const row = 'flex min-h-[58px] w-full items-center gap-3 border-t border-line px-[22px] text-left active:bg-track';
   return (
-    <section>
-      <h2 className="mb-2 px-1 text-sm font-semibold text-muted">Данные и бэкап</h2>
-      <Card>
-        <p className="text-sm text-muted">
-          {settings.lastBackupAt ? `Последний бэкап: ${formatDayMonth(toLocalDate(settings.lastBackupAt))}` : 'Бэкапа ещё не было'} · хранилище{' '}
-          {persisted === undefined ? '…' : persisted ? 'постоянное' : 'обычное (iOS может очистить при нехватке места)'}
-        </p>
-        <div className="mt-3 flex flex-col gap-2">
-          <Button
-            onClick={async () => {
-              const r = await exportNow();
-              setMsg(r === 'cancelled' ? null : 'Бэкап сохранён');
-            }}
-          >
-            <Download size={18} aria-hidden /> Экспорт данных (JSON)
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              const zip = await exportPhotosZip();
-              if (!zip) return setMsg('Фото пока нет');
-              const r = await shareOrDownload(zip, `fitness-photos-${toLocalDate(Date.now())}.zip`);
-              if (r !== 'cancelled') setMsg('Фото сохранены');
-            }}
-          >
-            <ImageIcon size={18} aria-hidden /> Фото (zip)
-          </Button>
-          <label className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-surface-2 px-4 font-semibold">
-            <Upload size={18} aria-hidden /> Импорт из файла
-            <input
-              type="file"
-              accept="application/json,.json"
-              className="sr-only"
-              onChange={async (e) => {
-                const f = e.target.files?.[0];
-                e.target.value = '';
-                if (!f) return;
-                setStep('preview');
-                setParsed(parseBackup(await f.text()));
-              }}
-            />
-          </label>
-        </div>
+    <>
+      <button
+        type="button"
+        aria-label="Экспорт данных (JSON)"
+        className={row}
+        onClick={async () => {
+          const r = await exportNow();
+          setMsg(r === 'cancelled' ? null : 'Бэкап сохранён');
+        }}
+      >
+        <span className="flex-1 text-[16px] font-semibold">Бэкап в «Файлы»</span>
+        <span className="text-[15px] text-muted">{settings.lastBackupAt ? formatDayMonth(toLocalDate(settings.lastBackupAt)) : 'ещё не было'}</span>
+        <Download size={16} className="text-muted" aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={row}
+        onClick={async () => {
+          const zip = await exportPhotosZip();
+          if (!zip) return setMsg('Фото пока нет');
+          const r = await shareOrDownload(zip, `fitness-photos-${toLocalDate(Date.now())}.zip`);
+          if (r !== 'cancelled') setMsg('Фото сохранены');
+        }}
+      >
+        <span className="flex-1 text-[16px] font-semibold">Фото (zip)</span>
+        <ImageIcon size={16} className="text-muted" aria-hidden />
+      </button>
+      <label className={`${row} cursor-pointer`}>
+        <span className="flex-1 text-[16px] font-semibold">Импорт из файла</span>
+        <Upload size={16} className="text-muted" aria-hidden />
+        <input
+          type="file"
+          accept="application/json,.json"
+          className="sr-only"
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            if (!f) return;
+            setStep('preview');
+            setParsed(parseBackup(await f.text()));
+          }}
+        />
+      </label>
+      <p className="border-t border-line px-[22px] py-3 text-xs text-muted">
         {msg && (
-          <p className="mt-2 text-sm text-accent" role="status">
+          <span className="block font-bold text-ink" role="status">
             {msg}
-          </p>
+          </span>
         )}
-        <p className="mt-3 text-xs text-muted">
-          JSON — все данные, кроме фото. Сохрани в «Файлы» → iCloud Drive. После переустановки приложения: «Импорт из файла».
-        </p>
-      </Card>
-
+        JSON — все данные, кроме фото; сохрани в «Файлы» → iCloud Drive. Хранилище{' '}
+        {persisted === undefined ? '…' : persisted ? 'постоянное' : 'обычное (iOS может очистить при нехватке места)'}.
+      </p>
       <Sheet open={!!parsed} title="Импорт бэкапа" onClose={() => setParsed(null)}>
         <div className="flex flex-col gap-3 px-2 pb-2">
           {parsed && !parsed.ok && <p className="text-danger">{parsed.error}</p>}
@@ -135,6 +136,6 @@ export function BackupSection({ settings, persisted }: { settings: Settings; per
           )}
         </div>
       </Sheet>
-    </section>
+    </>
   );
 }

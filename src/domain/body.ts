@@ -128,3 +128,45 @@ export function weightSeries(entries: readonly BodyEntry[], from: LocalDate, to:
   }
   return out;
 }
+
+/** Цель как ориентир: «≈ 72 кг» — округление до целого (SPEC 5.5). */
+export function roundTargetKg(kg100: Kg100): Kg100 {
+  return Math.round(kg100 / 100) * 100;
+}
+
+export interface TargetRefinement {
+  /** Дата замера талии и шеи на контрольной точке. */
+  measuredAt: LocalDate;
+  bodyFat: number;
+  /** Новая цель от текущего среднего веса (точная, Kg100). */
+  newTarget: Kg100;
+  oldTarget: Kg100;
+}
+
+/**
+ * Уточнение цели на контрольной точке (SPEC 5.5, REDESIGN 6): талия и шея записаны в окне
+ * [точка, точка + 14 дней] → цель от среднего веса на дату замера (нет среднего — вес записи,
+ * иначе последний вес) и нового % жира. Разница с текущей целью < 0,5 кг — ничего не предлагать.
+ * `dismissedAt` — дата замера, для которого выбрали «Оставить».
+ */
+export function targetRefinement(
+  entries: readonly BodyEntry[],
+  checkpoints: readonly { date: LocalDate }[],
+  settings: { heightCm: number; targetWeight: Kg100; targetBodyFat: number; startDate: LocalDate },
+  date: LocalDate,
+  dismissedAt?: LocalDate,
+): TargetRefinement | null {
+  const cp = [...checkpoints].filter((c) => c.date <= date).sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+  if (!cp) return null;
+  const windowEnd = addDays(cp.date, 14);
+  const e = latestWithBoth(entries, date < windowEnd ? date : windowEnd);
+  if (!e || e.date < cp.date || e.date <= settings.startDate) return null;
+  if (dismissedAt === e.date) return null;
+  const fat = bodyFatPercent(e.waist!, e.neck!, settings.heightCm);
+  if (fat === null) return null;
+  const weight = avg7(entries, e.date) ?? e.weight ?? latestWith(entries, 'weight', e.date)?.weight;
+  if (weight === undefined) return null;
+  const newTarget = targetWeightFor(weight, fat, settings.targetBodyFat);
+  if (Math.abs(newTarget - settings.targetWeight) < 50) return null;
+  return { measuredAt: e.date, bodyFat: fat, newTarget, oldTarget: settings.targetWeight };
+}

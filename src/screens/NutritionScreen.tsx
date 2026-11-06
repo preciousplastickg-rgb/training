@@ -28,14 +28,16 @@ export function NutritionScreen() {
   const t = dayTargets(date, adjustments, settings);
   const { total, byMeal } = dayTotals(logs, map);
   const [addMeal, setAddMeal] = useState<Meal | null>(null);
+  const [addMode, setAddMode] = useState<'search' | 'quick'>('search');
   const [edit, setEdit] = useState<FoodLog | null>(null);
   const [undo, setUndo] = useState<{ text: string; revert: () => Promise<void> } | null>(null);
   const global = useGlobalSheet();
 
   // «+ → Еда» с любого экрана: приём по времени суток.
   useEffect(() => {
-    if (global === 'food') {
+    if (global === 'food' || global === 'food_quick') {
       setDate(today);
+      setAddMode(global === 'food_quick' ? 'quick' : 'search');
       setAddMeal(mealByHour(new Date().getHours()));
       openSheet(null);
     }
@@ -153,7 +155,7 @@ export function NutritionScreen() {
         </div>
       )}
 
-      <AddFoodSheet open={addMeal !== null} onClose={() => setAddMeal(null)} date={date} meal={addMeal ?? 'breakfast'} foods={foods} logs={allLogs} />
+      <AddFoodSheet open={addMeal !== null} onClose={() => (setAddMeal(null), setAddMode('search'))} date={date} meal={addMeal ?? 'breakfast'} foods={foods} logs={allLogs} initialMode={addMode} />
       <EditEntrySheet entry={edit} food={edit?.foodId ? map.get(edit.foodId) : undefined} onClose={() => setEdit(null)} />
     </>
   );

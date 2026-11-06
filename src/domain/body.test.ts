@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BodyEntry } from '../db/types';
 import { addDays } from './dates';
-import { avg7, bodyFatPercent, forecastDate, leanMass, pathProgress, targetWeightFor } from './body';
+import { avg7, bodyFatPercent, forecastDate, leanMass, pathProgress, roundTargetKg, targetRefinement, targetWeightFor } from './body';
 
 const days = (from: string, weights: number[]): BodyEntry[] => weights.map((w, i) => ({ date: addDays(from, i), weight: w }));
 
@@ -59,5 +59,31 @@ describe('прогноз и путь', () => {
     expect(pathProgress(8100, 7300, 7690)).toBeCloseTo(0.5125);
     expect(pathProgress(8100, 7300, 8200)).toBe(0);
     expect(pathProgress(8100, 7300, 7200)).toBe(1);
+  });
+});
+
+describe('уточнение цели на контрольной точке', () => {
+  const S = { heightCm: 174.5, targetWeight: 7300, targetBodyFat: 15, startDate: '2026-11-09' };
+  const CP = [{ date: '2026-12-06' }, { date: '2027-01-03' }];
+  const weights = (from: string, n: number, w: number): BodyEntry[] =>
+    Array.from({ length: n }, (_, i) => ({ date: addDays(from, i), weight: w }));
+  it('замер на точке → новая цель от среднего веса; округление до целого — в интерфейсе', () => {
+    const entries = [...weights('2026-12-01', 7, 7800), { date: '2026-12-07', waist: 880, neck: 380 }];
+    const r = targetRefinement(entries, CP, S, '2026-12-08')!;
+    expect(r.measuredAt).toBe('2026-12-07');
+    expect(r.bodyFat).toBeCloseTo(bodyFatPercent(880, 380, 174.5)!, 5);
+    expect(r.newTarget).toBe(targetWeightFor(7800, r.bodyFat, 15));
+    expect(roundTargetKg(r.newTarget)).toBe(Math.round(r.newTarget / 100) * 100);
+  });
+  it('разница меньше 0,5 кг, замер до точки или «Оставить» — ничего не предлагать', () => {
+    const near = targetWeightFor(7800, bodyFatPercent(880, 380, 174.5)!, 15);
+    const entries = [...weights('2026-12-01', 7, 7800), { date: '2026-12-07', waist: 880, neck: 380 }];
+    expect(targetRefinement(entries, CP, { ...S, targetWeight: near + 40 }, '2026-12-08')).toBeNull();
+    expect(targetRefinement([...weights('2026-12-01', 7, 7800), { date: '2026-12-05', waist: 880, neck: 380 }], CP, S, '2026-12-08')).toBeNull();
+    expect(targetRefinement(entries, CP, S, '2026-12-08', '2026-12-07')).toBeNull();
+  });
+  it('замер позже 14 дней после точки не считается; стартовый замер — тоже', () => {
+    expect(targetRefinement([...weights('2026-12-15', 7, 7800), { date: '2026-12-25', waist: 880, neck: 380 }], CP, S, '2026-12-26')).toBeNull();
+    expect(targetRefinement([{ date: '2026-11-09', weight: 8100, waist: 920, neck: 380 }], [{ date: '2026-11-09' }], S, '2026-11-10')).toBeNull();
   });
 });

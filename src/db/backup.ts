@@ -38,7 +38,7 @@ const slot = z.object({
   toPhase: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
 });
 const settings = z.object({
-  id: z.literal('main'), heightCm: z.number(), startDate: localDate, startWeight: int, targetWeight: int, targetBodyFat: z.number(),
+  id: z.literal('main'), name: z.string().optional(), heightCm: z.number(), startDate: localDate, startWeight: int, targetWeight: int, targetBodyFat: z.number(),
   restLong: int, restShort: int, barWeight: int, plates: z.array(int), sound: z.boolean(), theme: z.enum(['light', 'dark', 'system']),
   substitutions: z.record(z.string(), z.string()), lastBackupAt: z.number().optional(),
   phase3Mode: z.enum(['maintenance', 'deficit']).optional(), onboarded: z.boolean().optional(),

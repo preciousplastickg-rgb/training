@@ -152,6 +152,8 @@ export interface Adjustment {
 export type Theme = 'light' | 'dark' | 'system';
 
 export interface Settings {
+  /** Имя для приветствия на «Сегодня» (редизайн B); нет — «Привет!». */
+  name?: string;
   heightCm: number;
   startDate: LocalDate;
   startWeight: Kg100;

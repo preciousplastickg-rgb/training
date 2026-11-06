@@ -41,7 +41,7 @@ export function FoodRow({ food, onClick, right }: { food: Food; onClick: () => v
 // ---------- Добавить ----------
 
 export function AddFoodSheet({
-  open, onClose, date, meal, foods, logs,
+  open, onClose, date, meal, foods, logs, initialMode = 'search',
 }: {
   open: boolean;
   onClose: () => void;
@@ -49,10 +49,12 @@ export function AddFoodSheet({
   meal: Meal;
   foods: Food[];
   logs: FoodLog[];
+  /** «Быстро» из меню «+» — сразу форма быстрой записи. */
+  initialMode?: 'search' | 'quick';
 }) {
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<Food | null>(null);
-  const [mode, setMode] = useState<'search' | 'quick' | 'recipe'>('search');
+  const [mode, setMode] = useState<'search' | 'quick' | 'recipe'>(initialMode);
   const [cat, setCat] = useState<FoodCategory | 'mine' | null>(null);
   const map = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods]);
   // Сброс — при закрытии: при следующем открытии поле поиска есть с первого кадра и получает фокус.
@@ -60,10 +62,10 @@ export function AddFoodSheet({
     if (!open) {
       setQuery('');
       setPicked(null);
-      setMode('search');
       setCat(null);
     }
-  }, [open]);
+    setMode(open ? initialMode : 'search');
+  }, [open, initialMode]);
   const results = searchFoods(foods, query);
   const recent = recentFoods(logs, map);
   const frequent = frequentFoods(logs, map, 10, new Set(recent.map((f) => f.id)));
