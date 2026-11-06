@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>B — Прогресс · Тело</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.b{--bg:#F2F0EB;--card:#FFFFFF;--ink:#111214;--muted:#66635C;--line:#ECEAE4;--lime:#D4F25A;--track:#ECEAE4;font-family:'Manrope',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink);-webkit-font-smoothing:antialiased}
+.b button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.b a{color:inherit;text-decoration:none}
+.u{font-family:'Unbounded',sans-serif;letter-spacing:-0.02em}
+.cap{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted)}
+.tab{height:42px;border-radius:21px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.mini{background:var(--card);border-radius:24px;padding:14px;display:flex;flex-direction:column;gap:4px}
+</style>
+</helmet>
+<div class="b" style="position: relative; width: 390px; height: 1120px; background: var(--bg); overflow: hidden">
+<div style="padding: 60px 16px 140px; display: flex; flex-direction: column; gap: 12px">
+<h1 class="u" style="margin: 0 6px 4px; font-size: 28px; font-weight: 700">Прогресс</h1>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; background: var(--card); border-radius: 25px; padding: 4px">
+<a href="BProgressBody.dc.html" class="tab" style="background: var(--ink); color: var(--lime)" aria-current="page">Тело</a>
+<a href="BProgressStrength.dc.html" class="tab">Сила</a>
+<a href="BNutrition.dc.html" class="tab">Питание</a>
+<a href="BDiscipline.dc.html" class="tab">Режим</a>
+</div>
+
+<section style="background: var(--ink); color: #fff; border-radius: 30px; padding: 20px 16px 14px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 0 4px">
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 700; letter-spacing: .08em; color: #A7A9AE">СРЕДНИЙ ВЕС</span><span class="u" style="font-size: 36px; line-height: 42px; font-weight: 700">77,2<span style="font-family: Manrope, sans-serif; font-size: 15px; color: #A7A9AE"> кг</span></span><span style="font-size: 14px; font-weight: 800; color: var(--lime)">−3,8 с 9 ноября</span></div>
+<div style="display: flex; gap: 4px; background: #2A2C30; border-radius: 18px; padding: 3px"><button style="height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; font-weight: 700; color: #A7A9AE">Месяц</button><button style="height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; font-weight: 800; background: #fff; color: var(--ink)">Всё</button></div>
+</div>
+<svg width="326" height="210" viewBox="0 0 326 210" role="img" aria-label="График веса: среднее снижается с 81 до 77,2 кг, следующая точка 31 января — 75,5 кг">
+<line x1="30" y1="10" x2="316" y2="10" stroke="#232529"/><line x1="30" y1="44" x2="316" y2="44" stroke="#232529"/><line x1="30" y1="78" x2="316" y2="78" stroke="#232529"/><line x1="30" y1="112" x2="316" y2="112" stroke="#232529"/><line x1="30" y1="146" x2="316" y2="146" stroke="#232529"/>
+<text x="0" y="14" font-size="11" fill="#8A8D93">82</text><text x="0" y="82" font-size="11" fill="#8A8D93">78</text><text x="0" y="150" font-size="11" fill="#8A8D93">74</text>
+<line x1="30" y1="180" x2="316" y2="180" stroke="#FFFFFF" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.7"/><text x="316" y="175" text-anchor="end" font-size="11" font-weight="700" fill="#FFFFFF">цель ≈ 72</text>
+<path d="{{dots}}" fill="none" stroke="#4A4D53" stroke-width="5" stroke-linecap="round"/>
+<path d="{{avg}}" fill="none" stroke="#D4F25A" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="{{fc}}" fill="none" stroke="#D4F25A" stroke-width="2" stroke-dasharray="3 5" stroke-linecap="round"/>
+<path d="{{cpDone}}" fill="#D4F25A" stroke="#D4F25A" stroke-width="1.5" stroke-linejoin="round"/>
+<path d="{{cpOpen}}" fill="#111214" stroke="#D4F25A" stroke-width="1.5" stroke-linejoin="round"/>
+<circle cx="{{last.x}}" cy="{{last.y}}" r="7" fill="#111214" stroke="#D4F25A" stroke-width="3.5"/>
+<text x="30" y="204" font-size="11" fill="#8A8D93">ноя</text><text x="125" y="204" font-size="11" fill="#8A8D93">дек</text><text x="232" y="204" font-size="11" fill="#8A8D93">янв</text>
+</svg>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+<div class="mini"><span class="cap">% ЖИРА</span><span class="u" style="font-size: 22px; font-weight: 700">21,0</span><span style="font-size: 13px; font-weight: 800">−3,5</span></div>
+<div class="mini"><span class="cap">ТАЛИЯ</span><span class="u" style="font-size: 22px; font-weight: 700">93</span><span style="font-size: 13px; font-weight: 800">−5 см</span></div>
+<div class="mini"><span class="cap">МЫШЦЫ</span><span class="u" style="font-size: 22px; font-weight: 700">61,0</span><span style="font-size: 13px; font-weight: 700; color: var(--muted)">держим</span></div>
+</div>
+
+<section style="background: var(--card); border-radius: 28px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px"><span class="u" style="font-size: 17px; font-weight: 700">Фото</span><span style="font-size: 13px; color: var(--muted)">9 ноя → 3 янв</span></div>
+<div style="position: relative; height: 260px; border-radius: 20px; overflow: hidden; display: flex">
+<div style="flex: 1; background: #DCD9D2; display: flex; align-items: flex-end; padding: 10px"><span style="font-size: 12px; font-weight: 800; background: #fff; padding: 4px 10px; border-radius: 999px">[ФОТО] 9 ноября</span></div>
+<div style="flex: 1; background: #CFCBC2; display: flex; align-items: flex-end; justify-content: flex-end; padding: 10px"><span style="font-size: 12px; font-weight: 800; background: #fff; padding: 4px 10px; border-radius: 999px">3 января [ФОТО]</span></div>
+<div style="position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: var(--ink)"></div>
+<div aria-hidden="true" style="position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 24px; background: var(--lime); border: 3px solid var(--ink); box-sizing: border-box; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111214" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18-6-6 6-6M15 6l6 6-6 6"/></svg></div>
+</div>
+</section>
+</div>
+
+<nav aria-label="Разделы" style="position: absolute; left: 16px; right: 16px; bottom: 26px; height: 70px; border-radius: 35px; background: var(--ink); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: center; padding: 0 6px">
+<a href="BToday.dc.html" aria-label="Сегодня" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a>
+<a href="BWorkout.dc.html" aria-label="Тренировка" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12"/></svg></a>
+<a href="BMenu.dc.html" aria-label="Добавить" style="justify-self: center; width: 54px; height: 54px; border-radius: 27px; background: var(--lime); color: var(--ink); display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+<a href="BNutrition.dc.html" aria-label="Питание" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg></a>
+<a href="BProgressBody.dc.html" aria-label="Прогресс" style="justify-self: center; height: 48px; padding: 0 14px; border-radius: 24px; background: #2A2C30; color: var(--lime); display: flex; align-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 7 13.5 15.5 8.5 10.5 2 17"/><path d="M16 7h6v6"/></svg></a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1120}}'>
+class Component extends DCLogic {
+renderVals() {
+const X = (d) => +(30 + d / 83 * 286).toFixed(1);
+const Y = (w) => +(10 + (82 - w) / 10 * 170).toFixed(1);
+const trend = (t) => 81 - 3.8 * Math.pow(t / 65, 0.92);
+let dots = ''; const pts = [];
+for (let t = 0; t <= 65; t++) {
+const w = trend(t) + 0.38 * Math.sin(t * 1.7) + 0.22 * Math.sin(t * 0.6 + 1);
+if (t % 6 !== 3) dots += 'M' + X(t) + ' ' + Y(w) + ' h0.01 ';
+if (t % 2 === 0 || t === 65) pts.push(X(t) + ' ' + Y(trend(t)));
+}
+const avg = 'M' + pts.join(' L');
+const lx = X(65), ly = Y(77.2);
+const fc = 'M' + lx + ' ' + ly + ' L' + X(83) + ' ' + Y(75.75);
+const dia = (d, w) => { const cx = X(d), cy = Y(w); return 'M' + cx + ' ' + (cy - 6) + ' L' + (cx + 6) + ' ' + cy + ' L' + cx + ' ' + (cy + 6) + ' L' + (cx - 6) + ' ' + cy + ' Z '; };
+return { dots, avg, fc, cpDone: dia(27, 78.5) + dia(55, 77), cpOpen: dia(83, 75.5), last: { x: lx, y: ly } };
+}
+}
+</script>
+</body>
+</html>

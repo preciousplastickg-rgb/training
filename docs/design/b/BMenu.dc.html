@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>B — Меню «Добавить»</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.b{--bg:#F2F0EB;--card:#FFFFFF;--ink:#111214;--muted:#66635C;--lime:#D4F25A;--orange:#FF6A3D;--blue:#4C7DFF;--track:#ECEAE4;font-family:'Manrope',system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.b button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-align:left}
+.b a{color:inherit;text-decoration:none}
+.u{font-family:'Unbounded',sans-serif;letter-spacing:-0.02em}
+.b .opt{width:100%;box-sizing:border-box;height:80px;border-radius:24px;background:var(--card);display:flex;align-items:center;gap:16px;padding:0 20px 0 14px}
+.ic{width:52px;height:52px;border-radius:26px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ph{background:#DCD9D2;border-radius:28px}
+</style>
+</helmet>
+<div class="b" style="position: relative; width: 390px; height: 844px; background: var(--bg); overflow: hidden">
+<div aria-hidden="true" style="padding: 60px 16px; display: flex; flex-direction: column; gap: 12px"><div style="height: 80px"></div><div class="ph" style="height: 300px; background: #2A2C30"></div><div class="ph" style="height: 170px"></div></div>
+<div style="position: absolute; inset: 0; background: rgb(17 18 20 / .5)"></div>
+<section role="dialog" aria-label="Добавить" style="position: absolute; left: 0; right: 0; bottom: 0; background: var(--bg); border-radius: 32px 32px 0 0; padding: 10px 16px 40px; display: flex; flex-direction: column; gap: 12px">
+<div style="width: 40px; height: 5px; border-radius: 3px; background: #CFCBC2; align-self: center"></div>
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 6px 4px">
+<h2 class="u" style="margin: 0; font-size: 24px; font-weight: 700">Добавить</h2>
+<a href="BToday.dc.html" aria-label="Закрыть" style="width: 44px; height: 44px; border-radius: 22px; background: var(--card); display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></a>
+</div>
+<a href="AddFood.dc.html" class="opt"><span class="ic" style="background: var(--orange); color: #fff"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg></span><span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 18px; font-weight: 800">Еда</span><span style="font-size: 14px; color: var(--muted)">сейчас обед · ещё 810 ккал</span></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
+<button class="opt"><span class="ic" style="background: var(--lime); color: var(--ink)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="3"/><path d="M6.5 8a2 2 0 0 0-1.905 1.46L2.1 18.5A2 2 0 0 0 4 21h16a2 2 0 0 0 1.925-2.54L19.4 9.5A2 2 0 0 0 17.48 8Z"/></svg></span><span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 18px; font-weight: 800">Вес</span><span style="font-size: 14px; color: var(--muted)">сегодня ещё не записан</span></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+<button class="opt"><span class="ic" style="background: var(--blue); color: #fff"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg></span><span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 18px; font-weight: 800">Бассейн</span><span style="font-size: 14px; color: var(--muted)">по плану завтра · 40 мин</span></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+<div style="display: flex; gap: 8px; padding-top: 4px">
+<button style="flex: 1; height: 48px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 700; text-align: center">Вчерашний завтрак</button>
+<button style="flex: 1; height: 48px; border-radius: 999px; background: var(--card); font-size: 14px; font-weight: 700; text-align: center">Быстро: ккал + белок</button>
+</div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

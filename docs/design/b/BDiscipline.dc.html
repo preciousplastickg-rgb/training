@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>B — Прогресс · Режим</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.b{--bg:#F2F0EB;--card:#FFFFFF;--ink:#111214;--muted:#66635C;--line:#ECEAE4;--lime:#D4F25A;--track:#ECEAE4;font-family:'Manrope',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink);-webkit-font-smoothing:antialiased}
+.b a{color:inherit;text-decoration:none}
+.u{font-family:'Unbounded',sans-serif;letter-spacing:-0.02em}
+.tab{height:42px;border-radius:21px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.lg{display:flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:4px}
+</style>
+</helmet>
+<div class="b" style="position: relative; width: 390px; height: 1120px; background: var(--bg); overflow: hidden">
+<div style="padding: 60px 16px 40px; display: flex; flex-direction: column; gap: 12px">
+<h1 class="u" style="margin: 0 6px 4px; font-size: 28px; font-weight: 700">Прогресс</h1>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; background: var(--card); border-radius: 25px; padding: 4px">
+<a href="BProgressBody.dc.html" class="tab">Тело</a>
+<a href="BProgressStrength.dc.html" class="tab">Сила</a>
+<a href="BNutrition.dc.html" class="tab">Питание</a>
+<a href="BDiscipline.dc.html" class="tab" style="background: var(--ink); color: var(--lime)" aria-current="page">Режим</a>
+</div>
+
+<section style="background: var(--ink); color: #fff; border-radius: 30px; padding: 20px 22px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 700; letter-spacing: .08em; color: #A7A9AE">ВЫПОЛНЕНО</span><span class="u" style="font-size: 32px; font-weight: 700; color: var(--lime)">44<span style="font-family: Manrope, sans-serif; font-size: 15px; color: #A7A9AE"> / 47</span></span><span style="font-size: 13px; color: #A7A9AE">94% тренировок</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 700; letter-spacing: .08em; color: #A7A9AE">СЕРИЯ</span><span class="u" style="font-size: 32px; font-weight: 700">4<span style="font-family: Manrope, sans-serif; font-size: 15px; color: #A7A9AE"> дня</span></span><span style="font-size: 13px; color: #A7A9AE">лучшая — 19</span></div>
+</section>
+
+<section style="background: var(--card); border-radius: 28px; padding: 18px 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px"><span class="u" style="font-size: 16px; font-weight: 700">9 ноя → 30 апр</span><span style="font-size: 13px; color: var(--muted)">25 недель</span></div>
+<div style="display: grid; grid-template-columns: 40px repeat(7, 20px); gap: 4px; justify-content: center">
+<sc-for list="{{head}}" as="h" hint-placeholder-count="8"><span style="font-size: 11px; font-weight: 700; color: var(--muted); text-align: center">{{h}}</span></sc-for>
+<sc-for list="{{cells}}" as="c" hint-placeholder-count="200"><span style="height: 18px; border-radius: 9px; background: {{c.bg}}; box-shadow: {{c.ring}}; font-size: 11px; font-weight: 700; line-height: 18px; color: var(--muted)">{{c.t}}</span></sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; font-weight: 600; color: var(--muted); padding: 4px 4px 0">
+<span class="lg"><span class="sw" style="background: #111214"></span>зал</span>
+<span class="lg"><span class="sw" style="background: #4C7DFF"></span>бассейн</span>
+<span class="lg"><span class="sw" style="background: #D9D6CE"></span>отдых</span>
+<span class="lg"><span class="sw" style="background: #FF6A3D"></span>пропуск</span>
+<span class="lg"><span class="sw" style="box-shadow: inset 0 0 0 2px #D4F25A; background: #111214"></span>сегодня</span>
+</div>
+</section>
+
+<section style="background: var(--card); border-radius: 26px; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between"><span style="font-size: 15px; font-weight: 800">Питание в цели</span><span class="u" style="font-size: 15px; font-weight: 700">41 / 65</span></div>
+<div style="height: 10px; border-radius: 5px; background: var(--track)"><div style="width: 63%; height: 10px; border-radius: 5px; background: var(--ink)"></div></div>
+<span style="font-size: 13px; color: var(--muted)">ккал ±10% и белок ≥ 90%</span>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1120}}'>
+class Component extends DCLogic {
+renderVals() {
+const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+const start = Date.UTC(2026, 10, 9), end = Date.UTC(2027, 3, 30), today = 65;
+const miss = { 18: 1, 38: 1, 60: 1 };
+const cells = [];
+for (let w = 0; w < 25; w++) {
+let label = '';
+for (let d = 0; d < 7; d++) { const dt = new Date(start + (w * 7 + d) * 864e5); if (dt.getUTCDate() === 1 || (w === 0 && d === 0)) label = months[dt.getUTCMonth()]; }
+cells.push({ t: label, bg: 'transparent', ring: 'none' });
+for (let d = 0; d < 7; d++) {
+const i = w * 7 + d, ts = start + i * 864e5;
+let bg = '#ECEAE4';
+if (ts > end) bg = 'transparent';
+else if (i < today) {
+if (miss[i]) bg = '#FF6A3D';
+else if (d === 0 || d === 2 || d === 4) bg = '#111214';
+else if (d === 1 || d === 3) bg = '#4C7DFF';
+else if (d === 5 && i % 14 === 5) bg = '#4C7DFF';
+else bg = '#D9D6CE';
+}
+cells.push({ t: '', bg: i === today ? '#111214' : bg, ring: i === today ? 'inset 0 0 0 3px #D4F25A' : 'none' });
+}
+}
+return { head: ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], cells };
+}
+}
+</script>
+</body>
+</html>

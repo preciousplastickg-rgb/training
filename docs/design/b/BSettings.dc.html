@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>B — Настройки</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.b{--bg:#F2F0EB;--card:#FFFFFF;--ink:#111214;--muted:#66635C;--line:#ECEAE4;--lime:#D4F25A;--track:#ECEAE4;font-family:'Manrope',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink);-webkit-font-smoothing:antialiased}
+.b button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-align:left}
+.b a{color:inherit;text-decoration:none}
+.u{font-family:'Unbounded',sans-serif;letter-spacing:-0.02em}
+.cap{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted);padding:0 22px}
+.grp{background:var(--card);border-radius:26px;overflow:hidden}
+.b .row{width:100%;min-height:58px;display:flex;align-items:center;gap:12px;padding:0 22px;box-sizing:border-box;border-top:1px solid var(--line)}
+.b .grp .row:first-child{border-top:0}
+</style>
+</helmet>
+<div class="b" style="width: 390px; height: 1060px; background: var(--bg); overflow: hidden">
+<div style="padding: 58px 16px 40px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px">
+<a href="BToday.dc.html" aria-label="Назад" style="width: 48px; height: 48px; border-radius: 24px; background: var(--card); display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+<h1 class="u" style="margin: 0; font-size: 26px; font-weight: 700">Настройки</h1>
+</div>
+
+<section style="background: var(--ink); color: #fff; border-radius: 28px; padding: 20px 22px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; justify-content: space-between; align-items: center"><span class="u" style="font-size: 22px; font-weight: 700">Профиль</span><button style="height: 36px; padding: 0 14px; border-radius: 18px; background: #2A2C30; color: #fff; font-size: 13px; font-weight: 700">Изменить</button></div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #A7A9AE">Рост</span><span class="u" style="font-size: 20px; font-weight: 700">180</span><span style="font-size: 12px; color: #A7A9AE">см</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #A7A9AE">Старт</span><span class="u" style="font-size: 20px; font-weight: 700">81,0</span><span style="font-size: 12px; color: #A7A9AE">9 ноября</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #A7A9AE">Цель</span><span class="u" style="font-size: 20px; font-weight: 700; color: var(--lime)">≈ 72</span><span style="font-size: 12px; color: #A7A9AE">при 15% жира</span></div>
+</div>
+</section>
+
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px">
+<div class="cap">{{g.title}}</div>
+<div class="grp">
+<sc-for list="{{g.rows}}" as="r" hint-placeholder-count="3">
+<button class="row"><span style="flex: 1; font-size: 16px; font-weight: 600">{{r.k}}</span><span style="font-size: 15px; color: var(--muted)">{{r.v}}</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A39F96" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+</sc-for>
+</div>
+</div>
+</sc-for>
+
+<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px">
+<div class="cap">ПРИЛОЖЕНИЕ</div>
+<div class="grp">
+<div class="row"><label for="bsnd" style="flex: 1; font-size: 16px; font-weight: 600">Сигнал конца отдыха</label><button id="bsnd" role="switch" aria-checked="true" style="width: 52px; height: 32px; border-radius: 16px; background: var(--ink); position: relative; display: block"><span style="position: absolute; right: 3px; top: 3px; width: 26px; height: 26px; border-radius: 13px; background: var(--lime)"></span></button></div>
+<div class="row" style="flex-direction: column; align-items: stretch; gap: 12px; padding: 16px 22px"><span style="font-size: 16px; font-weight: 600">Тема</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+<button style="height: 44px; border-radius: 22px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 700; text-align: center">Светлая</button>
+<button style="height: 44px; border-radius: 22px; background: var(--track); font-size: 14px; font-weight: 600; text-align: center">Тёмная</button>
+<button style="height: 44px; border-radius: 22px; background: var(--track); font-size: 14px; font-weight: 600; text-align: center">Авто</button>
+</div></div>
+</div>
+</div>
+<div style="font-size: 12px; color: var(--muted); text-align: center; margin-top: 10px">Данные хранятся только на этом телефоне</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1060}}'>
+class Component extends DCLogic {
+renderVals() {
+return { groups: [
+{ title: 'ПРОГРАММА', rows: [ { k: 'Тренировки A и B', v: '6 и 7' }, { k: 'Отдых', v: '150 / 90 / 60 с' }, { k: 'Гриф и блины', v: '20 кг · 7 видов' }, { k: 'Бассейн', v: 'вт, чт, сб' } ] },
+{ title: 'ДАННЫЕ', rows: [ { k: 'База продуктов', v: '150' }, { k: 'Бэкап в «Файлы»', v: '1 января' }, { k: 'Импорт из файла', v: '' } ] }
+] };
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>B — Питание</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.b{--bg:#F2F0EB;--card:#FFFFFF;--ink:#111214;--muted:#66635C;--line:#ECEAE4;--lime:#D4F25A;--orange:#FF6A3D;--blue:#4C7DFF;--fat:#B58AD6;--carb:#8C96A2;--track:#ECEAE4;font-family:'Manrope',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink);-webkit-font-smoothing:antialiased}
+.b button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.b a{color:inherit;text-decoration:none}
+.u{font-family:'Unbounded',sans-serif;letter-spacing:-0.02em}
+.cap{font-size:12px;font-weight:700;letter-spacing:.08em;color:#A7A9AE}
+.it{display:flex;align-items:center;gap:10px;min-height:48px;border-top:1px solid var(--line)}
+.bar{height:10px;border-radius:5px;background:#2A2C30;overflow:hidden}
+</style>
+</helmet>
+<div class="b" style="position: relative; width: 390px; height: 1160px; background: var(--bg); overflow: hidden">
+<div style="padding: 60px 16px 140px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 0 6px 6px">
+<h1 class="u" style="margin: 0; font-size: 28px; font-weight: 700">Питание</h1>
+<div style="display: flex; align-items: center; background: var(--card); border-radius: 24px">
+<button aria-label="Вчера" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+<span style="font-size: 15px; font-weight: 800">Сегодня</span>
+<button aria-label="Завтра" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #B4B0A7"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+</div>
+</div>
+
+<section style="background: var(--ink); color: #fff; border-radius: 30px; padding: 22px 20px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end">
+<div style="display: flex; flex-direction: column; gap: 4px"><span class="cap">ОСТАЛОСЬ</span><span class="u" style="font-size: 40px; line-height: 46px; font-weight: 700; color: var(--lime)">810</span><span style="font-size: 14px; color: #A7A9AE">ккал из 2 050</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px; text-align: right"><span class="cap">БЕЛОК</span><span class="u" style="font-size: 26px; font-weight: 700">95<span style="font-family: Manrope, sans-serif; font-size: 14px; color: #A7A9AE"> / 155 г</span></span><span style="font-size: 13px; color: #A6C0FF">ещё 60 г ≈ 200 г курицы</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 10px"><span style="width: 64px; font-size: 13px; color: #A7A9AE">ккал</span><div class="bar" style="flex: 1"><div style="width: 60%; height: 10px; border-radius: 5px; background: var(--orange)"></div></div><span style="width: 44px; text-align: right; font-size: 13px; font-weight: 700">60%</span></div>
+<div style="display: flex; align-items: center; gap: 10px"><span style="width: 64px; font-size: 13px; color: #A7A9AE">белок</span><div class="bar" style="flex: 1"><div style="width: 61%; height: 10px; border-radius: 5px; background: var(--blue)"></div></div><span style="width: 44px; text-align: right; font-size: 13px; font-weight: 700">61%</span></div>
+<div style="display: flex; align-items: center; gap: 10px"><span style="width: 64px; font-size: 13px; color: #A7A9AE">жиры</span><div class="bar" style="flex: 1"><div style="width: 58%; height: 10px; border-radius: 5px; background: var(--fat)"></div></div><span style="width: 44px; text-align: right; font-size: 13px; font-weight: 700">38 г</span></div>
+<div style="display: flex; align-items: center; gap: 10px"><span style="width: 64px; font-size: 13px; color: #A7A9AE">углев.</span><div class="bar" style="flex: 1"><div style="width: 60%; height: 10px; border-radius: 5px; background: #C9CDD3"></div></div><span style="width: 44px; text-align: right; font-size: 13px; font-weight: 700">127 г</span></div>
+</div>
+</section>
+
+<sc-for list="{{meals}}" as="m" hint-placeholder-count="4">
+<section style="background: var(--card); border-radius: 26px; padding: 6px 14px 6px 20px">
+<div style="display: flex; align-items: center; gap: 10px; min-height: 58px">
+<span style="flex: 1; display: flex; flex-direction: column"><span class="u" style="font-size: 17px; font-weight: 700">{{m.name}}</span><span style="font-size: 13px; color: var(--muted)">{{m.sub}}</span></span>
+<span style="font-size: 16px; font-weight: 800">{{m.kcal}}</span>
+<a href="BAddFood.dc.html" aria-label="Добавить в {{m.name}}" style="width: 44px; height: 44px; border-radius: 22px; background: var(--ink); color: var(--lime); display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+</div>
+<sc-for list="{{m.items}}" as="i" hint-placeholder-count="2">
+<div class="it" style="margin-right: 6px"><span style="flex: 1; font-size: 15px; font-weight: 600">{{i.n}}</span><span style="font-size: 13px; color: var(--muted)">{{i.g}}</span><span style="width: 52px; text-align: right; font-size: 15px; font-weight: 700">{{i.k}}</span></div>
+</sc-for>
+</section>
+</sc-for>
+
+<div style="display: flex; gap: 8px">
+<button style="flex: 1; height: 50px; border-radius: 25px; background: var(--card); font-size: 14px; font-weight: 800">Быстро: ккал + белок</button>
+<button style="flex: 1; height: 50px; border-radius: 25px; background: var(--card); font-size: 14px; font-weight: 800">Мои блюда</button>
+</div>
+</div>
+
+<nav aria-label="Разделы" style="position: absolute; left: 16px; right: 16px; bottom: 26px; height: 70px; border-radius: 35px; background: var(--ink); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: center; padding: 0 6px">
+<a href="BToday.dc.html" aria-label="Сегодня" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a>
+<a href="BWorkout.dc.html" aria-label="Тренировка" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12"/></svg></a>
+<a href="BMenu.dc.html" aria-label="Добавить" style="justify-self: center; width: 54px; height: 54px; border-radius: 27px; background: var(--lime); color: var(--ink); display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+<a href="BNutrition.dc.html" aria-label="Питание" style="justify-self: center; height: 48px; padding: 0 14px; border-radius: 24px; background: #2A2C30; color: var(--lime); display: flex; align-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg></a>
+<a href="BProgressBody.dc.html" aria-label="Прогресс" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 7 13.5 15.5 8.5 10.5 2 17"/><path d="M16 7h6v6"/></svg></a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1160}}'>
+class Component extends DCLogic {
+renderVals() {
+return { meals: [
+{ name: 'Завтрак', sub: '37 г белка', kcal: '491', items: [ { n: 'Овсянка на воде', g: '60 г', k: '213' }, { n: 'Яйцо варёное', g: '2 шт', k: '157' }, { n: 'Творог 5%', g: '100 г', k: '121' } ] },
+{ name: 'Обед', sub: '52 г белка', kcal: '583', items: [ { n: 'Куриная грудка', g: '200 г', k: '330' }, { n: 'Рис варёный', g: '200 г', k: '232' }, { n: 'Огурцы', g: '150 г', k: '21' } ] },
+{ name: 'Перекус', sub: '6 г белка', kcal: '166', items: [ { n: 'Яблоко', g: '200 г', k: '94' }, { n: 'Кефир 1%', g: '180 г', k: '72' } ] },
+{ name: 'Ужин', sub: 'пока пусто', kcal: '', items: [] }
+] };
+}
+}
+</script>
+</body>
+</html>

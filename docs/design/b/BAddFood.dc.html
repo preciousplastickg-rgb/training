@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>B — Добавить еду</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.b{--bg:#F2F0EB;--card:#FFFFFF;--ink:#111214;--muted:#66635C;--line:#ECEAE4;--lime:#D4F25A;--track:#ECEAE4;font-family:'Manrope',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink);-webkit-font-smoothing:antialiased}
+.b button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.b a{color:inherit;text-decoration:none}
+.u{font-family:'Unbounded',sans-serif;letter-spacing:-0.02em}
+.cap{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted)}
+.b .mc{height:40px;padding:0 16px;border-radius:20px;font-size:14px;font-weight:700;background:var(--card)}
+.r{display:flex;align-items:center;gap:12px;min-height:64px;padding:0 18px;border-top:1px solid var(--line)}
+.b .chip{height:40px;padding:0 14px;border-radius:20px;background:var(--card);font-size:14px;font-weight:700}
+</style>
+</helmet>
+<div class="b" style="position: relative; width: 390px; height: 844px; background: #8A877F; overflow: hidden">
+<section role="dialog" aria-label="Добавить еду" style="position: absolute; left: 0; right: 0; top: 54px; bottom: 0; background: var(--bg); border-radius: 32px 32px 0 0; padding: 10px 16px 0; display: flex; flex-direction: column; gap: 14px">
+<div style="width: 40px; height: 5px; border-radius: 3px; background: #CFCBC2; align-self: center"></div>
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 0 6px">
+<h2 class="u" style="margin: 0; font-size: 22px; font-weight: 700">В ужин</h2>
+<a href="BNutrition.dc.html" aria-label="Закрыть" style="width: 44px; height: 44px; border-radius: 22px; background: var(--card); display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></a>
+</div>
+<div style="display: flex; gap: 6px">
+<button class="mc">Завтрак</button><button class="mc">Обед</button><button class="mc">Перекус</button><button class="mc" style="background: var(--ink); color: var(--lime)" aria-pressed="true">Ужин</button>
+</div>
+<label style="height: 56px; border-radius: 28px; background: var(--card); display: flex; align-items: center; gap: 10px; padding: 0 18px; box-shadow: inset 0 0 0 2px var(--ink)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+<input aria-label="Поиск продукта" value="кур" style="flex: 1; border: 0; background: none; font: inherit; font-size: 17px; font-weight: 600; color: var(--ink); outline: none; min-width: 0">
+<span style="font-size: 13px; color: var(--muted)">3 из 150</span>
+</label>
+<div style="background: var(--card); border-radius: 26px; overflow: hidden">
+<a href="BPortion.dc.html" class="r" style="border-top: 0"><span style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 16px; font-weight: 700"><b style="font-weight: 900">Кур</b>иная грудка варёная</span><span style="font-size: 13px; color: var(--muted)">на 100 г · белок 31 г</span></span><span class="u" style="font-size: 16px; font-weight: 700">165</span></a>
+<a href="BPortion.dc.html" class="r"><span style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 16px; font-weight: 700"><b style="font-weight: 900">Кур</b>иное бедро без кожи</span><span style="font-size: 13px; color: var(--muted)">на 100 г · белок 24 г</span></span><span class="u" style="font-size: 16px; font-weight: 700">185</span></a>
+<a href="BPortion.dc.html" class="r"><span style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 16px; font-weight: 700"><b style="font-weight: 900">Кур</b>иный фарш</span><span style="font-size: 13px; color: var(--muted)">на 100 г · белок 18 г</span></span><span class="u" style="font-size: 16px; font-weight: 700">143</span></a>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 0 6px"><span class="cap">НЕДАВНИЕ</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><button class="chip">Рис варёный</button><button class="chip">Яйцо</button><button class="chip">Творог 5%</button><button class="chip">Кефир 1%</button><button class="chip">Гречка</button></div></div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 0 6px"><span class="cap">ЧАСТЫЕ</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><button class="chip">Куриная грудка · 23</button><button class="chip">Овсянка · 19</button><button class="chip">Яблоко · 11</button></div></div>
+<button style="margin-top: auto; margin-bottom: 34px; height: 56px; border-radius: 28px; background: var(--ink); color: #fff; font-size: 15px; font-weight: 800">Быстро: только ккал и белок</button>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

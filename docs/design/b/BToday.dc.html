@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>B — Сегодня</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.b{--bg:#F2F0EB;--card:#FFFFFF;--ink:#111214;--muted:#66635C;--line:#E4E1DA;--lime:#D4F25A;--orange:#FF6A3D;--blue:#4C7DFF;--track:#ECEAE4;font-family:'Manrope',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink);-webkit-font-smoothing:antialiased}
+.b button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.b a{color:inherit;text-decoration:none}
+.u{font-family:'Unbounded',sans-serif;letter-spacing:-0.02em}
+.card{background:var(--card);border-radius:28px}
+.cap{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted)}
+.day{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#A7A9AE}
+.dot{width:34px;height:34px;border-radius:17px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+</style>
+</helmet>
+<div class="b" style="position: relative; width: 390px; height: 1240px; background: var(--bg); overflow: hidden">
+<div style="padding: 60px 16px 140px; display: flex; flex-direction: column; gap: 12px">
+<header style="display: flex; align-items: center; justify-content: space-between; padding: 0 6px 8px">
+<div style="display: flex; flex-direction: column; gap: 6px"><span class="cap">СРЕДА · 13 ЯНВАРЯ</span><h1 class="u" style="margin: 0; font-size: 28px; line-height: 34px; font-weight: 700">Привет, Нур</h1></div>
+<button aria-label="Настройки" style="width: 48px; height: 48px; border-radius: 24px; background: var(--card); display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></svg></button>
+</header>
+
+<section style="background: var(--ink); color: #fff; border-radius: 30px; padding: 22px 20px 20px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<span style="font-size: 12px; font-weight: 800; letter-spacing: .08em; background: var(--lime); color: var(--ink); padding: 6px 10px; border-radius: 999px">ЗАЛ СЕГОДНЯ</span>
+<span style="font-size: 13px; font-weight: 600; color: #A7A9AE">фаза 2 · неделя 6 из 12</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div class="u" style="font-size: 34px; line-height: 40px; font-weight: 700">Тренировка B</div>
+<div style="font-size: 15px; color: #A7A9AE">7 упражнений · ≈ 70 мин · старт с румынской тяги 70 кг</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr))">
+<div class="day"><span class="dot" style="background: var(--lime); color: var(--ink)">A</span>Пн</div>
+<div class="day"><span class="dot" style="background: #2A2C30; color: #8FB0FF">≈</span>Вт</div>
+<div class="day" style="color: #fff"><span class="dot" style="box-shadow: inset 0 0 0 2px var(--lime); color: var(--lime)">B</span>Ср</div>
+<div class="day"><span class="dot" style="background: #1E2024; color: #5E6670">≈</span>Чт</div>
+<div class="day"><span class="dot" style="background: #1E2024; color: #8A8D93">A</span>Пт</div>
+<div class="day"><span class="dot" style="background: #1E2024; color: #4A4D53">≈</span>Сб</div>
+<div class="day"><span class="dot" style="background: transparent; color: #4A4D53">·</span>Вс</div>
+</div>
+<a href="BActive.dc.html" style="height: 58px; border-radius: 999px; background: var(--lime); color: var(--ink); display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 17px; font-weight: 800">Начать тренировку <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg></a>
+</section>
+
+<section class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; justify-content: space-between; align-items: flex-start">
+<div style="display: flex; flex-direction: column; gap: 4px"><span class="cap">ПУТЬ К ЦЕЛИ</span><span class="u" style="font-size: 44px; line-height: 50px; font-weight: 700">42%</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px; text-align: right; padding-top: 2px"><span style="font-size: 13px; color: var(--muted)">прогноз</span><span style="font-size: 17px; font-weight: 800">20 марта</span></div>
+</div>
+<div style="position: relative; height: 14px; border-radius: 7px; background: var(--track)">
+<div style="width: 42%; height: 14px; border-radius: 7px; background: var(--ink)"></div>
+<div style="position: absolute; left: 42%; top: -5px; width: 24px; height: 24px; margin-left: -12px; border-radius: 12px; background: var(--lime); border: 3px solid var(--ink); box-sizing: border-box"></div>
+<div style="position: absolute; left: 60%; top: 2px; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg); background: #fff; border: 2px solid var(--ink); box-sizing: border-box"></div>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 14px"><span style="color: var(--muted)">81,0</span><span><b>77,2 кг</b> · −3,8 из 9,1</span><span style="color: var(--muted)">≈ 72</span></div>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<a href="Nutrition.dc.html" class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 5px; background: var(--orange)"></span><span class="cap">КАЛОРИИ</span></div>
+<span class="u" style="font-size: 26px; line-height: 30px; font-weight: 700">1 240</span>
+<span style="font-size: 13px; color: var(--muted)">из 2 050 · ещё 810</span>
+<div style="height: 8px; border-radius: 4px; background: var(--track)"><div style="width: 60%; height: 8px; border-radius: 4px; background: var(--orange)"></div></div>
+</a>
+<a href="Nutrition.dc.html" class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 5px; background: var(--blue)"></span><span class="cap">БЕЛОК</span></div>
+<span class="u" style="font-size: 26px; line-height: 30px; font-weight: 700">95 г</span>
+<span style="font-size: 13px; color: var(--muted)">из 155 · ещё 60</span>
+<div style="height: 8px; border-radius: 4px; background: var(--track)"><div style="width: 61%; height: 8px; border-radius: 4px; background: var(--blue)"></div></div>
+</a>
+</div>
+
+<section class="card" style="padding: 18px 18px 18px 20px; display: flex; align-items: center; gap: 12px">
+<div style="flex: 1; display: flex; flex-direction: column; gap: 4px"><span class="cap">ВЕС СЕГОДНЯ</span><span class="u" style="font-size: 26px; font-weight: 700">77,0 <span style="font-family: Manrope, sans-serif; font-size: 14px; font-weight: 600; color: var(--muted)">кг · ↓0,5 за неделю</span></span></div>
+<button aria-label="Минус 0,1 кг" style="width: 48px; height: 48px; border-radius: 24px; background: var(--track); display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+<button aria-label="Плюс 0,1 кг" style="width: 48px; height: 48px; border-radius: 24px; background: var(--track); display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+<button aria-label="Записать вес" style="width: 48px; height: 48px; border-radius: 24px; background: var(--ink); color: var(--lime); display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+</section>
+
+<section style="border-radius: 28px; background: #EAF5C4; padding: 18px 20px; display: flex; gap: 14px; align-items: center">
+<span class="u" style="width: 52px; height: 52px; border-radius: 18px; background: var(--ink); color: var(--lime); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; line-height: 18px">31<span style="font-family: Manrope, sans-serif; font-size: 10px; font-weight: 700; line-height: 14px">ЯНВ</span></span>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 16px; font-weight: 800">Контрольная точка</span><span style="font-size: 14px; color: #4C5527">Фото, замеры, % жира · через 18 дней</span></div>
+</section>
+</div>
+
+<nav aria-label="Разделы" style="position: absolute; left: 16px; right: 16px; bottom: 26px; height: 70px; border-radius: 35px; background: var(--ink); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: center; padding: 0 6px">
+<a href="BToday.dc.html" aria-label="Сегодня" style="justify-self: center; height: 48px; padding: 0 14px; border-radius: 24px; background: #2A2C30; color: var(--lime); display: flex; align-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a>
+<a href="BWorkout.dc.html" aria-label="Тренировка" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12"/></svg></a>
+<a href="BMenu.dc.html" aria-label="Добавить" style="justify-self: center; width: 54px; height: 54px; border-radius: 27px; background: var(--lime); color: var(--ink); display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+<a href="Nutrition.dc.html" aria-label="Питание" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg></a>
+<a href="ProgressBody.dc.html" aria-label="Прогресс" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 7 13.5 15.5 8.5 10.5 2 17"/><path d="M16 7h6v6"/></svg></a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1240}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

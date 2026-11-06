@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>B — Тренировка</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.b{--bg:#F2F0EB;--card:#FFFFFF;--ink:#111214;--muted:#66635C;--line:#E4E1DA;--lime:#D4F25A;--orange:#FF6A3D;--blue:#4C7DFF;--track:#ECEAE4;font-family:'Manrope',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink);-webkit-font-smoothing:antialiased}
+.b a{color:inherit;text-decoration:none}
+.u{font-family:'Unbounded',sans-serif;letter-spacing:-0.02em}
+.cap{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted)}
+.ex{display:flex;align-items:center;gap:12px;min-height:46px;border-top:1px solid #26282C}
+.wk{display:flex;align-items:center;gap:14px;min-height:60px;padding:0 18px;border-top:1px solid var(--line)}
+.pill{font-size:12px;font-weight:800;padding:5px 10px;border-radius:999px}
+</style>
+</helmet>
+<div class="b" style="position: relative; width: 390px; height: 1160px; background: var(--bg); overflow: hidden">
+<div style="padding: 60px 16px 140px; display: flex; flex-direction: column; gap: 12px">
+<h1 class="u" style="margin: 0 6px 6px; font-size: 28px; line-height: 34px; font-weight: 700">Тренировка</h1>
+
+<section style="background: var(--ink); color: #fff; border-radius: 30px; padding: 22px 20px 20px; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px">
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; font-weight: 800; letter-spacing: .08em; color: var(--lime)">СЕГОДНЯ</span><span class="u" style="font-size: 30px; line-height: 36px; font-weight: 700">Тренировка B</span></div>
+<span style="font-size: 14px; color: #A7A9AE; padding-top: 4px">≈ 70 мин</span>
+</div>
+<sc-for list="{{plan}}" as="e" hint-placeholder-count="7">
+<div class="ex"><span class="u" style="width: 22px; font-size: 13px; font-weight: 600; color: var(--lime)">{{e.n}}</span><span style="flex: 1; font-size: 15px; font-weight: 600">{{e.name}}</span><span style="font-size: 15px; font-weight: 800">{{e.w}}</span><span style="width: 64px; text-align: right; font-size: 13px; color: #A7A9AE">{{e.sets}}</span></div>
+</sc-for>
+<a href="BActive.dc.html" style="margin-top: 14px; height: 58px; border-radius: 999px; background: var(--lime); color: var(--ink); display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800">Начать</a>
+</section>
+
+<div style="display: flex; justify-content: space-between; align-items: baseline; padding: 10px 6px 0"><span class="u" style="font-size: 18px; font-weight: 700">Эта неделя</span><a href="Workout.dc.html" style="font-size: 14px; font-weight: 700; text-decoration: underline">Календарь</a></div>
+<section style="background: var(--card); border-radius: 28px; overflow: hidden">
+<sc-for list="{{week}}" as="d" hint-placeholder-count="7">
+<div class="wk" style="background: {{d.bg}}">
+<span style="width: 34px; display: flex; flex-direction: column"><span style="font-size: 12px; font-weight: 700; color: var(--muted)">{{d.wd}}</span><span class="u" style="font-size: 17px; font-weight: 700">{{d.n}}</span></span>
+<span style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 700">{{d.title}}</span><span style="font-size: 13px; color: var(--muted)">{{d.sub}}</span></span>
+<span class="pill" style="background: {{d.pbg}}; color: {{d.pfg}}">{{d.st}}</span>
+</div>
+</sc-for>
+</section>
+<div style="display: flex; gap: 10px; padding: 4px 6px 0; font-size: 14px; color: var(--muted)"><span>Январь: зал 5 из 6</span><span>·</span><span>бассейн 4 из 4</span></div>
+</div>
+
+<nav aria-label="Разделы" style="position: absolute; left: 16px; right: 16px; bottom: 26px; height: 70px; border-radius: 35px; background: var(--ink); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: center; padding: 0 6px">
+<a href="BToday.dc.html" aria-label="Сегодня" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a>
+<a href="BWorkout.dc.html" aria-label="Тренировка" style="justify-self: center; height: 48px; padding: 0 14px; border-radius: 24px; background: #2A2C30; color: var(--lime); display: flex; align-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12"/></svg></a>
+<a href="BMenu.dc.html" aria-label="Добавить" style="justify-self: center; width: 54px; height: 54px; border-radius: 27px; background: var(--lime); color: var(--ink); display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+<a href="Nutrition.dc.html" aria-label="Питание" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg></a>
+<a href="ProgressBody.dc.html" aria-label="Прогресс" style="justify-self: center; width: 48px; height: 48px; color: #A7A9AE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 7 13.5 15.5 8.5 10.5 2 17"/><path d="M16 7h6v6"/></svg></a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1160}}'>
+class Component extends DCLogic {
+renderVals() {
+const plan = [
+{ n: '01', name: 'Румынская тяга', w: '70 кг', sets: '3 × 6–10' },
+{ n: '02', name: 'Жим гантелей сидя', w: '18 кг', sets: '3 × 8–12' },
+{ n: '03', name: 'Тяга верхнего блока', w: '50 кг', sets: '3 × 8–12' },
+{ n: '04', name: 'Болгарские выпады', w: '12 кг', sets: '3 × 8–12' },
+{ n: '05', name: 'Жим на наклонной', w: '20 кг', sets: '3 × 8–12' },
+{ n: '06', name: 'Бицепс + трицепс', w: '12 · 25', sets: '3 × 10–15' },
+{ n: '07', name: 'Подъём ног в висе', w: '12 раз', sets: '3 × 10–15' }
+];
+const done = { pbg: '#ECEAE4', pfg: '#111214', bg: '#FFFFFF' };
+const plan2 = { pbg: 'transparent', pfg: '#66635C', bg: '#FFFFFF' };
+const week = [
+{ wd: 'Пн', n: 11, title: 'Тренировка A', sub: '62 мин · 6 420 кг', st: 'сделано', ...done },
+{ wd: 'Вт', n: 12, title: 'Бассейн', sub: '40 мин · 900 м', st: 'сделано', ...done },
+{ wd: 'Ср', n: 13, title: 'Тренировка B', sub: '7 упражнений', st: 'сегодня', pbg: '#D4F25A', pfg: '#111214', bg: '#F7FBE6' },
+{ wd: 'Чт', n: 14, title: 'Бассейн', sub: '40 мин: 6 × 100 м + 10 мин', st: 'план', ...plan2 },
+{ wd: 'Пт', n: 15, title: 'Тренировка A', sub: '6 упражнений', st: 'план', ...plan2 },
+{ wd: 'Сб', n: 16, title: 'Бассейн', sub: 'по желанию', st: 'по желанию', ...plan2 },
+{ wd: 'Вс', n: 17, title: 'Отдых', sub: '8 000 шагов', st: 'отдых', ...plan2 }
+];
+return { plan, week };
+}
+}
+</script>
+</body>
+</html>
