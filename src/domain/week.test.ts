@@ -61,7 +61,7 @@ describe('список недели', () => {
   });
   it('до старта — подготовка', () => {
     const rows = weekRows('2026-11-05', [], [], [], SEED_SLOTS, DEFAULT_SETTINGS);
-    expect(rows[0]).toMatchObject({ title: 'Подготовка', status: 'rest' });
+    expect(rows[0]).toMatchObject({ title: 'Подготовка', status: 'prep' });
   });
 });
 

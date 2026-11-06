@@ -197,6 +197,8 @@ const PILL: Record<WeekRow['status'], { text: string; cls: string }> = {
   optional: { text: 'по желанию', cls: 'text-muted' },
   rest: { text: 'отдых', cls: 'text-muted' },
   missed: { text: 'пропуск', cls: 'bg-energy text-white' },
+  prep: { text: 'до старта', cls: 'text-muted' },
+  finished: { text: 'финиш', cls: 'text-muted' },
 };
 
 /** «Эта неделя»: 7 строк по 60 px — день, что сделано или по плану, статус-таблетка; сегодня — на лаймовой подложке. */

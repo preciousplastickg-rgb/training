@@ -80,7 +80,7 @@ function Mini({ label, value, children, muted = false }: { label: string; value:
   return (
     <Card className="flex flex-col gap-1 rounded-3xl! p-3.5!">
       <Caps>{label}</Caps>
-      <span className="font-display text-[22px] leading-7 font-bold tabular-nums">{value}</span>
+      <span className={`text-[22px] leading-7 font-bold tabular-nums ${value === '—' ? 'text-muted' : 'font-display'}`}>{value}</span>
       <span className={`text-[13px] font-extrabold tabular-nums ${muted ? 'font-bold text-muted' : ''}`}>{children ?? NBSP}</span>
     </Card>
   );
@@ -125,10 +125,14 @@ function WeightHero({ body, settings, today, avg }: { body: BodyEntry[]; setting
       <div className="flex items-start justify-between gap-3 px-1">
         <div className="flex flex-col gap-1">
           <Caps className="text-muted-on-ink!">Средний вес</Caps>
-          <span className="font-display text-[36px] leading-[42px] font-bold tabular-nums">
-            {avg !== null ? kg(avg) : '—'}
-            <span className="font-sans text-[15px] font-normal text-muted-on-ink"> кг</span>
-          </span>
+          {avg !== null ? (
+            <span className="font-display text-[36px] leading-[42px] font-bold tabular-nums">
+              {kg(avg)}
+              <span className="font-sans text-[15px] font-normal text-muted-on-ink"> кг</span>
+            </span>
+          ) : (
+            <span className="text-[22px] leading-[42px] font-bold text-muted-on-ink">нет записей</span>
+          )}
           {delta !== null && (
             <span className={`text-sm font-extrabold tabular-nums ${delta <= 0 ? 'text-primary' : 'text-[#FF8A63]'}`}>
               {sign(delta)}

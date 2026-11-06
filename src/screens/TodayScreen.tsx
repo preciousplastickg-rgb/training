@@ -131,7 +131,7 @@ function DayHero({ date, settings }: { date: string; settings: Settings }) {
       <div className="flex flex-col gap-2">
         {!calibrated && (
           <Button size="lg" className="w-full" onClick={() => void start(true)}>
-            Пробная тренировка A · подбор веса <Play size={18} fill="currentColor" aria-hidden />
+            Пробная тренировка A <Play size={18} fill="currentColor" aria-hidden />
           </Button>
         )}
         <Button size="lg" variant="dark" className="w-full" onClick={() => openSheet('weight')}>
@@ -201,9 +201,9 @@ function WeekStrip({ days }: { days: WeekDay[] }) {
     if (d.state === 'pool_done') return { cls: 'bg-[#2A2C30]', st: { color: 'var(--protein)' } };
     if (d.today) return { cls: 'text-primary shadow-[inset_0_0_0_2px_var(--primary)]' };
     if (d.state === 'rest') return { cls: 'text-[#4A4D53]' };
-    if (d.state === 'gym_plan') return { cls: 'bg-[#1E2024] text-[#8A8D93]' };
-    if (d.state === 'gym_missed') return { cls: 'bg-[#1E2024] text-[#5E6670]' };
-    return { cls: `bg-[#1E2024] ${d.state === 'pool_optional' ? 'text-[#4A4D53]' : 'text-[#5E6670]'}` };
+    if (d.state === 'gym_plan') return { cls: 'bg-white/8 text-[#A7A9AE]' };
+    if (d.state === 'gym_missed') return { cls: 'bg-white/8 text-[#6E737A]' };
+    return { cls: `bg-white/8 ${d.state === 'pool_optional' ? 'text-[#6E737A]' : 'text-[#8A8D93]'}` };
   };
   return (
     <ol className="grid grid-cols-7" aria-label="Эта неделя">
@@ -283,7 +283,7 @@ function PathCard({ date, settings, body }: { date: string; settings: Settings; 
         <span className="text-muted">{formatScaled(settings.startWeight, 100, 1)}</span>
         <span>
           {avg === null && !lastW ? (
-            <span className="text-muted">Запиши вес 3 дня — появится среднее</span>
+            <span className="text-muted">нужны 3 дня веса</span>
           ) : (
             <>
               <b>{formatScaled(current, 100, 1)} кг</b> · {lost > 0 ? '−' : lost < 0 ? '+' : ''}
@@ -351,7 +351,7 @@ function WeightRow({ date, body, fallback }: { date: string; body: BodyEntry[]; 
   const note = todayEntry
     ? `кг · записано${change !== null ? ` · ${change <= 0 ? '↓' : '↑'}${formatScaled(Math.abs(change), 100, 1)} за неделю` : avg !== null ? ` · среднее ${formatScaled(avg, 100, 1)}` : ''}`
     : avg === null
-      ? 'кг · запиши вес 3 дня — появится среднее'
+      ? 'кг · ещё не записан'
       : `кг · среднее ${formatScaled(avg, 100, 1)}`;
   const circle = 'flex h-12 w-12 shrink-0 items-center justify-center rounded-full';
   return (

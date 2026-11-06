@@ -156,9 +156,11 @@ export function Toggle({ value, onChange, label }: { value: boolean; onChange: (
       aria-checked={value}
       aria-label={label}
       onClick={() => onChange(!value)}
-      className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${value ? 'bg-ink' : 'bg-track'}`}
+      className="-my-1.5 -mr-1.5 flex h-11 shrink-0 items-center px-1.5"
     >
-      <span className={`absolute top-[3px] h-[26px] w-[26px] rounded-full transition-[left] ${value ? 'left-[23px] bg-primary' : 'left-[3px] bg-surface'}`} />
+      <span className={`relative block h-8 w-[52px] rounded-full transition-colors ${value ? 'bg-ink' : 'bg-track'}`}>
+        <span className={`absolute top-[3px] h-[26px] w-[26px] rounded-full transition-[left] ${value ? 'left-[23px] bg-primary' : 'left-[3px] bg-surface'}`} />
+      </span>
     </button>
   );
 }

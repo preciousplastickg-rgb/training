@@ -69,7 +69,7 @@ export function weekStrip(
 
 // ---------- Список недели на вкладке «Тренировка» (макет BWorkout) ----------
 
-export type WeekRowStatus = 'done' | 'today' | 'plan' | 'optional' | 'rest' | 'missed';
+export type WeekRowStatus = 'done' | 'today' | 'plan' | 'optional' | 'rest' | 'missed' | 'prep' | 'finished';
 
 export interface WeekRow {
   date: LocalDate;
@@ -126,8 +126,8 @@ export function weekRows(
       case 'pool_optional':
         return { ...base, title: 'Бассейн', sub: 'по желанию', status: 'optional' };
       default:
-        if (d.date < PROGRAM_START) return { ...base, title: 'Подготовка', sub: 'пробная тренировка и замеры', status: 'rest' };
-        if (d.date > PROGRAM_END) return { ...base, title: 'Программа завершена', sub: '', status: 'rest' };
+        if (d.date < PROGRAM_START) return { ...base, title: 'Подготовка', sub: 'пробная тренировка и замеры', status: 'prep' };
+        if (d.date > PROGRAM_END) return { ...base, title: 'Программа завершена', sub: '', status: 'finished' };
         return { ...base, title: 'Отдых', sub: `${formatInt(REST_DAY_STEPS)} шагов`, status: 'rest' };
     }
   });
