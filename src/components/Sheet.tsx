@@ -8,14 +8,6 @@ interface SheetProps {
   children: ReactNode;
 }
 
-let locks = 0;
-function lockScroll(): void {
-  if (locks++ === 0) document.documentElement.style.overflow = 'hidden';
-}
-function unlockScroll(): void {
-  if (--locks === 0) document.documentElement.style.overflow = '';
-}
-
 /** Нижняя шторка поверх экрана. Закрывается тапом по фону, крестиком и Escape. */
 export function Sheet({ open, title, onClose, children }: SheetProps) {
   const titleId = useId();
@@ -25,26 +17,23 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
-    panelRef.current?.focus();
+    // Без прокрутки к элементу: на iOS focus() двигает документ, и закреплённые элементы дёргаются.
+    panelRef.current?.focus({ preventScroll: true });
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
-
-  // Страница под шторкой не прокручивается: на iOS иначе докрутка списка до конца тащит фон.
-  useEffect(() => {
-    if (!open) return;
-    lockScroll();
-    return unlockScroll;
-  }, [open]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+    // Фон под шторкой не прокручивается жестом по затемнению и по заголовку (touch-none), а список
+    // внутри не передаёт докрутку странице (overscroll-contain). overflow на <html> не трогаем:
+    // на iOS его переключение само сдвигает область экрана.
+    <div className="vv-top fixed inset-0 z-50 flex flex-col justify-end">
       <button
         type="button"
         aria-label="Закрыть"
         tabIndex={-1}
-        className="animate-fade-in absolute inset-0 bg-black/50"
+        className="animate-fade-in absolute inset-0 touch-none bg-black/50"
         onClick={onClose}
       />
       <div
@@ -55,7 +44,7 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
         tabIndex={-1}
         className="animate-sheet-in pb-safe relative flex max-h-[92dvh] flex-col rounded-t-3xl bg-surface text-ink shadow-2xl outline-none"
       >
-        <div className="flex shrink-0 items-center justify-between px-5 pt-4 pb-2">
+        <div className="flex shrink-0 touch-none items-center justify-between px-5 pt-4 pb-2">
           <h2 id={titleId} className="text-lg font-semibold">
             {title}
           </h2>

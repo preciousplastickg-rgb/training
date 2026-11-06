@@ -141,6 +141,25 @@ html {
   overscroll-behavior: none;
 }
 
+/* iOS 26, приложение на «Домой» с прозрачной строкой состояния (WebKit 301108): пока страница
+   ниже экрана, iOS берёт область на высоту строки состояния короче — нижнее меню «висит» над
+   краем, под ним полоса. Страница не ниже экрана — и область снова во весь экран. С непрозрачной
+   строкой отступ сверху 0, правило ничего не меняет. */
+@media (display-mode: standalone) {
+  html {
+    min-height: min(100lvh, calc(100% + env(safe-area-inset-top)));
+  }
+}
+
+/* Залипшая область iOS (src/app/viewport.ts): закреплённые элементы — к краям видимой области. */
+.vv-top {
+  transform: translateY(var(--vv-top, 0px));
+}
+.vv-bottom {
+  transform: translateY(var(--vv-bottom, 0px));
+  will-change: transform;
+}
+
 body {
   margin: 0;
   background: var(--bg);

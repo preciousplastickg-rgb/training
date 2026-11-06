@@ -15,6 +15,7 @@ import { useAdjustments, useSlots } from '../hooks/useData';
 import { db } from '../db/db';
 import { formatDayMonth } from '../domain/format';
 import { BackupSection } from './settings/BackupSection';
+import { ViewportDiagnostics } from './settings/ViewportDiagnostics';
 import { FoodsSection } from './settings/FoodsSection';
 
 const THEMES: { value: Theme; label: string; icon: LucideIcon }[] = [
@@ -143,6 +144,7 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
         <Section title="О приложении">
           <p>Тренировки и питание · версия {__APP_VERSION__}</p>
           <p className="text-sm text-muted">Сборка {__APP_BUILD__}</p>
+          <ViewportDiagnostics />
           <p className="mt-1 text-sm text-muted">Карта мышц: body-highlighter, MIT</p>
           <p className="text-sm text-muted">Шрифт: IBM Plex Sans, SIL Open Font License 1.1</p>
           <button type="button" onClick={() => navigate('dev/animations')} className="mt-2 flex min-h-11 w-full items-center justify-between text-left text-accent">

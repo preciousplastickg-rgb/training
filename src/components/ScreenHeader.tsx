@@ -9,7 +9,7 @@ interface ScreenHeaderProps {
 
 export function ScreenHeader({ title, subtitle, action, leading }: ScreenHeaderProps) {
   return (
-    <header className="pt-safe sticky top-0 z-10 bg-bg/95 backdrop-blur">
+    <header className="vv-top pt-safe sticky top-0 z-10 bg-bg/95 backdrop-blur">
       <div className="flex min-h-14 items-center gap-2 px-4 py-2">
         {leading}
         <div className="min-w-0 flex-1">

@@ -38,7 +38,7 @@ export function BottomNav({ route, onAdd }: BottomNavProps) {
   };
 
   return (
-    <nav aria-label="Основное меню" className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur">
+    <nav aria-label="Основное меню" className="vv-bottom pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur">
       <div className="mx-auto flex max-w-xl items-stretch px-1 py-1">
         {LEFT.map(item)}
         <div className="flex flex-1 items-center justify-center">

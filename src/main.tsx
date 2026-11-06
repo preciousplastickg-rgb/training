@@ -8,6 +8,9 @@ import '@fontsource/ibm-plex-sans/cyrillic-600.css';
 import '@fontsource/ibm-plex-sans/latin-600.css';
 import './styles/index.css';
 import { App } from './app/App';
+import { installViewportFix } from './app/viewport';
+
+installViewportFix();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

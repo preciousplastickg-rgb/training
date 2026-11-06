@@ -133,7 +133,7 @@ export function NutritionScreen() {
       </div>
 
       {undo && (
-        <div role="status" className="fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-xl items-center gap-3 rounded-2xl bg-ink px-4 py-2 text-bg shadow-lg">
+        <div role="status" className="vv-bottom fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-xl items-center gap-3 rounded-2xl bg-ink px-4 py-2 text-bg shadow-lg">
           <span className="flex-1 text-sm">{undo.text}</span>
           <button type="button" className="min-h-11 px-2 font-semibold" onClick={() => void undo.revert().then(() => setUndo(null))}>
             Вернуть

@@ -97,7 +97,7 @@ export function Onboarding({ settings }: { settings: Settings }) {
   ];
   const cur = steps[step]!;
   return (
-    <div className="pt-safe pb-safe fixed inset-0 z-50 flex flex-col bg-bg px-5">
+    <div className="vv-top pt-safe pb-safe fixed inset-0 z-50 flex flex-col bg-bg px-5">
       <div className="mt-6 flex items-center gap-1" aria-label={`Шаг ${step + 1} из ${steps.length}`}>
         {steps.map((_, i) => (
           <span key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? 'bg-progress' : 'bg-track'}`} />

@@ -26,7 +26,7 @@ export function UpdateBanner() {
   if (!needRefresh) return null;
 
   return (
-    <div role="status" className="fixed inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-xl items-center gap-3 rounded-2xl bg-primary px-4 py-2 text-on-primary shadow-lg">
+    <div role="status" className="vv-bottom fixed inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-xl items-center gap-3 rounded-2xl bg-primary px-4 py-2 text-on-primary shadow-lg">
       <RefreshCw size={20} aria-hidden />
       <span className="flex-1 text-sm">Доступна новая версия</span>
       <button type="button" onClick={() => setNeedRefresh(false)} className="min-h-11 px-2 text-sm opacity-80">
