@@ -44,7 +44,7 @@ test('календарь тренировок: A/B по дням, бассейн
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByText(/· Бассейн/).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /^\d+ \S+ · Бассейн$/ }).first()).toBeVisible();
 });
 
 test('правка дня в календаре и удаление ошибочной тренировки из истории', async ({ page }) => {

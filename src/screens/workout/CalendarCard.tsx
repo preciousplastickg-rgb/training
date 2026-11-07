@@ -13,7 +13,7 @@ import { gymDone } from '../../domain/discipline';
 import { formatInt, formatWeekdayDate } from '../../domain/format';
 import { estimateMinutes, planOptionsOf, workoutPlan } from '../../domain/program';
 import { volume } from '../../domain/records';
-import { useAllSets, usePool, useSessions, useSettings, useSlots } from '../../hooks/useData';
+import { useAllSets, useBody, usePool, useSessions, useSettings, useSlots } from '../../hooks/useData';
 import { useToday } from '../../hooks/useToday';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -178,9 +178,11 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
   const sets = useAllSets();
   const slots = useSlots();
   const settings = useSettings() ?? DEFAULT_SETTINGS;
+  const body = useBody();
   const [details, setDetails] = useState<HistoryItem | null>(null);
   if (!day) return null;
   const { plan } = day;
+  const steps = body.find((b) => b.date === day.date)?.steps;
   const past = day.date <= today;
   const planned = day.workout && !day.session ? workoutPlan(day.workout, day.date, slots, settings) : [];
   const editable = day.date >= today && plan.kind !== 'prep' && plan.kind !== 'finished';
@@ -271,8 +273,14 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
                 <ChevronRight size={16} className="text-muted" aria-hidden />
               </button>
             ))}
+            {steps ? (
+              <p className="mt-1 flex min-h-11 items-center gap-1">
+                <b>{formatInt(steps)} шагов</b>
+                {plan.kind === 'rest' && <span className="text-sm text-muted">· цель {formatInt(REST_DAY_STEPS)}</span>}
+              </p>
+            ) : null}
             {(day.session || day.pool.length > 0) && <p className="mt-1 text-xs text-muted">Тап по записи — подробности и удаление.</p>}
-            {!day.session && day.pool.length === 0 && (
+            {!day.session && day.pool.length === 0 && !steps && (
               <p className="mt-1 text-sm text-muted">
                 {day.status === 'missed' ? 'Пропущено.' : day.status === 'moved' ? 'Не состоялось — перенесено на следующий день.' : day.status === 'pending' ? 'Пока ничего — день ещё идёт.' : 'Ничего не записано.'}
               </p>
@@ -285,7 +293,7 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
             variant="secondary"
             onClick={() => {
               onClose();
-              openSheet('pool', day.date === today ? undefined : day.date);
+              openSheet('pool', { date: day.date === today ? undefined : day.date });
             }}
           >
             <Waves size={18} aria-hidden /> Записать бассейн{day.date === today ? '' : ' за этот день'}

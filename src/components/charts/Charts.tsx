@@ -205,11 +205,6 @@ export function BarChart({
               <text x={x + w / 2} y={height - 6} fontSize={10} textAnchor="middle" fill="var(--muted)">
                 {b.label}
               </text>
-              {b.value > 0 && bars.length <= 10 && (
-                <text x={x + w / 2} y={py(b.value) - 3} fontSize={9} textAnchor="middle" fill="var(--muted)">
-                  {format(b.value)}
-                </text>
-              )}
             </g>
           );
         })}
@@ -222,6 +217,26 @@ export function BarChart({
             strokeWidth={1.5}
           />
         )}
+        {/* Подписи значений — после линии цели и с обводкой цветом карточки: пунктир их не перечёркивает. */}
+        {bars.length <= 10 &&
+          bars.map((b, i) =>
+            b.value > 0 ? (
+              <text
+                key={i}
+                x={L + i * slot + slot / 2}
+                y={py(b.value) - 3}
+                fontSize={9}
+                textAnchor="middle"
+                fill="var(--muted)"
+                stroke="var(--surface)"
+                strokeWidth={3}
+                strokeLinejoin="round"
+                paintOrder="stroke"
+              >
+                {format(b.value)}
+              </text>
+            ) : null,
+          )}
       </svg>
     </div>
   );

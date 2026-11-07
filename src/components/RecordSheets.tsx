@@ -16,7 +16,7 @@ const toNum = (s: string): number | null => {
 };
 
 export function WeightSheet({
-  open, onClose, date, body, heightCm, fallbackWeight,
+  open, onClose, date, body, heightCm, fallbackWeight, focusSteps,
 }: {
   open: boolean;
   onClose: () => void;
@@ -25,6 +25,8 @@ export function WeightSheet({
   heightCm: number;
   /** Пока записей веса нет — стартовый вес из настроек. */
   fallbackWeight: number;
+  /** Открыта с «Записать шаги»: курсор сразу в поле шагов. */
+  focusSteps?: boolean;
 }) {
   const todayEntry = body.find((b) => b.date === date);
   const last = latestWith(body, 'weight');
@@ -85,7 +87,7 @@ export function WeightSheet({
         <div className="grid grid-cols-3 gap-2">
           <Field label="Талия" suffix="см" inputMode="decimal" placeholder={lastWaist ? formatScaled(lastWaist.waist!, 10, 1) : '92'} value={waist} onChange={(e) => setWaist(e.target.value)} />
           <Field label="Шея" suffix="см" inputMode="decimal" placeholder={lastNeck ? formatScaled(lastNeck.neck!, 10, 1) : '38'} value={neck} onChange={(e) => setNeck(e.target.value)} />
-          <Field label="Шаги" inputMode="numeric" placeholder="8000" value={steps} onChange={(e) => setSteps(e.target.value)} />
+          <Field label="Шаги" inputMode="numeric" placeholder="8000" value={steps} onChange={(e) => setSteps(e.target.value)} autoFocus={focusSteps} />
         </div>
         <p className="text-sm text-muted">
           Талия — на уровне пупка, шея — под кадыком. {fat !== null && <b className="text-ink">% жира ≈ {formatScaled(Math.round(fat * 10), 10, 1)}</b>}

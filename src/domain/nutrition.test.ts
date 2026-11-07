@@ -124,5 +124,7 @@ describe('подсказки и статистика питания', () => {
     expect(s.weeks[0]).toMatchObject({ start: '2026-11-09', value: 1490, target: 2050, ok: false });
     expect(s).toMatchObject({ days: 1, proteinOk: 1, inTarget: 0 });
     expect(nutritionStats([], foods, [], { phase3Mode: 'deficit' }, '2026-11-10')).toBeNull();
+    // две недели спустя без записей — пустые недели в график не попадают
+    expect(nutritionStats(logs, foods, [], { phase3Mode: 'deficit' }, '2026-11-24')!.weeks.map((w) => w.start)).toEqual(['2026-11-09']);
   });
 });

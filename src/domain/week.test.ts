@@ -45,8 +45,7 @@ describe('список недели', () => {
     expect(rows[1]).toMatchObject({ title: 'Бассейн', sub: '40 мин · 900 м', status: 'done' });
     expect(rows[2]).toMatchObject({ title: 'Тренировка B', status: 'today', today: true });
     expect(rows[2]!.sub).toMatch(/^\d+ упражнений$/);
-    expect(rows[3]).toMatchObject({ title: 'Бассейн', status: 'plan' });
-    expect(rows[3]!.sub).toMatch(/мин/);
+    expect(rows[3]).toMatchObject({ title: 'Бассейн', sub: '40 мин · по плану', status: 'plan' });
     expect(rows[4]).toMatchObject({ title: 'Тренировка A', status: 'plan' });
     expect(rows[5]).toMatchObject({ title: 'Бассейн', sub: 'по желанию', status: 'optional' });
     expect(rows[6]).toMatchObject({ title: 'Отдых', sub: `${formatInt(8000)} шагов`, status: 'rest' });
@@ -58,6 +57,11 @@ describe('список недели', () => {
     // ср пропущена → чт зал переносом
     expect(rows[3]).toMatchObject({ title: 'Тренировка A', status: 'today' });
     expect(rows[3]!.sub).toMatch(/перенос/);
+  });
+  it('шаги за день отдыха — в строке; цель набрана — «сделано»', () => {
+    const rows = (steps: number) => weekRows('2027-01-13', sessions, sets, [], SEED_SLOTS, DEFAULT_SETTINGS, [{ date: '2027-01-17', steps }]);
+    expect(rows(8400)[6]).toMatchObject({ title: 'Отдых', sub: `${formatInt(8400)} из ${formatInt(8000)} шагов`, status: 'done' });
+    expect(rows(3000)[6]).toMatchObject({ title: 'Отдых', sub: `${formatInt(3000)} из ${formatInt(8000)} шагов`, status: 'rest' });
   });
   it('до старта — подготовка', () => {
     const rows = weekRows('2026-11-05', [], [], [], SEED_SLOTS, DEFAULT_SETTINGS);

@@ -27,6 +27,7 @@ describe('бэкап', () => {
     await a.pool.bulkAdd(seed.pool);
     await a.kv.put({ key: 'restTimer', value: { endsAt: 1 } });
     await a.slots.update('A2', { sets: 4 });
+    await a.exerciseNotes.put({ exerciseId: 'bench_press', text: 'хват 81 см', updatedAt: 1 });
 
     const json = JSON.stringify(await exportBackup(a));
     const parsed = parseBackup(json);
@@ -43,6 +44,13 @@ describe('бэкап', () => {
     expect((await b.slots.get('A2'))?.sets).toBe(4);
     expect(await b.kv.get('restTimer')).toBeUndefined();
     expect(await b.foods.count()).toBe(await a.foods.count());
+    expect((await b.exerciseNotes.get('bench_press'))?.text).toBe('хват 81 см');
+  });
+
+  it('бэкап прошлой версии без заметок принимается', () => {
+    const empty = { sessions: [], sets: [], pool: [], body: [], foods: [], foodLog: [], adjustments: [], recipes: [], slots: [], settings: [], kv: [] };
+    const r = parseBackup(JSON.stringify({ app: 'training-pwa', version: 1, exportedAt: 1, tables: empty }));
+    expect(r.ok).toBe(true);
   });
 
   it('чужой файл не принимается', () => {

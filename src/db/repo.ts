@@ -172,6 +172,15 @@ export async function putBody(date: LocalDate, patch: Omit<Partial<BodyEntry>, '
   });
 }
 
+// ---------- Заметки к упражнениям ----------
+
+/** Пустой текст удаляет заметку. */
+export async function putExerciseNote(exerciseId: string, text: string): Promise<void> {
+  const t = text.trim();
+  if (!t) await db.exerciseNotes.delete(exerciseId);
+  else await db.exerciseNotes.put({ exerciseId, text: t, updatedAt: Date.now() });
+}
+
 // ---------- Питание ----------
 
 export async function addFoodLog(entry: Omit<FoodLog, 'id' | 'createdAt'>): Promise<void> {

@@ -24,7 +24,7 @@ export function FoodsSheet({ open, onClose }: { open: boolean; onClose: () => vo
   return (
     <Sheet open={open} kicker="Данные" title={`База продуктов · ${foods.filter((f) => !f.archived).length}`} onClose={onClose}>
       <Card>
-        <label className="flex min-h-12 items-center gap-2 rounded-full bg-track px-4">
+        <label className="flex min-h-12 items-center gap-2 rounded-full bg-track px-4 focus-within:shadow-[inset_0_0_0_2px_var(--ink)]">
           <Search size={18} className="text-muted" aria-hidden />
           <input className="min-w-0 flex-1 bg-transparent py-2 outline-none" placeholder="Найти продукт" aria-label="Найти продукт в базе" value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>

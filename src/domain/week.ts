@@ -1,7 +1,7 @@
 // Полоса недели на «Сегодня» (REDESIGN 4): 7 кружков пн–вс — сделано (зал A/B, бассейн), сегодня, план.
 
 import { PROGRAM_END, PROGRAM_START, REST_DAY_STEPS } from '../data/program';
-import type { LocalDate, PoolSession, ProgramSlot, SetLog, Settings, WorkoutSession } from '../db/types';
+import type { BodyEntry, LocalDate, PoolSession, ProgramSlot, SetLog, Settings, WorkoutSession } from '../db/types';
 import type { CalendarDay } from './calendar';
 import { addDays, weekStart } from './dates';
 import { POOL_MIN_MINUTES } from './discipline';
@@ -78,7 +78,7 @@ export interface WeekRow {
   day: number;
   /** «Тренировка A», «Бассейн», «Отдых». */
   title: string;
-  /** «62 мин · 6 420 кг», «7 упражнений», «40 мин: 6 × 100 м + 10 мин», «по желанию», «8 000 шагов». */
+  /** «62 мин · 6 420 кг», «7 упражнений», «40 мин · по плану», «по желанию», «8 000 шагов», «8 400 из 8 000 шагов». */
   sub: string;
   status: WeekRowStatus;
   today: boolean;
@@ -92,6 +92,7 @@ export function weekRows(
   pool: readonly PoolSession[],
   slots: readonly ProgramSlot[],
   settings: Settings,
+  body: readonly BodyEntry[] = [],
 ): WeekRow[] {
   const strip = weekStrip(today, sessions, pool, settings);
   const end = addDays(weekStart(today), 6);
@@ -122,13 +123,19 @@ export function weekRows(
       case 'gym_missed':
         return { ...base, title: 'Тренировка', sub: plans.get(addDays(d.date, 1))?.makeup ? 'перенесена на завтра' : 'не состоялась', status: 'missed' };
       case 'pool_plan':
-        return { ...base, title: 'Бассейн', sub: plan?.pool?.text ?? '', status: d.past ? 'missed' : d.today ? 'today' : 'plan' };
+        // Полный план («6 × 100 м, отдых 30 с…») в строку не помещается — он в шторке записи.
+        return { ...base, title: 'Бассейн', sub: d.past ? 'не состоялся' : `${plan?.pool?.minutes ?? 0} мин · по плану`, status: d.past ? 'missed' : d.today ? 'today' : 'plan' };
       case 'pool_optional':
         return { ...base, title: 'Бассейн', sub: 'по желанию', status: 'optional' };
       default:
         if (d.date < PROGRAM_START) return { ...base, title: 'Подготовка', sub: 'пробная тренировка и замеры', status: 'prep' };
         if (d.date > PROGRAM_END) return { ...base, title: 'Программа завершена', sub: '', status: 'finished' };
-        return { ...base, title: 'Отдых', sub: `${formatInt(REST_DAY_STEPS)} шагов`, status: 'rest' };
+        {
+          // Шаги за день отдыха — в строке; цель набрана → «сделано».
+          const steps = body.find((b) => b.date === d.date)?.steps;
+          if (steps) return { ...base, title: 'Отдых', sub: `${formatInt(steps)} из ${formatInt(REST_DAY_STEPS)} шагов`, status: steps >= REST_DAY_STEPS ? 'done' : 'rest' };
+          return { ...base, title: 'Отдых', sub: `${formatInt(REST_DAY_STEPS)} шагов`, status: 'rest' };
+        }
     }
   });
 }

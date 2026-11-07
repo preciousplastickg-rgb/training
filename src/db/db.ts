@@ -3,7 +3,7 @@
 
 import Dexie, { type EntityTable, type Table } from 'dexie';
 import type {
-  Adjustment, BodyEntry, Exercise, Food, FoodLog, KvRow, PoolSession, ProgramSlot,
+  Adjustment, BodyEntry, Exercise, ExerciseNote, Food, FoodLog, KvRow, PoolSession, ProgramSlot,
   ProgressPhoto, Recipe, SetLog, Settings, SettingsRow, WorkoutSession,
 } from './types';
 
@@ -26,6 +26,9 @@ export const SCHEMA_V1 = {
   kv: 'key',
 } as const;
 
+/** v2: заметки к упражнениям — одна на упражнение. Остальные таблицы без изменений. */
+export const SCHEMA_V2 = { ...SCHEMA_V1, exerciseNotes: 'exerciseId' } as const;
+
 export class AppDB extends Dexie {
   sessions!: EntityTable<WorkoutSession, 'id'>;
   sets!: EntityTable<SetLog, 'id'>;
@@ -40,10 +43,12 @@ export class AppDB extends Dexie {
   slots!: EntityTable<ProgramSlot, 'id'>;
   settings!: Table<SettingsRow, 'main'>;
   kv!: Table<KvRow, string>;
+  exerciseNotes!: Table<ExerciseNote, string>;
 
   constructor(name: string = DB_NAME) {
     super(name);
     this.version(1).stores(SCHEMA_V1);
+    this.version(2).stores(SCHEMA_V2);
   }
 }
 

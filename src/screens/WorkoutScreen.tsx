@@ -21,7 +21,7 @@ import { deloadFor, estimateMinutes, gymDatesOf, nextWorkout, phaseWeek, planFor
 import { volume } from '../domain/records';
 import { monthStats, weekRows, type WeekRow } from '../domain/week';
 import { PROGRAM_START } from '../data/program';
-import { useActiveSession, useAllSets, usePool, useSessions, useSettings, useSlots } from '../hooks/useData';
+import { useActiveSession, useAllSets, useBody, usePool, useSessions, useSettings, useSlots } from '../hooks/useData';
 import { useToday } from '../hooks/useToday';
 import { EmptyState } from '../components/EmptyState';
 import { CalendarCard } from './workout/CalendarCard';
@@ -36,6 +36,7 @@ export function WorkoutScreen() {
   const sessions = useSessions();
   const sets = useAllSets();
   const pool = usePool();
+  const body = useBody();
   const active = useActiveSession();
   const [info, setInfo] = useState<string | null>(null);
   // null — закрыт, '' — открыт на текущем месяце, дата — открыт сразу на этом дне.
@@ -50,7 +51,7 @@ export function WorkoutScreen() {
   const dayPlan = planForDate(date, gymDatesOf(sessions), planOptionsOf(settings));
   const doneToday = sessions.some((s) => s.date === date && s.finishedAt !== undefined && !s.isCalibration);
 
-  const week = useMemo(() => weekRows(date, sessions, sets, pool, slots, settings), [date, sessions, sets, pool, slots, settings]);
+  const week = useMemo(() => weekRows(date, sessions, sets, pool, slots, settings, body), [date, sessions, sets, pool, slots, settings, body]);
   const month = date.slice(0, 7);
   const stats = useMemo(() => {
     const [y, m] = month.split('-').map(Number) as [number, number];
@@ -247,9 +248,13 @@ function SessionHistory({ sessions }: { sessions: WorkoutSession[] }) {
   ]
     .sort((a, b) => (a.date === b.date ? b.at - a.at : a.date < b.date ? 1 : -1))
     .slice(0, 12);
-  const row = (main: React.ReactNode, right: React.ReactNode, onClick: () => void) => (
-    <button type="button" onClick={onClick} className="flex min-h-[52px] w-full items-center justify-between gap-3 text-left text-[15px] active:opacity-70">
-      <span className="min-w-0">{main}</span>
+  // Дата — заголовком, вид записи — второй строкой: «30 декабря · Тренировка A» в одну строку не помещается.
+  const row = (title: string, sub: React.ReactNode, label: string, right: React.ReactNode, onClick: () => void) => (
+    <button type="button" onClick={onClick} aria-label={`${title} · ${label}`} className="flex min-h-14 w-full items-center justify-between gap-3 py-1.5 text-left active:opacity-70">
+      <span className="flex min-w-0 flex-col">
+        <b className="text-[15px] leading-5">{title}</b>
+        <span className="flex items-center gap-1.5 text-[13px] leading-[18px] text-muted">{sub}</span>
+      </span>
       <span className="flex shrink-0 items-center gap-1 text-sm whitespace-nowrap text-muted tabular-nums">
         {right}
         <ChevronRight size={16} aria-hidden />
@@ -269,9 +274,11 @@ function SessionHistory({ sessions }: { sessions: WorkoutSession[] }) {
                 return (
                   <li key={p.id}>
                     {row(
-                      <span className="flex items-center gap-1.5">
-                        <b>{formatDayMonth(p.date)}</b> · Бассейн <Waves size={14} className="text-protein" aria-hidden />
-                      </span>,
+                      formatDayMonth(p.date),
+                      <>
+                        Бассейн <Waves size={14} className="text-protein" aria-hidden />
+                      </>,
+                      'Бассейн',
                       <>{p.minutes} мин{p.meters ? ` · ${formatInt(p.meters)} м` : ''}</>,
                       () => setOpen({ pool: p }),
                     )}
@@ -280,13 +287,13 @@ function SessionHistory({ sessions }: { sessions: WorkoutSession[] }) {
               }
               const v = volume(sets.filter((x) => x.sessionId === s!.id));
               const min = Math.round(((s!.finishedAt ?? s!.startedAt) - s!.startedAt) / 60000);
+              const kind = `Тренировка ${s!.workout}${s!.isCalibration ? ' · подбор веса' : s!.isDeload ? ' · разгрузка' : ''}`;
               return (
                 <li key={s!.id}>
                   {row(
-                    <>
-                      <b>{formatDayMonth(s!.date)}</b> · Тренировка {s!.workout}
-                      {(s!.isCalibration || s!.isDeload) && <span className="block text-xs text-muted">{s!.isCalibration ? 'подбор веса' : 'разгрузка'}</span>}
-                    </>,
+                    formatDayMonth(s!.date),
+                    kind,
+                    kind,
                     <>{min} мин · {formatInt(Math.round(v / 100))} кг</>,
                     () => setOpen({ gym: s! }),
                   )}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SetLog } from '../db/types';
-import { e1rm, findRecords, recordCount, repRecords, volume } from './records';
+import { e1rm, findRecords, recordCount, repRecords, sessionRecords, volume } from './records';
 
 let n = 0;
 const set = (exerciseId: string, weight: number, reps: number, sessionId = 's', kind: SetLog['kind'] = 'work'): SetLog => ({
@@ -15,14 +15,16 @@ describe('сила', () => {
   it('объём — только рабочие подходы', () => {
     expect(volume([set('b', 6000, 10), set('b', 6000, 8), set('b', 2000, 10, 's', 'warmup')])).toBe(6000 * 18);
   });
-  it('рекорд веса на N повторов и e1RM', () => {
+  it('один рекорд на упражнение: вес на N повторов, иначе e1RM', () => {
     const prior = [set('b', 6000, 10, 'p'), set('b', 6250, 6, 'p')];
+    // 65 × 8 бьёт и вес на 8+ (было 60), и e1RM — считается один рекорд, веса: прирост +5
     const hits = findRecords([set('b', 6500, 8), set('b', 6500, 7)], prior);
-    expect(hits.map((h) => h.kind).sort()).toEqual(['e1rm', 'weight']);
-    expect(hits.find((h) => h.kind === 'weight')?.reps).toBe(8);
-    // прирост: на 8+ повторов лучшим был 60 → +5; e1RM — к прошлой лучшей оценке (60 × 10)
-    expect(hits.find((h) => h.kind === 'weight')?.delta).toBe(500);
-    expect(hits.find((h) => h.kind === 'e1rm')?.delta).toBe(e1rm(6500, 8)! - e1rm(6000, 10)!);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ kind: 'weight', reps: 8, delta: 500 });
+    // 60 × 11: на 11 повторов истории нет — это не рекорд веса, а новая оценка e1RM (к 60 × 10)
+    const e1 = findRecords([set('b', 6000, 11)], prior);
+    expect(e1).toHaveLength(1);
+    expect(e1[0]).toMatchObject({ kind: 'e1rm', delta: e1rm(6000, 11)! - e1rm(6000, 10)! });
   });
   it('без улучшения — без рекорда; первая сессия — точка отсчёта', () => {
     expect(findRecords([set('b', 6000, 9)], [set('b', 6000, 10, 'p')])).toEqual([]);
@@ -35,9 +37,13 @@ describe('сила', () => {
 
 describe('счётчик рекордов', () => {
   const sess = (id: string, startedAt: number) => ({ id, date: '2026-11-09', workout: 'A' as const, startedAt, finishedAt: startedAt + 1, isDeload: false, isCalibration: false });
-  it('первая сессия — точка отсчёта, дальше каждый рекорд веса и e1RM', () => {
+  it('первая сессия — точка отсчёта, дальше не больше одного рекорда на упражнение за сессию', () => {
     const sets = [set('b', 6000, 10, 's1'), set('b', 6250, 10, 's2'), set('b', 6250, 10, 's3')];
-    // s2: вес 62,5 на 10+ (рекорд) и e1RM выше (рекорд); s3 — повтор, без рекордов
-    expect(recordCount(sets, [sess('s1', 1), sess('s2', 2), sess('s3', 3)])).toBe(2);
+    const sessions = [sess('s1', 1), sess('s2', 2), sess('s3', 3)];
+    // s2: вес 62,5 на 10+ и e1RM выше — один рекорд; s3 — повтор, без рекордов
+    expect(recordCount(sets, sessions)).toBe(1);
+    expect(sessionRecords(sessions[1]!, sessions, sets)).toHaveLength(1);
+    expect(sessionRecords(sessions[0]!, sessions, sets)).toEqual([]);
+    expect(sessionRecords(sessions[2]!, sessions, sets)).toEqual([]);
   });
 });

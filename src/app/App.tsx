@@ -16,7 +16,7 @@ import { WorkoutScreen } from '../screens/WorkoutScreen';
 import { SessionScreen } from '../screens/workout/SessionScreen';
 import { useRoute } from './router';
 import { requestPersistentStorage } from './storage';
-import { globalSheetDate, openSheet, useGlobalSheet } from './uiStore';
+import { globalSheetDate, globalSheetFocus, openSheet, useGlobalSheet } from './uiStore';
 import { useApplyTheme } from './useTheme';
 
 // Служебные страницы — отдельными чанками: в основной бандл не входят.
@@ -81,6 +81,7 @@ export function App() {
         body={body}
         heightCm={settings.heightCm ?? DEFAULT_SETTINGS.heightCm}
         fallbackWeight={settings.startWeight ?? DEFAULT_SETTINGS.startWeight}
+        focusSteps={globalSheetFocus() === 'steps'}
       />
       <PoolSheet open={sheet === 'pool'} onClose={() => openSheet(null)} date={globalSheetDate() ?? date} />
       <UpdateBanner />

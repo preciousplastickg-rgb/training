@@ -245,9 +245,11 @@ export function nutritionStats(
       if (total.p >= t.protein * 9) proteinOk++;
       if (nutritionInTarget(total, t)) inTarget++;
     }
-    const value = n ? Math.round(sum / n) : 0;
-    const target = n ? Math.round(tsum / n) : dayTargets(w, adjustments, settings).kcal;
-    weeks.push({ start: w, value, target, ok: n > 0 && Math.abs(value - target) <= target * 0.1 });
+    // Неделя без записей (пропуск или текущая, ещё пустая) в график не идёт: пустой столбец ничего не говорит.
+    if (n === 0) continue;
+    const value = Math.round(sum / n);
+    const target = Math.round(tsum / n);
+    weeks.push({ start: w, value, target, ok: Math.abs(value - target) <= target * 0.1 });
   }
   return { weeks, days, proteinOk, inTarget };
 }

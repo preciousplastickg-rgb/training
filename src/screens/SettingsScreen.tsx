@@ -96,6 +96,9 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
               </button>
               <Toggle label="Звук" value={settings.sound} onChange={(v) => void updateSettings({ sound: v })} />
             </div>
+            <p className="-mt-2 px-[22px] pb-3.5 text-[13px] leading-[18px] text-muted">
+              Звучит, пока приложение на экране. На заблокированном iPhone веб-приложение сигналить не может, поэтому во время тренировки экран не гаснет сам.
+            </p>
             <div className="flex flex-col gap-3 border-t border-line px-[22px] py-4">
               <span className="text-[16px] font-semibold">Тема</span>
               <div role="radiogroup" aria-label="Тема" className="grid grid-cols-3 gap-1.5">

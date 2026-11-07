@@ -46,6 +46,7 @@ const settings = z.object({
   dayOverrides: z.record(z.string(), z.enum(['gym', 'pool', 'rest'])).optional(),
 });
 const kv = z.object({ key: z.string(), value: z.unknown() });
+const exerciseNote = z.object({ exerciseId: z.string(), text: z.string(), updatedAt: z.number() });
 
 export const backupSchema = z.object({
   app: z.literal(BACKUP_APP),
@@ -63,6 +64,8 @@ export const backupSchema = z.object({
     slots: z.array(slot),
     settings: z.array(settings),
     kv: z.array(kv),
+    /** Появились со схемой v2: бэкап без них — старый, но годный. */
+    exerciseNotes: z.array(exerciseNote).optional(),
   }),
 });
 
@@ -73,10 +76,10 @@ export type TableName = keyof Backup['tables'];
 const KV_SKIP = new Set(['restTimer', 'silhouette:last']);
 
 export async function exportBackup(database: AppDB = db): Promise<Backup> {
-  const [sessions, sets, pool, bodyT, foods, foodLogT, adjustments, recipes, slots, settingsT, kvT] = await Promise.all([
+  const [sessions, sets, pool, bodyT, foods, foodLogT, adjustments, recipes, slots, settingsT, kvT, exerciseNotes] = await Promise.all([
     database.sessions.toArray(), database.sets.toArray(), database.pool.toArray(), database.body.toArray(),
     database.foods.toArray(), database.foodLog.toArray(), database.adjustments.toArray(), database.recipes.toArray(),
-    database.slots.toArray(), database.settings.toArray(), database.kv.toArray(),
+    database.slots.toArray(), database.settings.toArray(), database.kv.toArray(), database.exerciseNotes.toArray(),
   ]);
   return {
     app: BACKUP_APP,
@@ -84,7 +87,7 @@ export async function exportBackup(database: AppDB = db): Promise<Backup> {
     exportedAt: Date.now(),
     tables: {
       sessions, sets, pool, body: bodyT, foods, foodLog: foodLogT, adjustments, recipes, slots,
-      settings: settingsT, kv: kvT.filter((r) => !KV_SKIP.has(r.key)),
+      settings: settingsT, kv: kvT.filter((r) => !KV_SKIP.has(r.key)), exerciseNotes,
     } as Backup['tables'],
   };
 }
@@ -112,11 +115,12 @@ export async function replaceAll(backup: Backup, database: AppDB = db): Promise<
   const t = backup.tables;
   await database.transaction(
     'rw',
-    [database.sessions, database.sets, database.pool, database.body, database.foods, database.foodLog, database.adjustments, database.recipes, database.slots, database.settings, database.kv],
+    [database.sessions, database.sets, database.pool, database.body, database.foods, database.foodLog, database.adjustments, database.recipes, database.slots, database.settings, database.kv, database.exerciseNotes],
     async () => {
       await Promise.all([
         database.sessions.clear(), database.sets.clear(), database.pool.clear(), database.body.clear(), database.foods.clear(),
         database.foodLog.clear(), database.adjustments.clear(), database.recipes.clear(), database.slots.clear(), database.settings.clear(), database.kv.clear(),
+        database.exerciseNotes.clear(),
       ]);
       await database.sessions.bulkAdd(t.sessions);
       await database.sets.bulkAdd(t.sets);
@@ -129,6 +133,7 @@ export async function replaceAll(backup: Backup, database: AppDB = db): Promise<
       await database.slots.bulkAdd(t.slots);
       await database.settings.bulkAdd(t.settings);
       await database.kv.bulkAdd(t.kv.map((r) => ({ key: r.key, value: r.value })));
+      await database.exerciseNotes.bulkAdd(t.exerciseNotes ?? []);
       // seed не должен перезаписать импортированные программу и продукты
       await database.kv.put({ key: 'seed:slots', value: 1 });
       await database.kv.put({ key: 'seed:foods', value: 1 });

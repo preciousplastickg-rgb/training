@@ -14,8 +14,9 @@ import { applyAdjustment, discardSession, dismissAdjustment, finishSession, kvSe
 import type { BodyEntry, Settings, WorkoutSession } from '../db/types';
 import { avg7, forecastDate, pathProgress, roundTargetKg, targetRefinement, weeklyChange } from '../domain/body';
 import { diffDays } from '../domain/dates';
-import { formatDayMonth, formatInt, formatKg, formatScaled, formatWeekdayDate, parseKg } from '../domain/format';
+import { formatDayMonth, formatInt, formatKg, formatScaled, formatWeekdayDate, parseKg, pluralRu } from '../domain/format';
 import { strengthSeries, suggestionFor } from '../domain/history';
+import { sessionRecords, volume } from '../domain/records';
 import { dayTargets, dayTotals, weeklyAdjustment } from '../domain/nutrition';
 import { estimateMinutes, gymDatesOf, nextWorkout, phaseWeek, planForDate, planOptionsOf, workoutPlan } from '../domain/program';
 import { weekStrip, type WeekDay } from '../domain/week';
@@ -23,6 +24,7 @@ import {
   useActiveSession, useAdjustments, useAllSets, useBody, useFoodLog, useFoods, useKv, usePool, useSessions, useSettings, useSlots,
 } from '../hooks/useData';
 import { useToday } from '../hooks/useToday';
+import { HistorySheet } from './workout/HistorySheet';
 
 export function TodayScreen() {
   const date = useToday();
@@ -46,7 +48,7 @@ export function TodayScreen() {
         }
       />
       <div className="flex flex-col gap-3 px-4 pb-6">
-        <DayHero date={date} settings={settings} />
+        <DayHero date={date} settings={settings} body={body} />
         <PathCard date={date} settings={settings} body={body} />
         <NutritionTiles date={date} settings={settings} />
         <WeightRow date={date} body={body} fallback={settings.startWeight} />
@@ -68,7 +70,7 @@ function phaseLine(date: string): string {
   return date < PROGRAM_START ? `старт ${formatDayMonth(PROGRAM_START)}` : 'программа завершена';
 }
 
-function DayHero({ date, settings }: { date: string; settings: Settings }) {
+function DayHero({ date, settings, body }: { date: string; settings: Settings; body: BodyEntry[] }) {
   const sessions = useSessions();
   const pool = usePool();
   const slots = useSlots();
@@ -80,6 +82,7 @@ function DayHero({ date, settings }: { date: string; settings: Settings }) {
   const poolToday = pool.filter((p) => p.date === date).reduce((a, p) => a + p.minutes, 0);
   const wp = workoutPlan(workout, date, slots, settings);
   const week = useMemo(() => weekStrip(date, sessions, pool, settings), [date, sessions, pool, settings]);
+  const [summary, setSummary] = useState(false);
 
   const start = async (calibration: boolean) => {
     unlockAudio();
@@ -126,7 +129,9 @@ function DayHero({ date, settings }: { date: string; settings: Settings }) {
     const calibrated = sessions.some((s) => s.isCalibration && s.finishedAt !== undefined);
     badge = 'Подготовка';
     title = 'Подготовка к старту';
-    text = calibrated ? 'Пробная тренировка сделана. Запиши стартовые замеры' : `Пробная тренировка ${formatDayMonth(CALIBRATION_DATE)} и стартовые замеры`;
+    // Дата пробной тренировки в прошлом ничего не говорит — тогда «до старта».
+    const when = date < CALIBRATION_DATE ? formatDayMonth(CALIBRATION_DATE) : date === CALIBRATION_DATE ? 'сегодня' : `до старта ${formatDayMonth(PROGRAM_START)}`;
+    text = calibrated ? 'Пробная тренировка сделана. Запиши стартовые замеры' : `Пробная тренировка ${when} и стартовые замеры`;
     cta = (
       <div className="flex flex-col gap-2">
         {!calibrated && (
@@ -145,9 +150,17 @@ function DayHero({ date, settings }: { date: string; settings: Settings }) {
     text = 'Итоги — на экране «Прогресс»';
   } else if (plan.kind === 'gym') {
     if (doneToday) {
+      const min = Math.round(((doneToday.finishedAt ?? doneToday.startedAt) - doneToday.startedAt) / 60000);
+      const vol = volume(sets.filter((s) => s.sessionId === doneToday.id));
+      const recs = sessionRecords(doneToday, sessions, sets).length;
       badge = 'Сделано';
       title = `Тренировка ${doneToday.workout}`;
-      text = 'Выполнена. Отдыхай и добирай белок';
+      text = `${min} мин · ${formatInt(Math.round(vol / 100))} кг · ${recs ? `${recs} ${pluralRu(recs, 'рекорд', 'рекорда', 'рекордов')}` : 'без рекордов'}`;
+      cta = (
+        <Button size="lg" variant="dark" className="w-full" onClick={() => setSummary(true)}>
+          Итог тренировки
+        </Button>
+      );
     } else {
       badge = 'Зал сегодня';
       title = `Тренировка ${workout}`;
@@ -170,27 +183,36 @@ function DayHero({ date, settings }: { date: string; settings: Settings }) {
       </Button>
     );
   } else {
+    // Отдых: записанные шаги видны здесь же, а не только в шторке.
+    const steps = body.find((b) => b.date === date)?.steps;
+    if (steps) {
+      if (steps >= REST_DAY_STEPS) badge = 'Сделано';
+      text = `${formatInt(steps)} шагов · цель ${formatInt(REST_DAY_STEPS)}`;
+    }
     cta = (
-      <Button size="lg" variant="dark" className="w-full" onClick={() => openSheet('weight')}>
-        Записать шаги
+      <Button size="lg" variant="dark" className="w-full" onClick={() => openSheet('weight', { focus: 'steps' })}>
+        {steps ? 'Изменить шаги' : 'Записать шаги'}
       </Button>
     );
   }
 
   return (
-    <HeroCard className="flex flex-col gap-[18px] rounded-[30px]! px-5! pt-[22px]! pb-5!">
-      <div className="flex items-center justify-between gap-3">
-        <Badge>{badge}</Badge>
-        <span className="text-[13px] font-semibold text-muted-on-ink">{phaseLine(date)}</span>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <h2 className="font-display text-[34px] leading-10 font-bold">{title}</h2>
-        <p className="text-[15px] text-muted-on-ink">{text}</p>
-      </div>
-      <WeekStrip days={week} />
-      {cta}
-      {extra}
-    </HeroCard>
+    <>
+      <HeroCard className="flex flex-col gap-[18px] rounded-[30px]! px-5! pt-[22px]! pb-5!">
+        <div className="flex items-center justify-between gap-3">
+          <Badge>{badge}</Badge>
+          <span className="text-[13px] font-semibold text-muted-on-ink">{phaseLine(date)}</span>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <h2 className="font-display text-[34px] leading-10 font-bold">{title}</h2>
+          <p className="text-[15px] text-muted-on-ink">{text}</p>
+        </div>
+        <WeekStrip days={week} />
+        {cta}
+        {extra}
+      </HeroCard>
+      <HistorySheet item={summary && doneToday ? { gym: doneToday } : null} sets={sets} onClose={() => setSummary(false)} />
+    </>
   );
 }
 

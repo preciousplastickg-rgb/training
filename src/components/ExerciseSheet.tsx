@@ -8,6 +8,7 @@ import type { Phase } from '../domain/pose';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { Mannequin, type MannequinFrame } from './body/Mannequin';
 import { MuscleCallouts } from './body/MuscleMap';
+import { ExerciseNoteRow } from './ExerciseNote';
 import { Sheet } from './Sheet';
 import { Caps, Tabs } from './ui';
 
@@ -62,6 +63,10 @@ function ExerciseBody({ ex }: { ex: Exercise }) {
           </p>
         </section>
       )}
+
+      <section className="rounded-3xl bg-surface px-4 py-1">
+        <ExerciseNoteRow exerciseId={ex.id} name={ex.name} />
+      </section>
 
       <a
         href={videoUrl(ex)}

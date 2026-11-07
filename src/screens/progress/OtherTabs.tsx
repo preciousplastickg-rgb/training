@@ -153,7 +153,20 @@ export function DisciplineTab() {
           role="img"
           aria-label="Тепловая карта дисциплины"
           onClick={(e) => {
-            const d = (e.target as HTMLElement).getAttribute('data-date');
+            // Клетки 20 × 18 с зазором 4 меньше пальца: тап мимо клетки берёт ближайшую.
+            let cell: Element | null = (e.target as HTMLElement).closest('[data-date]');
+            if (!cell) {
+              let best = 24;
+              for (const c of e.currentTarget.querySelectorAll('[data-date]')) {
+                const r = c.getBoundingClientRect();
+                const dist = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+                if (dist < best) {
+                  best = dist;
+                  cell = c;
+                }
+              }
+            }
+            const d = cell?.getAttribute('data-date') ?? null;
             setPicked((p) => (d && d !== p ? d : null));
           }}
         >

@@ -26,8 +26,9 @@ export interface RecordHit {
 
 /**
  * Рекорды в подходах сессии против всей истории до неё:
- * «вес» — больший вес на N или больше повторов, чем когда-либо; «e1rm» — новая лучшая оценка.
- * Для одного упражнения возвращается не больше одного рекорда каждого вида (лучший).
+ * «вес» — больший вес на N или больше повторов, чем когда-либо (если на столько повторов уже что-то делали);
+ * «e1rm» — новая лучшая оценка. На упражнение — не больше одного рекорда за сессию: вес нагляднее, иначе e1RM.
+ * Иначе при двойной прогрессии каждая тренировка давала бы по два «рекорда» на упражнение и счётчик терял смысл.
  */
 export function findRecords(
   session: readonly SetLog[],
@@ -45,8 +46,9 @@ export function findRecords(
     let bestWeightHit: RecordHit | null = null;
     let bestE1Hit: RecordHit | null = null;
     for (const s of sets) {
+      // Новый максимум повторов без истории на столько повторов — не рекорд веса (его учтёт e1RM).
       const prevAtReps = Math.max(0, ...hist.filter((h) => h.reps >= s.reps).map((h) => h.weight));
-      if (s.weight > prevAtReps && (!bestWeightHit || s.weight > bestWeightHit.weight)) {
+      if (prevAtReps > 0 && s.weight > prevAtReps && (!bestWeightHit || s.weight > bestWeightHit.weight)) {
         bestWeightHit = { setId: s.id, exerciseId, weight: s.weight, reps: s.reps, kind: 'weight', e1rm: e1rm(s.weight, s.reps), delta: s.weight - prevAtReps };
       }
       const e = e1rm(s.weight, s.reps);
@@ -54,10 +56,19 @@ export function findRecords(
         bestE1Hit = { setId: s.id, exerciseId, weight: s.weight, reps: s.reps, kind: 'e1rm', e1rm: e, delta: e - bestE1 };
       }
     }
-    if (bestWeightHit) hits.push(bestWeightHit);
-    if (bestE1Hit) hits.push(bestE1Hit);
+    const hit = bestWeightHit ?? bestE1Hit;
+    if (hit) hits.push(hit);
   }
   return hits;
+}
+
+/** Рекорды завершённой тренировки относительно всех тренировок, завершённых раньше неё. */
+export function sessionRecords(session: WorkoutSession, sessions: readonly WorkoutSession[], sets: readonly SetLog[]): RecordHit[] {
+  const before = new Set(sessions.filter((s) => s.finishedAt !== undefined && s.startedAt < session.startedAt).map((s) => s.id));
+  return findRecords(
+    sets.filter((s) => s.sessionId === session.id),
+    sets.filter((s) => before.has(s.sessionId)),
+  );
 }
 
 /** Лучший e1RM каждой сессии упражнения — точки графика силы. */

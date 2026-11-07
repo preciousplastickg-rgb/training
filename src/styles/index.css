@@ -226,6 +226,12 @@ button {
   outline-offset: 2px;
 }
 
+/* Текстовые поля показывают фокус рамкой своего контейнера (focus-within): второе кольцо внутри скруглённого поля лишнее. */
+input:not([type='range']):focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
 .theme-dark {
   background: var(--bg);
   color: var(--ink);

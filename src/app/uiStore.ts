@@ -9,13 +9,19 @@ let current: GlobalSheet = null;
 let sheetDate: string | undefined;
 const listeners = new Set<() => void>();
 
-export function openSheet(s: GlobalSheet, date?: string): void {
+/** Поле, на которое встать сразу: «Записать шаги» с дня отдыха открывает шторку веса на шагах. */
+export type SheetFocus = 'steps';
+let sheetFocus: SheetFocus | undefined;
+
+export function openSheet(s: GlobalSheet, opts: { date?: string; focus?: SheetFocus } = {}): void {
   current = s;
-  sheetDate = date;
+  sheetDate = opts.date;
+  sheetFocus = opts.focus;
   listeners.forEach((l) => l());
 }
 
 export const globalSheetDate = (): string | undefined => sheetDate;
+export const globalSheetFocus = (): SheetFocus | undefined => sheetFocus;
 
 export function useGlobalSheet(): GlobalSheet {
   return useSyncExternalStore(

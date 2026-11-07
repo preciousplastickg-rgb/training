@@ -103,6 +103,13 @@ export interface BodyEntry {
   steps?: number;
 }
 
+/** Своя заметка к упражнению: «наклон скамьи 30°, сиденье 4». Одна на упражнение (схема v2). */
+export interface ExerciseNote {
+  exerciseId: string;
+  text: string;
+  updatedAt: number;
+}
+
 export interface ProgressPhoto {
   id: Id;
   date: LocalDate;

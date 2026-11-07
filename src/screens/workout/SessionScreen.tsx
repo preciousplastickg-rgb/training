@@ -1,7 +1,7 @@
 // Режим тренировки — SPEC 6.2, макеты BActive / BRest / BSummary (REDESIGN 4).
 // Тёмная палитра независимо от темы, один подход на экране, зоны нажатия ≥ 56 px.
 
-import { ArrowDown, ArrowUp, Check, ChevronDown, Equal, Info, Minus, Plus, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, Equal, Info, Minus, Plus, StickyNote, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { navigate } from '../../app/router';
 import { beep, unlockAudio } from '../../app/sound';
@@ -18,11 +18,11 @@ import { formatInt, formatKg, formatScaled, formatWeekdayDate, NBSP, pluralRu } 
 import { lastSessionSets, recentVolumes, suggestionFor } from '../../domain/history';
 import { REST_SUPERSET, supersetRole, workoutPlan, type PlannedExercise } from '../../domain/program';
 import { MANUAL_TEXT, type Suggestion } from '../../domain/progression';
-import { findRecords, volume, type RecordHit } from '../../domain/records';
+import { sessionRecords, volume, type RecordHit } from '../../domain/records';
 import { nextGym } from '../../domain/week';
 import { adjacentWeight, platesPerSide, warmupSets } from '../../domain/weights';
 import { getExercise } from '../../data/exercises';
-import { useActiveSession, useAllSets, useRestTimer, useSessions, useSessionSets, useSettings, useSlots } from '../../hooks/useData';
+import { useActiveSession, useAllSets, useExerciseNotes, useRestTimer, useSessions, useSessionSets, useSettings, useSlots } from '../../hooks/useData';
 import { useNow } from '../../hooks/useNow';
 import { useWakeLock } from '../../hooks/useWakeLock';
 
@@ -87,6 +87,7 @@ function ActiveWorkoutView({
   const sessionSets = useSessionSets(session.id);
   const timer = useRestTimer();
   const now = useNow(250);
+  const notes = useExerciseNotes();
   useWakeLock(true);
 
   const plan = useMemo(() => workoutPlan(session.workout, session.date, slots, settings), [session, slots, settings]);
@@ -155,6 +156,8 @@ function ActiveWorkoutView({
   const workHere = p ? workDone(p.exercise.id).sort((a, b) => a.setIndex - b.setIndex) : [];
   const doneHere = workHere.length;
   const currentIdx = p ? firstOpenIndex(p.sets, workHere) : 0;
+  // Своя заметка («стойки на 4») — третьей строкой шапки: карточка подхода и так впритык к высоте экрана.
+  const note = p ? notes.find((n) => n.exerciseId === p.exercise.id) : undefined;
 
   // Новый подход, отдых или другое упражнение — всегда с начала экрана.
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -167,11 +170,18 @@ function ActiveWorkoutView({
       <header className="pt-safe shrink-0 px-4">
         <div className="flex items-center gap-2.5 pt-2">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] whitespace-nowrap text-muted tabular-nums">
+            {/* 18 + 22 + 16 px — три строки с заметкой ровно в высоту кнопок 56: шапка не растёт, подход помещается на экран. */}
+            <p className="truncate text-[13px] leading-[18px] whitespace-nowrap text-muted tabular-nums">
               Упражнение {current + 1} из {plan.length} · {fmtClock(elapsed)}
               {mode}
             </p>
-            <h1 className="truncate text-[17px] font-extrabold">{p ? (p.exercise.short ?? p.exercise.name) : `Тренировка ${session.workout}`}</h1>
+            <h1 className="truncate text-[17px] leading-[22px] font-extrabold">{p ? (p.exercise.short ?? p.exercise.name) : `Тренировка ${session.workout}`}</h1>
+            {note && (
+              <p className="truncate text-[12px] leading-4 font-semibold text-primary">
+                <StickyNote size={12} strokeWidth={2.4} className="mr-1 inline align-[-1px]" aria-hidden />
+                {note.text}
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -315,7 +325,7 @@ function SetTracker({
   const allDone = work.length >= total;
   return (
     <div
-      className="mt-4 grid gap-1.5"
+      className="mt-3.5 grid gap-1.5"
       style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
       role="group"
       aria-label={`Подходы: сделано ${work.length} из ${total}`}
@@ -462,7 +472,7 @@ function SetScreen({
 
   return (
     <div className="flex flex-1 shrink-0 flex-col">
-      <div className="mt-6 flex flex-col items-center gap-1">
+      <div className="mt-5 flex flex-col items-center gap-1">
         <Caps className="text-primary!">
           {allDone ? 'Все подходы сделаны' : `Подход ${n} из ${p.sets}`}
           {p.slot.supersetWith ? ' · суперсет' : ''}
@@ -677,9 +687,7 @@ function Summary({ session, sessions }: { session: WorkoutSession; sessions: Wor
   const slots = useSlots();
   const settings = useSettings();
   const mine = all.filter((s) => s.sessionId === session.id);
-  const finishedBefore = new Set(sessions.filter((s) => s.finishedAt !== undefined && s.startedAt < session.startedAt).map((s) => s.id));
-  const prior = all.filter((s) => finishedBefore.has(s.sessionId));
-  const records: RecordHit[] = findRecords(mine, prior);
+  const records: RecordHit[] = sessionRecords(session, sessions, all);
   const vol = volume(mine);
   const bars = recentVolumes(session, sessions, all, 5);
   const prevVol = bars.length >= 2 ? bars[bars.length - 2]!.volume : 0;

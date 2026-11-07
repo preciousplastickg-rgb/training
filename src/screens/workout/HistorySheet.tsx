@@ -5,8 +5,9 @@ import { ConfirmDelete } from '../../components/ui';
 import { getExercise } from '../../data/exercises';
 import { deletePool, discardSession } from '../../db/repo';
 import type { PoolSession, SetLog, WorkoutSession } from '../../db/types';
-import { formatInt, formatKg, formatWeekdayDate, NBSP } from '../../domain/format';
-import { volume } from '../../domain/records';
+import { formatInt, formatKg, formatScaled, formatWeekdayDate, NBSP } from '../../domain/format';
+import { sessionRecords, volume } from '../../domain/records';
+import { useSessions } from '../../hooks/useData';
 
 export interface HistoryItem {
   gym?: WorkoutSession;
@@ -22,6 +23,7 @@ function setText(ex: ReturnType<typeof getExercise>, s: SetLog): string {
 }
 
 export function HistorySheet({ item, sets, onClose }: { item: HistoryItem | null; sets: readonly SetLog[]; onClose: () => void }) {
+  const sessions = useSessions();
   if (!item) return null;
   const { gym, pool } = item;
   if (pool) {
@@ -43,6 +45,7 @@ export function HistorySheet({ item, sets, onClose }: { item: HistoryItem | null
   const work = mine.filter((s) => s.kind === 'work');
   const minutes = Math.round(((gym.finishedAt ?? gym.startedAt) - gym.startedAt) / 60000);
   const order = [...new Set(mine.sort((a, b) => a.doneAt - b.doneAt).map((s) => s.exerciseId))];
+  const records = sessionRecords(gym, sessions, sets);
   return (
     <Sheet open title={`Тренировка ${gym.workout}`} kicker={formatWeekdayDate(gym.date)} onClose={onClose}>
       <div className="flex flex-col gap-3 px-1 pb-2">
@@ -50,6 +53,22 @@ export function HistorySheet({ item, sets, onClose }: { item: HistoryItem | null
           {minutes} мин · объём {formatInt(Math.round(volume(mine) / 100))}{NBSP}кг · {work.length} подходов
           {gym.isCalibration ? ' · подбор веса' : gym.isDeload ? ' · разгрузка' : ''}
         </p>
+        {records.length > 0 && (
+          <ul className="flex flex-col gap-2 rounded-[26px] bg-surface px-5 py-3.5" aria-label="Рекорды">
+            {records.map((r) => (
+              <li key={r.setId + r.kind} className="flex items-center gap-3">
+                <span className="font-display flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-on-primary">PR</span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-[15px] font-bold">{getExercise(r.exerciseId).name}</span>
+                  <span className="text-[13px] text-muted tabular-nums">
+                    {formatKg(r.weight, false)} × {r.reps} · {r.kind === 'e1rm' ? `e1RM ${formatScaled(r.e1rm ?? 0, 100, 1)}${NBSP}кг` : `лучший вес на ${r.reps}+`}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[15px] font-extrabold tabular-nums">+{formatKg(r.delta, false)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         <ul className="divide-y divide-line rounded-[26px] bg-surface px-5 py-1">
           {order.map((id) => {
             const ex = getExercise(id);

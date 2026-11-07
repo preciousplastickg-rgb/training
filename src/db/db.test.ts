@@ -1,5 +1,6 @@
+import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { AppDB, DEFAULT_SETTINGS, SCHEMA_V1, ensureSettings, updateSettings } from './db';
+import { AppDB, DEFAULT_SETTINGS, SCHEMA_V1, SCHEMA_V2, ensureSettings, updateSettings } from './db';
 
 let database: AppDB;
 
@@ -12,11 +13,36 @@ afterEach(async () => {
   await database.delete();
 });
 
-describe('схема v1', () => {
+describe('схема', () => {
   it('создаёт все таблицы', () => {
     const names = database.tables.map((t) => t.name).sort();
-    expect(names).toEqual(Object.keys(SCHEMA_V1).sort());
-    expect(database.verno).toBe(1);
+    expect(names).toEqual(Object.keys(SCHEMA_V2).sort());
+    expect(database.verno).toBe(2);
+  });
+
+  it('миграция v1 → v2: данные прошлой версии на месте, заметки пустые', async () => {
+    const name = `mig-${crypto.randomUUID()}`;
+    class V1 extends Dexie {
+      constructor() {
+        super(name);
+        this.version(1).stores(SCHEMA_V1);
+      }
+    }
+    const old = new V1();
+    await old.open();
+    await old.table('sessions').add({ id: 's1', date: '2026-11-09', workout: 'A', startedAt: 1, finishedAt: 2, isDeload: false, isCalibration: false });
+    await old.table('body').put({ date: '2026-11-09', weight: 8100 });
+    old.close();
+
+    const fresh = new AppDB(name);
+    await fresh.open();
+    expect(fresh.verno).toBe(2);
+    expect(await fresh.sessions.get('s1')).toMatchObject({ workout: 'A' });
+    expect(await fresh.body.get('2026-11-09')).toEqual({ date: '2026-11-09', weight: 8100 });
+    expect(await fresh.exerciseNotes.count()).toBe(0);
+    await fresh.exerciseNotes.put({ exerciseId: 'bench_press', text: 'хват 81 см', updatedAt: 1 });
+    expect((await fresh.exerciseNotes.get('bench_press'))?.text).toBe('хват 81 см');
+    await fresh.delete();
   });
 
   it('индекс [exerciseId+doneAt] работает: последние подходы упражнения по времени', async () => {
