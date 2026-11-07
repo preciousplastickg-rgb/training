@@ -310,6 +310,18 @@ function Equipment({ anim, p, start }: { anim: ExerciseAnimation; p: Pose; start
   }
   if (anim.equipment === 'none') return null;
   if (p.view === 'front') {
+    if (anim.equipment === 'cable') {
+      // Нижний блок с дальней стороны, трос перед телом к рабочей (левой) руке — махи в кроссовере одной рукой.
+      const h = handPoint(p.elbowL, p.wristL);
+      const low = { x: p.shoulderR.x - 44, y: GROUND - 7 };
+      return (
+        <g>
+          <line x1={low.x} y1={low.y} x2={h.x} y2={h.y} stroke="var(--muted)" strokeWidth={1} />
+          <circle cx={low.x} cy={low.y} r={4.5} fill="var(--fig-bg)" stroke="var(--muted)" strokeWidth={1.6} />
+          <rect x={h.x - 7} y={h.y - 1.8} width={14} height={3.6} rx={1.8} fill={INK} opacity={0.8} />
+        </g>
+      );
+    }
     if (anim.equipment !== 'dumbbell') return null;
     return (
       <g fill={INK} opacity={0.8}>
@@ -383,6 +395,15 @@ function Props({ anim, p, start }: { anim: ExerciseAnimation; p: Pose; start: Po
       const h = handPoint(start.elbowR, start.wristR);
       out.push(<line key={i} x1={h.x - 24} y1={h.y + 1.5} x2={h.x + 24} y2={h.y + 1.5} stroke="var(--muted)" strokeWidth={2.6} strokeLinecap="round" />);
     }
+    if (prop.kind === 'armrest') {
+      // Подлокотник под предплечьем кадра start (упор на брусьях): от локтя до кисти, под рукой.
+      const u = dir(start.a.forearmR);
+      const n1 = dir(start.a.forearmR + 90);
+      const n = n1.y >= 0 ? n1 : dir(start.a.forearmR - 90);
+      const a = mov(mov(start.elbowR, u, -2), n, 7);
+      const b = mov(mov(handPoint(start.elbowR, start.wristR), u, 4), n, 7);
+      out.push(<path key={i} d={capsule(a, b, 7, 7)} {...PROP} />);
+    }
     if (prop.kind === 'armPad') {
       // Скамья Скотта: подушка под плечом (ближняя рука), ниже него по направлению к полу.
       const u = dir(p.a.upperArmR);
@@ -432,7 +453,7 @@ function Props({ anim, p, start }: { anim: ExerciseAnimation; p: Pose; start: Po
       const s0 = prop.fixed ? start : p;
       const side = prop.front ? 13 : -13;
       const back = frontOf(s0.a.torso);
-      const a = mov(mov(s0.hip, back, side), dir(s0.a.torso), -6);
+      const a = mov(mov(s0.hip, back, side), dir(s0.a.torso), -6 - (prop.extend ?? 0));
       const b = mov(mov(s0.shoulder, back, side), dir(s0.a.torso), 10);
       out.push(<path key={i} d={capsule(a, b, 6, 6)} {...PROP} />);
       if (prop.seat !== false) {
@@ -442,16 +463,25 @@ function Props({ anim, p, start }: { anim: ExerciseAnimation; p: Pose; start: Po
       out.push(<rect key={`${i}l`} x={a.x - 2.5} y={a.y} width={5} height={Math.max(0, GROUND - a.y)} {...PROP} />);
     }
     if (prop.kind === 'platform') {
-      // Перпендикулярно голени, чуть ниже носка: при подъёме на носки пятка отрывается, носок остаётся на платформе.
-      const n = dir(p.a.shin + 90);
-      const o = mov(p.toe, dir(p.a.shin), -3);
+      // Чуть ниже носка, перпендикулярно голени (при подъёме на носки пятка отрывается, носок остаётся на платформе);
+      // салазки не крутятся вместе с голенью — наклон по кадру start или свой (`normal`).
+      const normal = prop.normal ?? (prop.fixed ? start.a.shin : p.a.shin);
+      const n = dir(normal + 90);
+      const o = mov(p.toe, dir(normal), -3);
       const a = mov(o, n, -24);
       const b = mov(o, n, 14);
       out.push(<path key={i} d={capsule(a, b, 5, 5)} {...PROP} />);
     }
     if (prop.kind === 'kneePad') {
-      const k = mov(p.knee, { x: 0, y: prop.under ? 1 : -1 }, prop.under ? 9 : 13);
-      out.push(<rect key={i} x={k.x - 9} y={k.y - 4} width={18} height={8} rx={4} {...PROP} />);
+      if (prop.under) {
+        // Платформа гравитрона: стоишь на коленях, голени лежат на подушке — подушка под голенью от колена до стопы.
+        const a = { x: p.knee.x + 6, y: p.knee.y + 11 };
+        const b = { x: p.ankle.x - 4, y: p.ankle.y + 11 };
+        out.push(<path key={i} d={capsule(a, b, 8, 8)} {...PROP} />);
+      } else {
+        const k = mov(p.knee, { x: 0, y: -1 }, 13);
+        out.push(<rect key={i} x={k.x - 9} y={k.y - 4} width={18} height={8} rx={4} {...PROP} />);
+      }
     }
   }
   return <>{out}</>;

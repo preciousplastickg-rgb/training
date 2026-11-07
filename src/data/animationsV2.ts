@@ -289,11 +289,12 @@ export const ANIMATIONS_V2: ExerciseAnimation[] = [
     ],
   },
   {
+    // Гравитрон: стоишь на коленях на платформе — бёдра вертикально, голени назад на подушке.
     exerciseId: 'pullup_assisted', view: 'side', rig: 'hanging', base: 0, equipment: 'none', hold: 'hands',
     props: [{ kind: 'bar' }, { kind: 'kneePad', under: true }],
     keyframes: [
-      { name: 'start', joints: { hip: 100, knee: -90, shoulderL: 178, elbowL: 0, shoulderR: 178, elbowR: 0 } },
-      { name: 'end', joints: { hip: 100, knee: -90, shoulderL: 30, elbowL: 150, shoulderR: 30, elbowR: 150 } },
+      { name: 'start', joints: { hip: 12, knee: -95, shoulderL: 178, elbowL: 0, shoulderR: 178, elbowR: 0 } },
+      { name: 'end', joints: { hip: 12, knee: -95, shoulderL: 30, elbowL: 150, shoulderR: 30, elbowR: 150 } },
     ],
     tempo: T_RAISE, concentric: 'up', direction: 'up',
     highlight: { primary: ['lats'], secondary: ['biceps', 'upper_back'] },
@@ -306,7 +307,8 @@ export const ANIMATIONS_V2: ExerciseAnimation[] = [
     exerciseId: 'reverse_lunge', view: 'side', rig: 'standing', equipment: 'dumbbell', hold: 'hands',
     keyframes: [
       { name: 'start', joints: { ...STAND, hipB: 0, kneeB: -3, shoulderL: 2, elbowL: 0, shoulderR: 2, elbowR: 0 } },
-      { name: 'end', joints: { ankle: 10, knee: -95, hip: 95, hipB: -30, kneeB: -45, shoulderL: 10, elbowL: 0, shoulderR: 10, elbowR: 0 } },
+      // Задняя нога: колено у пола, голень лежит, носок упирается в пол (toeB на уровне пятки передней ноги).
+      { name: 'end', joints: { ankle: 10, knee: -95, hip: 95, hipB: -36, kneeB: -45, shoulderL: 10, elbowL: 0, shoulderR: 10, elbowR: 0 } },
     ],
     tempo: T_SQUAT, concentric: 'up', direction: 'down',
     highlight: { primary: ['quads', 'glutes'], secondary: ['hamstrings'] },
@@ -452,8 +454,9 @@ export const ANIMATIONS_V2: ExerciseAnimation[] = [
     ],
   },
   {
-    exerciseId: 'captains_chair_knee_raise', view: 'side', rig: 'seated', base: 0, equipment: 'none',
-    props: [{ kind: 'incline', angle: 0, seat: false, fixed: true }],
+    // Ноги висят: без линии пола, предплечья на подлокотниках.
+    exerciseId: 'captains_chair_knee_raise', view: 'side', rig: 'seated', base: 0, equipment: 'none', noFloor: true,
+    props: [{ kind: 'incline', angle: 0, seat: false, fixed: true }, { kind: 'armrest' }],
     keyframes: [
       { name: 'start', joints: { hip: 0, knee: 0, shoulderL: 0, elbowL: 90, shoulderR: 0, elbowR: 90 } },
       { name: 'end', joints: { hip: 110, knee: -110, shoulderL: 0, elbowL: 90, shoulderR: 0, elbowR: 90 } },
@@ -468,11 +471,14 @@ export const ANIMATIONS_V2: ExerciseAnimation[] = [
 
   // ---------- Тренировка C ----------
   {
+    // Салазки: спинка-рельс под −20°, стопы впереди на платформе, перпендикулярной рельсу (foot −20).
+    // Таз съезжает вдоль спинки: смещение таза относительно пятки между кадрами — ровно вдоль −20°,
+    // спина не отходит от спинки и не проходит сквозь неё.
     exerciseId: 'hack_squat', view: 'side', rig: 'standing', equipment: 'none',
-    props: [{ kind: 'incline', angle: -20, seat: false, fixed: true }],
+    props: [{ kind: 'incline', angle: -20, seat: false, fixed: true, extend: 56 }, { kind: 'platform', normal: -20 }],
     keyframes: [
-      { name: 'start', joints: { ankle: 0, knee: -5, hip: -15, shoulderL: 30, elbowL: 120, shoulderR: 30, elbowR: 120 } },
-      { name: 'end', joints: { ankle: 25, knee: -100, hip: 55, shoulderL: 30, elbowL: 120, shoulderR: 30, elbowR: 120 } },
+      { name: 'start', joints: { ankle: -35, knee: 0, hip: 15, foot: -20, shoulderL: 30, elbowL: 120, shoulderR: 30, elbowR: 120 } },
+      { name: 'end', joints: { ankle: 11, knee: -121, hip: 90, foot: -20, shoulderL: 30, elbowL: 120, shoulderR: 30, elbowR: 120 } },
     ],
     tempo: T_SQUAT, concentric: 'up', direction: 'down',
     highlight: { primary: ['quads'], secondary: ['glutes'] },
@@ -482,10 +488,12 @@ export const ANIMATIONS_V2: ExerciseAnimation[] = [
     ],
   },
   {
+    // Гриф в Смите ходит строго вертикально: ступни на полшага впереди грифа (стоя ноги наклонены назад),
+    // внизу голень чуть вперёд — плечо с грифом в обоих кадрах на одной вертикали.
     exerciseId: 'smith_squat', view: 'side', rig: 'standing', equipment: 'barbell', hold: 'back',
     keyframes: [
-      { name: 'start', joints: { ankle: 0, knee: -5, hip: 5, shoulderL: -35, elbowL: 160, shoulderR: -35, elbowR: 160 } },
-      { name: 'end', joints: { ankle: -5, knee: -100, hip: 105, shoulderL: -35, elbowL: 160, shoulderR: -35, elbowR: 160 } },
+      { name: 'start', joints: { ankle: -25, knee: -3, hip: 28, shoulderL: -35, elbowL: 160, shoulderR: -35, elbowR: 160 } },
+      { name: 'end', joints: { ankle: 10, knee: -100, hip: 90, shoulderL: -35, elbowL: 160, shoulderR: -35, elbowR: 160 } },
     ],
     tempo: T_SQUAT, concentric: 'up', direction: 'down',
     highlight: { primary: ['quads', 'glutes'], secondary: ['hamstrings'] },
@@ -526,8 +534,8 @@ export const ANIMATIONS_V2: ExerciseAnimation[] = [
     exerciseId: 'dip_assisted', view: 'side', rig: 'seated', base: 10, equipment: 'none', anchor: 'wrist', noFloor: true,
     props: [{ kind: 'handles' }, { kind: 'kneePad', under: true }],
     keyframes: [
-      { name: 'start', joints: { spine: 0, hip: 100, knee: -90, shoulderL: 0, elbowL: 0, shoulderR: 0, elbowR: 0 } },
-      { name: 'end', joints: { spine: 15, hip: 100, knee: -90, shoulderL: -65, elbowL: 90, shoulderR: -65, elbowR: 90 } },
+      { name: 'start', joints: { spine: 0, hip: 15, knee: -95, shoulderL: 0, elbowL: 0, shoulderR: 0, elbowR: 0 } },
+      { name: 'end', joints: { spine: 15, hip: 15, knee: -95, shoulderL: -65, elbowL: 90, shoulderR: -65, elbowR: 90 } },
     ],
     tempo: T_SQUAT, concentric: 'up', direction: 'down',
     highlight: { primary: ['chest', 'triceps'], secondary: ['front_delt'] },
@@ -540,8 +548,8 @@ export const ANIMATIONS_V2: ExerciseAnimation[] = [
     exerciseId: 'chinup_assisted', view: 'side', rig: 'hanging', base: 0, equipment: 'none', hold: 'hands',
     props: [{ kind: 'bar' }, { kind: 'kneePad', under: true }],
     keyframes: [
-      { name: 'start', joints: { hip: 100, knee: -90, shoulderL: 178, elbowL: 0, shoulderR: 178, elbowR: 0 } },
-      { name: 'end', joints: { hip: 100, knee: -90, shoulderL: 35, elbowL: 150, shoulderR: 35, elbowR: 150 } },
+      { name: 'start', joints: { hip: 12, knee: -95, shoulderL: 178, elbowL: 0, shoulderR: 178, elbowR: 0 } },
+      { name: 'end', joints: { hip: 12, knee: -95, shoulderL: 35, elbowL: 150, shoulderR: 35, elbowR: 150 } },
     ],
     tempo: T_RAISE, concentric: 'up', direction: 'up',
     highlight: { primary: ['lats', 'biceps'], secondary: ['upper_back'] },

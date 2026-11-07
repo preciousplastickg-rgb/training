@@ -33,18 +33,26 @@ export interface AngleGuide {
 export type Prop =
   /** Скамья под частью тела; `fixed` — геометрия по кадру start (тело движется, скамья стоит). */
   | { kind: 'bench'; under: 'torso' | 'hips' | 'kneeB' | 'ankleB' | 'ankle' | 'shoulders' | 'support'; fixed?: boolean }
-  /** Спинка вдоль корпуса: сзади (лёжа на спине) или спереди (`front` — грудью на наклонной); `seat` — сиденье, по умолчанию есть. */
-  | { kind: 'incline'; angle: number; front?: boolean; seat?: boolean; fixed?: boolean }
+  /**
+   * Спинка вдоль корпуса: сзади (лёжа на спине) или спереди (`front` — грудью на наклонной); `seat` — сиденье,
+   * по умолчанию есть; `extend` — продлить спинку ниже таза (рельс гакк-приседа, по которому таз съезжает).
+   */
+  | { kind: 'incline'; angle: number; front?: boolean; seat?: boolean; fixed?: boolean; extend?: number }
   | { kind: 'bar' }
   /** Рукояти брусьев на высоте кистей кадра start. */
   | { kind: 'handles' }
   | { kind: 'pulley'; dx: number; y: number }
-  /** Платформа под стопой, перпендикулярно голени через носок. */
-  | { kind: 'platform' }
+  /**
+   * Платформа под стопой через носок: перпендикулярно голени; `fixed` — наклон по кадру start (салазки
+   * жима ногами не крутятся вместе с голенью), `normal` — свой наклон, угол нормали (гакк-присед).
+   */
+  | { kind: 'platform'; fixed?: boolean; normal?: number }
   /** Валик над коленом (тяга блока) или под ним (`under` — гравитрон). */
   | { kind: 'kneePad'; under?: boolean }
   /** Подушка под плечом (скамья Скотта). */
-  | { kind: 'armPad' };
+  | { kind: 'armPad' }
+  /** Подлокотник под предплечьем кадра start (упор на брусьях). */
+  | { kind: 'armrest' };
 
 export interface ExerciseAnimation {
   exerciseId: string;
@@ -250,11 +258,13 @@ const ANIMATIONS_V1: ExerciseAnimation[] = [
     ],
   },
   {
+    // Салазки: платформа не крутится с голенью (наклон по кадру start), носок идёт вдоль её нормали;
+    // внизу колени к груди, стопа догибается (foot −25), чтобы подошва осталась на платформе.
     exerciseId: 'leg_press', view: 'side', rig: 'seated', base: -50, equipment: 'none',
-    props: [{ kind: 'incline', angle: -50 }, { kind: 'platform' }],
+    props: [{ kind: 'incline', angle: -50 }, { kind: 'platform', fixed: true }],
     keyframes: [
-      { name: 'start', joints: { hip: 85, knee: -10, shoulderL: 40, elbowL: 20, shoulderR: 40, elbowR: 20 } },
-      { name: 'end', joints: { hip: 122, knee: -92, shoulderL: 40, elbowL: 20, shoulderR: 40, elbowR: 20 } },
+      { name: 'start', joints: { hip: 85, knee: -10, foot: 0, shoulderL: 40, elbowL: 20, shoulderR: 40, elbowR: 20 } },
+      { name: 'end', joints: { hip: 130, knee: -95, foot: -25, shoulderL: 40, elbowL: 20, shoulderR: 40, elbowR: 20 } },
     ],
     tempo: T_SQUAT, concentric: 'up', direction: 'down',
     highlight: { primary: ['quads', 'glutes'], secondary: ['hamstrings'] },
@@ -335,7 +345,7 @@ const ANIMATIONS_V1: ExerciseAnimation[] = [
     props: [{ kind: 'pulley', dx: 10, y: 6 }],
     keyframes: [
       { name: 'start', joints: { hip: 0, knee: -90, hipB: 0, kneeB: -90, spine: 20, shoulderL: 160, elbowL: 150, shoulderR: 160, elbowR: 150 } },
-      { name: 'end', joints: { hip: -10, knee: -90, hipB: -10, kneeB: -90, spine: 80, shoulderL: 160, elbowL: 150, shoulderR: 160, elbowR: 150 } },
+      { name: 'end', joints: { hip: -10, knee: -90, hipB: -10, kneeB: -90, spine: 70, shoulderL: 160, elbowL: 150, shoulderR: 160, elbowR: 150 } },
     ],
     tempo: T_PULL_DOWN, concentric: 'down', direction: 'down',
     highlight: { primary: ['abs'], secondary: [] },
