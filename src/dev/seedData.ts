@@ -1,14 +1,14 @@
-// Демо-данные для разработки (SPEC 10): 8 недель тренировок с реалистичной прогрессией,
-// вес с шумом ±0,6 кг и трендом −0,55 кг/нед, питание с 85% дней в цели, 2 пропуска.
-// Детерминированно (свой ГПСЧ) — одинаковый результат при каждом запуске.
+// Демо-данные для разработки (SPEC 10): 8 недель тренировок A → B → C с реалистичной прогрессией,
+// бассейн по типам дня, вес с шумом ±0,6 кг и трендом −0,55 кг/нед, пульс в покое, питание с 85% дней
+// в цели, 2 пропуска. Детерминированно (свой ГПСЧ) — одинаковый результат при каждом запуске.
 
 import { SEED_FOODS } from '../data/foods';
-import { CALIBRATION_DATE, PROGRAM_START, SEED_SLOTS } from '../data/program';
-import type { BodyEntry, FoodLog, PoolSession, SetLog, Settings, WorkoutSession } from '../db/types';
+import { CALIBRATION_DATE, CARDIO_BY_WORKOUT, CARDIO_MINUTES, PROGRAM_START, SEED_SLOTS } from '../data/program';
+import type { BodyEntry, FoodLog, PoolSession, SetLog, Settings, Workout, WorkoutSession } from '../db/types';
 import { addDays } from '../domain/dates';
 import { suggestionFor } from '../domain/history';
 import { dayTargets } from '../domain/nutrition';
-import { gymDatesOf, nextWorkout, planDays, workoutPlan } from '../domain/program';
+import { blockFor, dayTypeFor, gymDatesOf, nextWorkout, planDays, workoutPlan } from '../domain/program';
 
 export const SEED_DAYS = 56;
 export const SEED_TODAY = addDays(PROGRAM_START, SEED_DAYS); // понедельник 4 января 2027
@@ -26,11 +26,14 @@ function rng(seed: number) {
   };
 }
 
-/** Стартовые веса после пробной тренировки, Kg100. */
+/** Стартовые веса после пробной тренировки, Kg100 (для гравитрона — противовес). */
 const START_WEIGHT: Record<string, number> = {
-  goblet_squat: 1600, barbell_squat: 4000, bench_press: 4500, db_row: 1600, db_rdl: 1400, lateral_raise: 600,
+  goblet_squat: 1600, barbell_squat: 4000, bench_press: 4500, db_row: 1600, db_rdl: 1400, lateral_raise: 600, face_pull: 1500,
+  hammer_curl: 800, overhead_cable_extension: 1500, standing_calf_raise: 4000,
   barbell_rdl: 4000, db_shoulder_press: 1200, lat_pulldown: 3500, bulgarian_split_squat: 800, incline_db_press: 1200,
-  biceps_curl: 800, triceps_pushdown: 2000, cable_crunch: 2000,
+  seated_cable_row: 3000, cable_lateral_raise: 500, bent_over_rear_delt_raise: 600, biceps_curl: 1500, triceps_pushdown: 2000,
+  leg_press: 8000, machine_chest_press: 3500, pullup_assisted: 3000, lying_leg_curl: 2500, leg_extension: 3000, machine_lateral_raise: 2000,
+  reverse_pec_deck: 2000, preacher_curl: 1500, ez_skullcrusher: 1500, seated_calf_raise: 3000, cable_crunch: 2000,
 };
 
 export interface SeedResult {
@@ -41,7 +44,7 @@ export interface SeedResult {
   foodLog: FoodLog[];
 }
 
-export function generateSeed(settings: Pick<Settings, 'substitutions' | 'restLong' | 'restShort' | 'phase3Mode'>): SeedResult {
+export function generateSeed(settings: Pick<Settings, 'substitutions' | 'substitutionsBlock' | 'phase3Mode'>): SeedResult {
   const rand = rng(20261109);
   const sessions: WorkoutSession[] = [];
   const sets: SetLog[] = [];
@@ -52,26 +55,32 @@ export function generateSeed(settings: Pick<Settings, 'substitutions' | 'restLon
   const id = (p: string) => `${p}-${++n}`;
   const ts = (date: string, hour: number) => new Date(`${date}T${String(hour).padStart(2, '0')}:00:00+06:00`).getTime();
 
-  const doSession = (date: string, workout: 'A' | 'B', isCalibration: boolean, isDeload: boolean) => {
+  const doSession = (date: string, workout: Workout, isCalibration: boolean, isDeload: boolean) => {
     const sid = id('s');
     const startedAt = ts(date, 18);
-    const sess: WorkoutSession = { id: sid, date, workout, startedAt, isDeload, isCalibration };
+    const sess: WorkoutSession = { id: sid, date, workout, block: blockFor(date), startedAt, isDeload, isCalibration };
     const plan = workoutPlan(workout, date, SEED_SLOTS, settings);
-    let t = startedAt + 5 * 60_000;
+    let t = startedAt + 10 * 60_000;
     for (const p of plan) {
       const sug = suggestionFor(p, sets, sessions, { sessionId: sid, isDeload, isCalibration });
       const ex = p.exercise;
-      const w = ex.unit !== 'kg' ? 0 : (sug.weight ?? START_WEIGHT[ex.id] ?? 1000);
+      const weighted = ex.unit === 'kg' || ex.unit === 'assist_kg';
+      const w = !weighted ? 0 : (sug.weight ?? START_WEIGHT[ex.id] ?? (ex.equipment === 'dumbbell' ? 800 : 1500));
       for (let i = 0; i < p.sets; i++) {
         const target = sug.targets[i] ?? p.slot.repMin;
         // Чаще всего делает цель или +1; иногда (усталость к последнему подходу) — на 1 меньше.
         const r = rand();
         const delta = isCalibration ? 2 : r < 0.18 && i === p.sets - 1 ? -1 : r > 0.55 ? 1 : 0;
         const step = ex.unit === 'seconds' ? 5 : 1;
-        const reps = Math.max(1, Math.min(ex.unit === 'kg' ? p.slot.repMax : target + 10, target + delta * step));
+        const reps = Math.max(1, Math.min(weighted ? p.slot.repMax : target + 10, target + delta * step));
         t += (45 + p.restSeconds) * 1000;
         sets.push({ id: id('x'), sessionId: sid, exerciseId: ex.id, slotId: p.slot.id, setIndex: i, kind: 'work', weight: w, reps, doneAt: t });
       }
+    }
+    if (!isCalibration) {
+      sess.cardio = { machine: CARDIO_BY_WORKOUT[workout], minutes: CARDIO_MINUTES };
+      sess.saunaRounds = (1 + Math.floor(rand() * 3)) as 1 | 2 | 3;
+      t += CARDIO_MINUTES * 60_000;
     }
     sess.finishedAt = t + 3 * 60_000;
     sessions.push(sess);
@@ -85,10 +94,13 @@ export function generateSeed(settings: Pick<Settings, 'substitutions' | 'restLon
     if (plan.kind === 'gym' && !MISSED.has(i)) doSession(date, nextWorkout(sessions), false, plan.isDeload);
     if (plan.kind === 'pool' || (plan.kind === 'pool_optional' && rand() < 0.5)) {
       const minutes = plan.pool!.minutes + Math.round((rand() - 0.5) * 6);
-      pool.push({ id: id('p'), date, minutes, meters: Math.round(minutes * 32), feel: (3 + Math.floor(rand() * 3)) as 3 | 4 | 5 });
+      pool.push({
+        id: id('p'), date, type: plan.pool!.type, minutes, meters: Math.round(minutes * 32), feel: (3 + Math.floor(rand() * 3)) as 3 | 4 | 5,
+        saunaRounds: (1 + Math.floor(rand() * 2)) as 1 | 2,
+      });
     }
 
-    // Вес: тренд −0,55 кг/нед, шум ±0,6 кг; ~10% дней без записи.
+    // Вес: тренд −0,55 кг/нед, шум ±0,6 кг; ~10% дней без записи. Пульс в покое 56–60, в разгрузку ниже.
     const entry: BodyEntry = { date };
     if (rand() > 0.1) entry.weight = Math.round(8100 - (55 * i) / 7 + (rand() - 0.5) * 120);
     if (i % 7 === 0) {
@@ -96,10 +108,11 @@ export function generateSeed(settings: Pick<Settings, 'substitutions' | 'restLon
       entry.neck = 380;
     }
     if (rand() > 0.3) entry.steps = 6000 + Math.round(rand() * 6000);
+    if (rand() > 0.15) entry.restingHr = 58 + Math.round((rand() - 0.5) * 4) - (plan.isDeload ? 2 : 0);
     if (Object.keys(entry).length > 1) body.push(entry);
 
     // Питание: 85% дней в цели.
-    const t = dayTargets(date, [], settings);
+    const t = dayTargets(date, [], settings, dayTypeFor(date, sessions, pool));
     const inTarget = rand() < 0.85;
     const f = inTarget ? 0.93 + rand() * 0.12 : rand() < 0.5 ? 0.76 : 1.18;
     const scale = (t.kcal * f) / 2028;

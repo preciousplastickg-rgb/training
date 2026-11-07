@@ -116,7 +116,8 @@ export function sidePose(anim: Pick<ExerciseAnimation, 'rig' | 'base'> & Partial
   const hipP: Pt = { x: 0, y: 0 };
   const kneeP = add(hipP, dir(aThigh), -SEG.thigh);
   const ankleP = add(kneeP, dir(aShin), -SEG.shin);
-  const footDir = anim.rig === 'standing' ? 90 : aShin + 90;
+  // Стопа перпендикулярна голени (стоя — всегда на полу); foot > 0 — подошвенное сгибание, пятка вверх.
+  const footDir = (anim.rig === 'standing' ? 90 : aShin + 90) + j(joints, 'foot');
   const toe = add(ankleP, dir(footDir), SEG.foot - SEG.heel);
   const heel = add(ankleP, dir(footDir), -SEG.heel);
 

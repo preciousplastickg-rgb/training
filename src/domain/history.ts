@@ -1,5 +1,6 @@
 // История по таблицам sessions/sets в памяти: для прогрессии, рекордов и графиков.
 
+import { SEED_SLOTS } from '../data/program';
 import type { LocalDate, SetLog, WorkoutSession } from '../db/types';
 import type { HistoryEntry } from './progression';
 import { suggest, type Suggestion } from './progression';
@@ -62,8 +63,8 @@ export function sessionDates(sessions: readonly WorkoutSession[]): Map<string, L
   return new Map(sessions.filter((s) => s.finishedAt !== undefined).map((s) => [s.id, s.date]));
 }
 
-/** Базовые упражнения для правила «сила падает» (SPEC 5.6). */
-export const BASE_LIFTS = ['goblet_squat', 'barbell_squat', 'bench_press', 'barbell_rdl', 'db_row', 'lat_pulldown', 'db_shoulder_press'];
+/** Базовые упражнения для правила «сила падает» (SPEC 5.6): все упражнения основного блока во всех блоках программы. */
+export const BASE_LIFTS = [...new Set(SEED_SLOTS.filter((s) => s.section === 'main').map((s) => s.exerciseId))];
 
 /** Рабочий вес (максимум) базовых упражнений по датам, без разгрузок и пробной. */
 export function strengthSeries(sets: readonly SetLog[], sessions: readonly WorkoutSession[], ids: readonly string[] = BASE_LIFTS) {
@@ -84,7 +85,7 @@ export function strengthSeries(sets: readonly SetLog[], sessions: readonly Worko
 }
 
 /**
- * Объём последних `n` завершённых тренировок того же типа (A или B), включая текущую, от старых к новым —
+ * Объём последних `n` завершённых тренировок того же типа (A, B или C), включая текущую, от старых к новым —
  * столбики на итоге. Пробная не в счёт.
  */
 export function recentVolumes(

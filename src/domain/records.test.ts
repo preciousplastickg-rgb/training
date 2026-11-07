@@ -36,7 +36,7 @@ describe('сила', () => {
 });
 
 describe('счётчик рекордов', () => {
-  const sess = (id: string, startedAt: number) => ({ id, date: '2026-11-09', workout: 'A' as const, startedAt, finishedAt: startedAt + 1, isDeload: false, isCalibration: false });
+  const sess = (id: string, startedAt: number) => ({ id, date: '2026-11-09', workout: 'A' as const, block: 1 as const, startedAt, finishedAt: startedAt + 1, isDeload: false, isCalibration: false });
   it('первая сессия — точка отсчёта, дальше не больше одного рекорда на упражнение за сессию', () => {
     const sets = [set('b', 6000, 10, 's1'), set('b', 6250, 10, 's2'), set('b', 6250, 10, 's3')];
     const sessions = [sess('s1', 1), sess('s2', 2), sess('s3', 3)];

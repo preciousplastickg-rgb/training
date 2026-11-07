@@ -34,7 +34,8 @@ test('подход 1 тапом, таймер от endsAt, восстановл�
   await expect(page.getByRole('button', { name: 'Подход 1: отменить запись' })).toBeVisible();
   // Список упражнений — в шторке.
   await page.getByRole('button', { name: 'Упражнения' }).click();
-  await expect(page.getByRole('dialog', { name: 'Упражнения' }).getByText('1 из 18 подходов')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Упражнения' }).getByText('1 из 30 подходов')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Упражнения' }).getByText('Дополнительный блок')).toBeVisible();
 });
 
 test('«Как делать»: фигура, режимы «Движение / Верх / Низ», углы постоянно списком', async ({ page }) => {

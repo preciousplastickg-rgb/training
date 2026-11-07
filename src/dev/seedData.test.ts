@@ -6,13 +6,18 @@ import { addDays } from '../domain/dates';
 import { dayTotals, dayTargets, nutritionInTarget } from '../domain/nutrition';
 import { PROGRAM_START } from '../data/program';
 import { generateSeed, SEED_DAYS } from './seedData';
+import { dayTypeFor } from '../domain/program';
 
 describe('демо-данные', () => {
   const seed = generateSeed(DEFAULT_SETTINGS);
-  it('8 недель зала с прогрессией и пробной тренировкой', () => {
+  it('8 недель зала A → B → C с прогрессией, кардио, сауной и пробной тренировкой', () => {
     expect(seed.sessions.filter((s) => s.isCalibration)).toHaveLength(1);
     const real = seed.sessions.filter((s) => !s.isCalibration);
     expect(real.length).toBeGreaterThanOrEqual(22);
+    expect(new Set(real.map((s) => s.workout))).toEqual(new Set(['A', 'B', 'C']));
+    expect(real.every((s) => s.block === 1 && s.cardio && s.saunaRounds)).toBe(true);
+    expect(seed.pool.every((p) => p.type)).toBe(true);
+    expect(seed.body.filter((b) => b.restingHr).length).toBeGreaterThan(30);
     const bench = seed.sets.filter((s) => s.exerciseId === 'bench_press').map((s) => s.weight);
     expect(Math.max(...bench)).toBeGreaterThan(Math.min(...bench));
   });
@@ -29,7 +34,7 @@ describe('демо-данные', () => {
     for (let i = 0; i < SEED_DAYS; i++) {
       const d = addDays(PROGRAM_START, i);
       const total = dayTotals(seed.foodLog.filter((l) => l.date === d), foods).total;
-      if (nutritionInTarget(total, dayTargets(d, [], {}))) ok++;
+      if (nutritionInTarget(total, dayTargets(d, [], {}, dayTypeFor(d, seed.sessions, seed.pool)))) ok++;
     }
     expect(ok / SEED_DAYS).toBeGreaterThan(0.7);
     expect(ok / SEED_DAYS).toBeLessThan(0.97);

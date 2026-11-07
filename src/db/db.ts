@@ -2,8 +2,9 @@
 // и тестом на данных прошлой версии (см. CLAUDE.md).
 
 import Dexie, { type EntityTable, type Table } from 'dexie';
+import { migratePoolV1, migrateSessionsV1, migrateSetsV1, migrateSettingsV1, migrateSlotsV1, type SlotV1 } from './migrate';
 import type {
-  Adjustment, BodyEntry, Exercise, ExerciseNote, Food, FoodLog, KvRow, PoolSession, ProgramSlot,
+  Adjustment, BodyEntry, Exercise, ExerciseNote, Food, FoodLog, KvRow, LightWeek, PoolSession, ProgramSlot,
   ProgressPhoto, Recipe, SetLog, Settings, SettingsRow, WorkoutSession,
 } from './types';
 
@@ -29,6 +30,12 @@ export const SCHEMA_V1 = {
 /** v2: заметки к упражнениям — одна на упражнение. Остальные таблицы без изменений. */
 export const SCHEMA_V2 = { ...SCHEMA_V1, exerciseNotes: 'exerciseId' } as const;
 
+/** v3 (программа v2, 7 ноября 2026): лёгкие недели по пульсу, индекс workout у сессий. */
+export const SCHEMA_V3 = { ...SCHEMA_V2, sessions: 'id, date, workout', lightWeeks: 'id, start' } as const;
+
+/** Версия seed-программы в kv 'seed:slots': 2 — программа v2 (A, B, C по блокам). */
+export const SLOT_SEED_VERSION = 2;
+
 export class AppDB extends Dexie {
   sessions!: EntityTable<WorkoutSession, 'id'>;
   sets!: EntityTable<SetLog, 'id'>;
@@ -44,11 +51,32 @@ export class AppDB extends Dexie {
   settings!: Table<SettingsRow, 'main'>;
   kv!: Table<KvRow, string>;
   exerciseNotes!: Table<ExerciseNote, string>;
+  lightWeeks!: EntityTable<LightWeek, 'id'>;
 
   constructor(name: string = DB_NAME) {
     super(name);
     this.version(1).stores(SCHEMA_V1);
     this.version(2).stores(SCHEMA_V2);
+    this.version(3)
+      .stores(SCHEMA_V3)
+      .upgrade(async (tx) => {
+        // Программа v2 (SPEC 4, «Миграция v2 → v3»): сессии получают блок 1, бассейн — тип по дню недели,
+        // слоты перезаписываются seed v2 с переносом правок, подходы перевязываются к слотам блока 1.
+        const slotsT = tx.table<ProgramSlot | SlotV1, string>('slots');
+        const { slots, slotIdMap } = migrateSlotsV1(await slotsT.toArray());
+        await slotsT.clear();
+        await slotsT.bulkPut(slots);
+        const sessionsT = tx.table<WorkoutSession, string>('sessions');
+        await sessionsT.bulkPut(migrateSessionsV1(await sessionsT.toArray()));
+        const setsT = tx.table<SetLog, string>('sets');
+        await setsT.bulkPut(migrateSetsV1(await setsT.toArray(), slotIdMap));
+        const poolT = tx.table<PoolSession, string>('pool');
+        await poolT.bulkPut(migratePoolV1(await poolT.toArray()));
+        const settingsT = tx.table<SettingsRow, 'main'>('settings');
+        const row = await settingsT.get('main');
+        if (row) await settingsT.put(migrateSettingsV1(row) as SettingsRow);
+        await tx.table<KvRow, string>('kv').put({ key: 'seed:slots', value: SLOT_SEED_VERSION });
+      });
   }
 }
 
@@ -60,9 +88,8 @@ export const DEFAULT_SETTINGS: Settings = {
   startWeight: 8100,
   targetWeight: 7300,
   targetBodyFat: 15,
-  restLong: 150,
-  restShort: 90,
   barWeight: 2000,
+  ezBarWeight: 1000,
   plates: [2500, 2000, 1500, 1000, 500, 250, 125],
   sound: true,
   theme: 'light',

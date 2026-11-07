@@ -3,7 +3,7 @@
 import {
   MAINTENANCE_DELOAD, MAINTENANCE_KCAL_DELOAD, MAINTENANCE_KCAL_PHASE3, MIN_KCAL, PHASES, PROGRAM_START,
 } from '../data/program';
-import type { Adjustment, BodyEntry, Food, FoodLog, Kg100, LocalDate, Recipe, Settings } from '../db/types';
+import type { Adjustment, BodyEntry, DayType, Food, FoodLog, Kg100, LocalDate, Recipe, Settings } from '../db/types';
 import { avg7 } from './body';
 import { addDays, isBetween, weekStart } from './dates';
 import { formatScaled, NBSP } from './format';
@@ -65,14 +65,15 @@ export interface DayTargets {
 }
 
 /**
- * Цели дня = цели фазы + принятые корректировки (не ниже 1 800).
- * Новогодняя разгрузка — поддержка ≈ 2 500. Фаза 3: «поддержка» — 2 400 + корректировки с начала фазы 3,
- * «дефицит» (по умолчанию) — продолжение фазы 2.
+ * Цели дня = ккал фазы по типу дня (SPEC 3.1: зал 2 300, бассейн 2 150, отдых 2 050) + принятые корректировки
+ * (не ниже 1 800). Новогодняя разгрузка — поддержка ≈ 2 500. Фаза 3: «поддержка» — 2 700 / 2 550 / 2 450
+ * + корректировки с начала фазы 3, «дефицит» (по умолчанию) — продолжение фазы 2.
  */
 export function dayTargets(
   date: LocalDate,
   adjustments: readonly Adjustment[],
   settings: Pick<Settings, 'phase3Mode'>,
+  dayType: DayType = 'rest',
 ): DayTargets {
   const phase = phaseFor(date) ?? (date < PROGRAM_START ? PHASES[0]! : PHASES[2]!);
   const { protein, fat } = phase;
@@ -81,7 +82,7 @@ export function dayTargets(
   }
   const p3 = PHASES[2]!;
   const maintenance = phase.n === 3 && settings.phase3Mode === 'maintenance';
-  const base = maintenance ? MAINTENANCE_KCAL_PHASE3 : phase.kcal;
+  const base = maintenance ? MAINTENANCE_KCAL_PHASE3[dayType] : phase.kcal[dayType];
   const delta = adjustments
     .filter((a) => a.date <= date && (!maintenance || a.date >= p3.start))
     .reduce((s, a) => s + a.deltaKcal, 0);
@@ -218,6 +219,7 @@ export function nutritionStats(
   adjustments: readonly Adjustment[],
   settings: Pick<Settings, 'phase3Mode'>,
   today: LocalDate,
+  dayTypeOf: (date: LocalDate) => DayType = () => 'rest',
 ): NutritionStats | null {
   const byDate = new Map<LocalDate, FoodLog[]>();
   for (const l of logs) byDate.set(l.date, [...(byDate.get(l.date) ?? []), l]);
@@ -237,7 +239,7 @@ export function nutritionStats(
       const dl = byDate.get(d);
       if (!dl) continue;
       const total = dayTotals(dl, foods).total;
-      const t = dayTargets(d, adjustments, settings);
+      const t = dayTargets(d, adjustments, settings, dayTypeOf(d));
       sum += total.kcal;
       tsum += t.kcal;
       n++;

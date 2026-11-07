@@ -29,7 +29,7 @@ describe('силуэт', () => {
     expect(Math.abs(bodyFatPercent(w, 380, 174.5)! - 15)).toBeLessThanOrEqual(0.15);
   });
   it('силуэт меняется от замеров и e1RM', () => {
-    const sess = (id: string, t: number): WorkoutSession => ({ id, date: `2026-11-${10 + t}`, workout: 'A', startedAt: t, finishedAt: t + 1, isDeload: false, isCalibration: false });
+    const sess = (id: string, t: number): WorkoutSession => ({ id, date: `2026-11-${10 + t}`, workout: 'A', block: 1, startedAt: t, finishedAt: t + 1, isDeload: false, isCalibration: false });
     const set = (sid: string, ex: string, w: number): SetLog => ({ id: sid + ex, sessionId: sid, exerciseId: ex, slotId: 'x', setIndex: 0, kind: 'work', weight: w, reps: 8, doneAt: 0 });
     const sessions = [sess('a', 1), sess('b', 2), sess('c', 3), sess('d', 4)];
     const sets = [set('a', 'bench_press', 6000), set('b', 'bench_press', 6000), set('c', 'bench_press', 6900), set('d', 'bench_press', 6900)];

@@ -19,7 +19,7 @@ test('на демо-данных за 8 недель все графики от�
   await expect(page.getByRole('img', { name: /Средние калории по неделям/ })).toBeVisible();
   await page.getByRole('tab', { name: 'Режим' }).click();
   await expect(page.getByRole('img', { name: 'Тепловая карта дисциплины' })).toBeVisible();
-  await expect(page.getByText(/^\d+% тренировок$/)).toBeVisible();
+  await expect(page.getByText(/^\d+% тренировок/)).toBeVisible();
   await expect(page.getByText(/^лучшая — \d+$/)).toBeVisible();
 });
 
@@ -34,7 +34,7 @@ test('календарь тренировок: A/B по дням, бассейн
   await page.getByRole('button', { name: 'Календарь' }).click();
   await expect(page.getByRole('heading', { name: 'Январь 2027' })).toBeVisible();
   // «Сегодня» демо-данных — пн 4 января: зал по чередованию, дальше вт — бассейн.
-  await expect(page.getByRole('button', { name: /^Понедельник, 4 января: зал [AB] по плану/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Понедельник, 4 января: зал [ABC] по плану/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Вторник, 5 января: бассейн по плану/ })).toBeVisible();
   await page.getByRole('button', { name: 'Предыдущий месяц' }).click();
   await page.getByRole('button', { name: /^Среда, 30 декабря/ }).click();
@@ -59,19 +59,19 @@ test('правка дня в календаре и удаление ошибоч
   const day = page.getByRole('dialog', { name: 'Вторник, 5 января' });
   await day.getByRole('radio', { name: 'Зал' }).click();
   await expect(day.getByText('ПЛАН · ИЗМЕНЁН ВРУЧНУЮ')).toBeVisible();
-  await expect(day.getByText(/^Тренировка [AB]/)).toBeVisible();
+  await expect(day.getByText(/^Тренировка [ABC]/)).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: /^Вторник, 5 января: зал [AB] по плану/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Вторник, 5 января: зал [ABC] по плану/ })).toBeVisible();
   await page.keyboard.press('Escape');
 
   // История: тап по тренировке → подходы → удалить.
-  const first = page.getByRole('button', { name: /^\d+ \S+ · Тренировка [AB]/ }).first();
+  const first = page.getByRole('button', { name: /^\d+ \S+ · Тренировка [ABC]/ }).first();
   const title = (await first.textContent()) ?? '';
   await first.click();
-  const sheet = page.getByRole('dialog', { name: /^Тренировка [AB]$/ });
+  const sheet = page.getByRole('dialog', { name: /^Тренировка [ABC]$/ });
   await expect(sheet.getByText(/подходов/)).toBeVisible();
   await sheet.getByRole('button', { name: 'Удалить тренировку' }).click();
   await sheet.getByRole('button', { name: 'Да, удалить' }).click();
   await expect(sheet).toBeHidden();
-  await expect(page.getByRole('button', { name: /^\d+ \S+ · Тренировка [AB]/ }).first()).not.toHaveText(title);
+  await expect(page.getByRole('button', { name: /^\d+ \S+ · Тренировка [ABC]/ }).first()).not.toHaveText(title);
 });

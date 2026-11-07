@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { db } from '../db/db';
 import type { RestTimer } from '../db/repo';
 import type {
-  Adjustment, BodyEntry, ExerciseNote, Food, FoodLog, PoolSession, ProgramSlot, Recipe, SetLog, Settings, WorkoutSession,
+  Adjustment, BodyEntry, ExerciseNote, Food, FoodLog, LightWeek, PoolSession, ProgramSlot, Recipe, SetLog, Settings, WorkoutSession,
 } from '../db/types';
 import { prefetch, useLiveQuery } from '../db/useLiveQuery';
 
@@ -23,6 +23,7 @@ const Q = {
   recipes: () => db.recipes.toArray(),
   foodLog: () => db.foodLog.toArray(),
   exerciseNotes: () => db.exerciseNotes.toArray(),
+  lightWeeks: () => db.lightWeeks.orderBy('start').toArray(),
 };
 
 /** Прочитать все таблицы до первого экрана — экраны открываются сразу с данными. */
@@ -42,6 +43,7 @@ export const useFoods = (): Food[] => useLiveQuery(Q.foods, [], EMPTY, 'foods');
 export const useRecipes = (): Recipe[] => useLiveQuery(Q.recipes, [], EMPTY, 'recipes');
 export const useAllFoodLog = (): FoodLog[] => useLiveQuery(Q.foodLog, [], EMPTY, 'foodLog');
 export const useExerciseNotes = (): ExerciseNote[] => useLiveQuery(Q.exerciseNotes, [], EMPTY, 'exerciseNotes');
+export const useLightWeeks = (): LightWeek[] => useLiveQuery(Q.lightWeeks, [], EMPTY, 'lightWeeks');
 /** Дневник за день — из общего кэша дневника: при переключении дня нет пустого кадра. */
 export const useFoodLog = (date: string): FoodLog[] => {
   const all = useAllFoodLog();

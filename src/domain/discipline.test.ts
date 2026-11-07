@@ -8,7 +8,7 @@ describe('дисциплина', () => {
   const statuses = dayStatuses(
     plans,
     [{ date: '2026-11-09', ratio: 1 }, { date: '2026-11-11', ratio: 0.5 }],
-    [{ id: 'p', date: '2026-11-10', minutes: 30 }, { id: 'q', date: '2026-11-12', minutes: 15 }],
+    [{ id: 'p', date: '2026-11-10', type: 'technique', minutes: 30 }, { id: 'q', date: '2026-11-12', type: 'intervals', minutes: 15 }],
     '2026-11-16',
   );
   it('зал ≥ 80% подходов, бассейн ≥ 20 мин, иначе пропуск', () => {

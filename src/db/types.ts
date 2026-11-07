@@ -7,6 +7,16 @@ import type { Kg100 } from '../domain/format';
 export type { LocalDate, Kg100 };
 export type Id = string;
 
+// Программа v2 (SPEC 3, 7 ноября 2026): три тренировки по кругу, три блока упражнений.
+export type Workout = 'A' | 'B' | 'C';
+export type BlockN = 1 | 2 | 3;
+export type Section = 'main' | 'accessory';
+/** Тип дня для калорий (SPEC 3.1, 5.6). */
+export type DayType = 'gym' | 'pool' | 'rest';
+export type PoolType = 'technique' | 'intervals' | 'long';
+export type CardioMachine = 'treadmill' | 'elliptical' | 'bike';
+export type SaunaRounds = 0 | 1 | 2 | 3;
+
 export type Muscle =
   | 'chest' | 'front_delt' | 'side_delt' | 'rear_delt' | 'lats' | 'upper_back' | 'biceps'
   | 'triceps' | 'abs' | 'lower_back' | 'glutes' | 'quads' | 'hamstrings' | 'calves';
@@ -17,7 +27,10 @@ export interface Exercise {
   /** Короткое имя для чипов в режиме тренировки: «Жим лёжа». */
   short?: string;
   equipment: 'barbell' | 'dumbbell' | 'cable' | 'machine' | 'bodyweight';
-  unit: 'kg' | 'seconds' | 'reps';
+  /** assist_kg — противовес гравитрона: прогресс = уменьшение (SPEC 5.2 п. 8). */
+  unit: 'kg' | 'seconds' | 'reps' | 'assist_kg';
+  /** Шаг из каталога (SPEC 6.6): Kg100; для seconds/reps — секунды/повторы. */
+  defaultStep: Kg100 | number;
   perSide: boolean;
   muscles: { primary: Muscle[]; secondary: Muscle[] };
   /** Роль мышцы в упражнении, 2–4 слова: вторая строка выноски на карте мышц («главная работа»). */
@@ -28,20 +41,35 @@ export interface Exercise {
   videoQuery: string;
 }
 
+/** Одна строка = слот в одном блоке (SPEC 4). */
 export interface ProgramSlot {
   id: Id;
-  workout: 'A' | 'B';
+  workout: Workout;
+  /** 'A5a' — стабильный между блоками. */
+  code: string;
   order: number;
+  section: Section;
+  block: BlockN;
   exerciseId: string;
   altExerciseIds: string[];
   sets: number;
   repMin: number;
   repMax: number;
-  step: Kg100 | number;
-  rest: 'long' | 'short' | number;
-  supersetWith?: Id;
+  /** Не задан — exercise.defaultStep. */
+  step?: Kg100 | number;
+  /** 150 | 120 | 90 | 75 | 60 | 0. */
+  restSec: number;
+  /** code пары: 'A5b' для 'A5a'. */
+  supersetWith?: string;
   fromPhase?: 1 | 2 | 3;
   toPhase?: 1 | 2 | 3;
+}
+
+/** Блок — до конца своей разгрузки (SPEC 3.2). */
+export interface Block {
+  n: BlockN;
+  start: LocalDate;
+  end: LocalDate;
 }
 
 export interface Phase {
@@ -49,27 +77,41 @@ export interface Phase {
   name: string;
   start: LocalDate;
   end: LocalDate;
-  kcal: number;
+  /** Цели на день по типу дня (SPEC 3.1). */
+  kcal: Record<DayType, number>;
   protein: number;
   fat: number;
-  extraSetExerciseIds: string[];
+  /** 0, в фазе 3 — 1: +1 подход во всех слотах accessory. */
+  accessoryExtraSets: number;
+}
+
+/** Разгон: до `end` слоты `section` по `sets` подхода. */
+export interface RampUp {
+  end: LocalDate;
+  section: 'accessory';
+  sets: number;
 }
 
 export interface Deload {
   start: LocalDate;
   end: LocalDate;
-  setsFactor: number;
+  sets: number;
   weightFactor: number;
 }
 
 export interface WorkoutSession {
   id: Id;
   date: LocalDate;
-  workout: 'A' | 'B';
+  workout: Workout;
+  block: BlockN;
   startedAt: number;
   finishedAt?: number;
   isDeload: boolean;
   isCalibration: boolean;
+  /** Кардио после дополнительного блока (SPEC 3.5). */
+  cardio?: { machine: CardioMachine; minutes: number };
+  /** Заходы в сауну (SPEC 3.7). */
+  saunaRounds?: SaunaRounds;
   note?: string;
 }
 
@@ -89,9 +131,11 @@ export interface SetLog {
 export interface PoolSession {
   id: Id;
   date: LocalDate;
+  type: PoolType;
   minutes: number;
   meters?: number;
   feel?: 1 | 2 | 3 | 4 | 5;
+  saunaRounds?: SaunaRounds;
   note?: string;
 }
 
@@ -101,6 +145,16 @@ export interface BodyEntry {
   waist?: number;
   neck?: number;
   steps?: number;
+  /** Пульс в покое, удары в минуту, утром лёжа (SPEC 5.9). */
+  restingHr?: number;
+}
+
+/** Лёгкая неделя по пульсу (SPEC 5.9): слоты accessory по 2 подхода, субботний бассейн 30 мин спокойно. */
+export interface LightWeek {
+  id: Id;
+  start: LocalDate;
+  end: LocalDate;
+  reason: 'resting_hr';
 }
 
 /** Своя заметка к упражнению: «наклон скамьи 30°, сиденье 4». Одна на упражнение (схема v2). */
@@ -166,20 +220,22 @@ export interface Settings {
   startWeight: Kg100;
   targetWeight: Kg100;
   targetBodyFat: number;
-  restLong: number;
-  restShort: number;
   barWeight: Kg100;
+  /** Гриф EZ, Kg100 — для калькулятора блинов EZ-упражнений (SPEC 5.4). */
+  ezBarWeight: Kg100;
   /** Блины на одну сторону, Kg100: 2,5 кг → 250. */
   plates: Kg100[];
   sound: boolean;
   theme: Theme;
+  /** code слота → exerciseId замены; действует в блоке `substitutionsBlock`, при смене блока сбрасывается. */
   substitutions: Record<string, string>;
+  substitutionsBlock?: BlockN;
   lastBackupAt?: number;
   /** Калории фазы 3: выбор в начале фазы (SPEC 3.1). Не задано — дефицит, как в фазе 2. */
   phase3Mode?: 'maintenance' | 'deficit';
   /** Первый запуск пройден (SPEC 6.8). */
   onboarded?: boolean;
-  /** Расписание недели; не задано — пн/ср/пт зал, вт/чт бассейн, сб по желанию (SPEC 3.2). */
+  /** Расписание недели; не задано — пн/ср/пт зал, вт/чт/сб бассейн (SPEC 3.3). */
   schedule?: WeekSchedule;
   /** Правки плана на отдельные даты из календаря. */
   dayOverrides?: Record<LocalDate, DayOverride>;

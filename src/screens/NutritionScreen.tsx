@@ -13,7 +13,8 @@ import { addDays } from '../domain/dates';
 import { formatDayMonth, formatInt, NBSP } from '../domain/format';
 import { mealByHour } from '../domain/foodSearch';
 import { chickenGrams, dayTargets, dayTotals, logMacros, MEAL_NAMES, MEALS, type Meal } from '../domain/nutrition';
-import { useAdjustments, useAllFoodLog, useFoodLog, useFoods, useSettings } from '../hooks/useData';
+import { useAdjustments, useAllFoodLog, useFoodLog, useFoods, useLightWeeks, usePool, useSessions, useSettings } from '../hooks/useData';
+import { dayTypeFor, planOptionsOf } from '../domain/program';
 import { useToday } from '../hooks/useToday';
 import { AddFoodSheet, EditEntrySheet, type AddMode } from './nutrition/FoodSheets';
 
@@ -26,8 +27,11 @@ export function NutritionScreen() {
   const allLogs = useAllFoodLog();
   const foods = useFoods();
   const adjustments = useAdjustments();
+  const sessions = useSessions();
+  const pool = usePool();
+  const lightWeeks = useLightWeeks();
   const map = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods]);
-  const t = dayTargets(date, adjustments, settings);
+  const t = dayTargets(date, adjustments, settings, dayTypeFor(date, sessions, pool, planOptionsOf(settings, lightWeeks)));
   const { total, byMeal } = dayTotals(logs, map);
   const [add, setAdd] = useState<{ meal: Meal; mode: AddMode } | null>(null);
   const [edit, setEdit] = useState<FoodLog | null>(null);

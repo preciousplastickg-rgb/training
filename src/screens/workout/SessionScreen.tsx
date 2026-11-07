@@ -1,7 +1,7 @@
 // Режим тренировки — SPEC 6.2, макеты BActive / BRest / BSummary (REDESIGN 4).
 // Тёмная палитра независимо от темы, один подход на экране, зоны нажатия ≥ 56 px.
 
-import { ArrowDown, ArrowUp, Check, ChevronDown, Equal, Info, Minus, Plus, StickyNote, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, Equal, Flame, Info, Minus, Plus, StickyNote, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { navigate } from '../../app/router';
 import { beep, unlockAudio } from '../../app/sound';
@@ -11,23 +11,33 @@ import { Button, Caps } from '../../components/ui';
 import { db, updateSettings } from '../../db/db';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import {
-  deleteSet, discardSession, extendRest, finishSession, logSet, startRest, stopRest, updateSet, type RestTimer,
+  deleteSet, discardSession, extendRest, finishSession, logSet, startRest, stopRest, updateSession, updateSet, type RestTimer,
 } from '../../db/repo';
-import type { Exercise, Kg100, ProgramSlot, SetLog, Settings, WorkoutSession } from '../../db/types';
+import type { CardioMachine, Exercise, Kg100, ProgramSlot, SaunaRounds, SetLog, Settings, WorkoutSession } from '../../db/types';
 import { formatInt, formatKg, formatScaled, formatWeekdayDate, NBSP, pluralRu } from '../../domain/format';
 import { lastSessionSets, recentVolumes, suggestionFor } from '../../domain/history';
-import { REST_SUPERSET, supersetRole, workoutPlan, type PlannedExercise } from '../../domain/program';
+import { isFirstInBlock, supersetRole, workoutPlan, type PlannedExercise } from '../../domain/program';
 import { MANUAL_TEXT, type Suggestion } from '../../domain/progression';
 import { sessionRecords, volume, type RecordHit } from '../../domain/records';
 import { nextGym } from '../../domain/week';
-import { adjacentWeight, platesPerSide, warmupSets } from '../../domain/weights';
+import { adjacentWeight, barWeightFor, platesPerSide, warmupSets } from '../../domain/weights';
 import { getExercise } from '../../data/exercises';
-import { useActiveSession, useAllSets, useExerciseNotes, useRestTimer, useSessions, useSessionSets, useSettings, useSlots } from '../../hooks/useData';
+import {
+  CARDIO_BY_WORKOUT, CARDIO_HINTS, CARDIO_MINUTES, CARDIO_NAMES, NEW_BLOCK_BANNER, SAUNA_HINT, WARMUP_CHECKLIST, WARMUP_MINUTES,
+} from '../../data/program';
+import { useActiveSession, useAllSets, useExerciseNotes, useKv, useLightWeeks, useRestTimer, useSessions, useSessionSets, useSettings, useSlots } from '../../hooks/useData';
+import { kvDel, kvSet } from '../../db/repo';
 import { useNow } from '../../hooks/useNow';
 import { useWakeLock } from '../../hooks/useWakeLock';
 
-const defaultWeight = (ex: Exercise, settings: Settings): Kg100 =>
-  ex.equipment === 'barbell' ? settings.barWeight : ex.equipment === 'dumbbell' ? 1000 : ex.equipment === 'cable' ? 2000 : ex.equipment === 'machine' ? 4000 : 0;
+const defaultWeight = (ex: Exercise, settings: Settings): Kg100 => {
+  if (ex.unit === 'assist_kg') return 3000;
+  if (ex.equipment === 'barbell') return barWeightFor(ex, settings) ?? settings.barWeight;
+  return ex.equipment === 'dumbbell' ? 1000 : ex.equipment === 'cable' ? 2000 : ex.equipment === 'machine' ? 4000 : 0;
+};
+
+/** Шаги тренировки: разминка-чеклист, упражнения, кардио (SPEC 6.2). Индекс упражнения — его место в плане. */
+type Step = { kind: 'warmup' } | { kind: 'exercise'; index: number } | { kind: 'cardio' };
 
 const fmtClock = (sec: number) => {
   const s = Math.max(0, Math.round(sec));
@@ -39,9 +49,12 @@ const fmtClock = (sec: number) => {
 
 function valueText(ex: Exercise, weight: Kg100, reps: number): string {
   if (ex.unit === 'seconds') return `${reps}${NBSP}с`;
+  if (ex.unit === 'assist_kg') return `−${formatKg(weight, false)} × ${reps}`;
   if (ex.unit === 'reps' || weight === 0) return `${reps} повт.`;
   return `${formatKg(weight, false)} × ${reps}`;
 }
+
+const SECTION_TITLES = { main: 'Основной блок', accessory: 'Дополнительный блок' } as const;
 
 export function SessionScreen() {
   const active = useActiveSession();
@@ -70,12 +83,13 @@ function ActiveWorkout({ session, onFinished }: { session: WorkoutSession; onFin
   const allSets = useLiveQuery(() => db.sets.toArray(), []);
   const settings = useSettings();
   const slots = useLiveQuery(() => db.slots.toArray(), []);
+  const lightWeeks = useLightWeeks();
   if (!sessions || !allSets || !settings || !slots) return <div className="min-h-full bg-bg" />;
-  return <ActiveWorkoutView session={session} onFinished={onFinished} sessions={sessions} allSets={allSets} settings={settings} slots={slots} />;
+  return <ActiveWorkoutView session={session} onFinished={onFinished} sessions={sessions} allSets={allSets} settings={settings} slots={slots} lightWeeks={lightWeeks} />;
 }
 
 function ActiveWorkoutView({
-  session, onFinished, sessions, allSets, settings, slots,
+  session, onFinished, sessions, allSets, settings, slots, lightWeeks,
 }: {
   session: WorkoutSession;
   onFinished: (id: string) => void;
@@ -83,6 +97,7 @@ function ActiveWorkoutView({
   allSets: SetLog[];
   settings: Settings;
   slots: ProgramSlot[];
+  lightWeeks: ReturnType<typeof useLightWeeks>;
 }) {
   const sessionSets = useSessionSets(session.id);
   const timer = useRestTimer();
@@ -90,13 +105,19 @@ function ActiveWorkoutView({
   const notes = useExerciseNotes();
   useWakeLock(true);
 
-  const plan = useMemo(() => workoutPlan(session.workout, session.date, slots, settings), [session, slots, settings]);
+  const plan = useMemo(() => workoutPlan(session.workout, session.date, slots, settings, { lightWeeks }), [session, slots, settings, lightWeeks]);
   const workDone = (exId: string) => sessionSets.filter((s) => s.exerciseId === exId && s.kind === 'work');
   const remaining = (p: PlannedExercise) => Math.max(0, p.sets - workDone(p.exercise.id).length);
   const firstOpen = plan.findIndex((p) => remaining(p) > 0);
-  const [idx, setIdx] = useState<number | null>(null);
-  const current = idx ?? (firstOpen >= 0 ? firstOpen : 0);
-  const p = plan[current];
+  // Чек-лист разминки (SPEC 3.5) — первый шаг, пока не отмечен; пробная тренировка без него.
+  const warmupKey = `warmup:${session.id}`;
+  const warmupDone = useKv<boolean>(warmupKey) === true || session.isCalibration;
+  const [step, setStep] = useState<Step | null>(null);
+  const current: Step = step ?? (!warmupDone ? { kind: 'warmup' } : firstOpen >= 0 ? { kind: 'exercise', index: firstOpen } : session.cardio ? { kind: 'exercise', index: 0 } : { kind: 'cardio' });
+  const exIndex = current.kind === 'exercise' ? current.index : -1;
+  const setIdx = (i: number) => setStep({ kind: 'exercise', index: i });
+  const p = exIndex >= 0 ? plan[exIndex] : undefined;
+  const firstInBlock = isFirstInBlock(session.date, sessions) && !session.isCalibration;
 
   const totalPlanned = plan.reduce((a, x) => a + x.sets, 0);
   const totalDone = plan.reduce((a, x) => a + Math.min(x.sets, workDone(x.exercise.id).length), 0);
@@ -108,9 +129,10 @@ function ActiveWorkoutView({
     plan.map((x) => [x.exercise.id, suggestionFor(x, allSets, sessions, { sessionId: session.id, isDeload: session.isDeload, isCalibration: session.isCalibration })]),
   );
 
-  const firstLongIdx = plan.findIndex((x) => x.slot.rest === 'long');
+  // Разминочные подходы: первое упражнение тренировки и базовые со штангой (SPEC 5.3).
+  const withWarmupSets = (i: number) => i === 0 || (plan[i]!.section === 'main' && plan[i]!.exercise.equipment === 'barbell');
 
-  /** После подхода: отдых и/или переход к следующему упражнению. */
+  /** После подхода: отдых и/или переход к следующему упражнению. Суперсет: после `a` сразу `b`, отдых — после `b` (SPEC 3.4). */
   const afterSet = async (i: number) => {
     const cur = plan[i]!;
     const role = supersetRole(plan, i);
@@ -119,21 +141,23 @@ function ActiveWorkoutView({
     let next = i;
     let rest = cur.restSeconds;
     if (role === 'lead') {
-      const partner = plan.findIndex((x) => x.slot.id === cur.slot.supersetWith);
+      const partner = plan.findIndex((x) => x.slot.code === cur.slot.supersetWith);
       if (partner >= 0 && remaining(plan[partner]!) > 0) {
         next = partner;
         rest = 0;
+      } else if (leftHere <= 0) {
+        next = nextOpen(i);
       }
     } else if (role === 'follow') {
-      const lead = plan.findIndex((x) => x.slot.id === cur.slot.supersetWith);
-      rest = REST_SUPERSET;
+      const lead = plan.findIndex((x) => x.slot.code === cur.slot.supersetWith);
       if (lead >= 0 && remaining(plan[lead]!) > 0) next = lead;
       else if (leftHere <= 0) next = nextOpen(i);
     } else if (leftHere <= 0) {
       next = nextOpen(i);
     }
-    if (next !== i) setIdx(next);
     const anyLeft = plan.some((x, j) => (j === i ? leftHere > 0 : remaining(x) > 0));
+    if (next !== i) setIdx(next);
+    else if (!anyLeft) setStep({ kind: 'cardio' });
     if (rest > 0 && anyLeft) await startRest(session.id, rest);
   };
 
@@ -158,12 +182,16 @@ function ActiveWorkoutView({
   const currentIdx = p ? firstOpenIndex(p.sets, workHere) : 0;
   // Своя заметка («стойки на 4») — третьей строкой шапки: карточка подхода и так впритык к высоте экрана.
   const note = p ? notes.find((n) => n.exerciseId === p.exercise.id) : undefined;
+  const headerLine =
+    current.kind === 'warmup' ? `Разминка · ${fmtClock(elapsed)}` : current.kind === 'cardio' ? `Кардио · ${fmtClock(elapsed)}` : `Упражнение ${exIndex + 1} из ${plan.length} · ${fmtClock(elapsed)}`;
+  const headerTitle =
+    current.kind === 'warmup' ? `${WARMUP_MINUTES} минут перед залом` : current.kind === 'cardio' ? CARDIO_NAMES[CARDIO_BY_WORKOUT[session.workout]] : p ? (p.exercise.short ?? p.exercise.name) : `Тренировка ${session.workout}`;
 
   // Новый подход, отдых или другое упражнение — всегда с начала экрана.
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [current, resting, doneHere]);
+  }, [exIndex, current.kind, resting, doneHere]);
 
   return (
     <div ref={scrollRef} className="flex h-full flex-col overflow-y-auto bg-bg text-ink">
@@ -172,11 +200,11 @@ function ActiveWorkoutView({
           <div className="min-w-0 flex-1">
             {/* 18 + 22 + 16 px — три строки с заметкой ровно в высоту кнопок 56: шапка не растёт, подход помещается на экран. */}
             <p className="truncate text-[13px] leading-[18px] whitespace-nowrap text-muted tabular-nums">
-              Упражнение {current + 1} из {plan.length} · {fmtClock(elapsed)}
+              {headerLine}
               {mode}
             </p>
-            <h1 className="truncate text-[17px] leading-[22px] font-extrabold">{p ? (p.exercise.short ?? p.exercise.name) : `Тренировка ${session.workout}`}</h1>
-            {note && (
+            <h1 className="truncate text-[17px] leading-[22px] font-extrabold">{headerTitle}</h1>
+            {p && note && (
               <p className="truncate text-[12px] leading-4 font-semibold text-primary">
                 <StickyNote size={12} strokeWidth={2.4} className="mr-1 inline align-[-1px]" aria-hidden />
                 {note.text}
@@ -204,13 +232,31 @@ function ActiveWorkoutView({
         {p && <SetTracker ex={p.exercise} total={p.sets} work={workHere} current={currentIdx} resting={resting} onUndo={(id) => void deleteSet(id)} />}
       </header>
 
+      {firstInBlock && current.kind !== 'cardio' && (
+        <p className="mx-4 mt-3 rounded-2xl bg-primary px-4 py-2.5 text-[13px] leading-[18px] font-bold text-on-primary" role="note">
+          {NEW_BLOCK_BANNER}
+        </p>
+      )}
+
+      {current.kind === 'warmup' && (
+        <WarmupChecklist onDone={() => void kvSet(warmupKey, true).then(() => setStep(firstOpen >= 0 ? { kind: 'exercise', index: firstOpen } : { kind: 'cardio' }))} />
+      )}
+
+      {current.kind === 'cardio' && (
+        <CardioStep
+          session={session}
+          onDone={(cardio) => void (cardio ? updateSession(session.id, { cardio }) : Promise.resolve()).then(() => setConfirm(true))}
+          onBack={() => setIdx(Math.max(0, firstOpen))}
+        />
+      )}
+
       {p &&
         (resting ? (
           <RestScreen
             timer={timer}
             now={now}
             sound={settings.sound}
-            next={nextSetText(plan, current, sessionSets, suggestions)}
+            next={nextSetText(plan, exIndex, sessionSets, suggestions)}
             lastSet={[...sessionSets].filter((s) => s.kind === 'work').sort((a, b) => b.doneAt - a.doneAt)[0]}
           />
         ) : (
@@ -222,9 +268,9 @@ function ActiveWorkoutView({
             session={session}
             logged={sessionSets.filter((s) => s.exerciseId === p.exercise.id)}
             last={lastSessionSets(p.exercise.id, allSets, sessions, session.id)}
-            withWarmup={current === firstLongIdx && !session.isCalibration}
+            withWarmup={withWarmupSets(exIndex) && !session.isCalibration}
             onInfo={() => setInfo(p.exercise.id)}
-            onLogged={() => afterSet(current)}
+            onLogged={() => afterSet(exIndex)}
           />
         ))}
 
@@ -235,20 +281,25 @@ function ActiveWorkoutView({
           {plan.map((x, i) => {
             const d = Math.min(x.sets, workDone(x.exercise.id).length);
             const done = d >= x.sets;
+            const sectionStart = i === 0 || plan[i - 1]!.section !== x.section;
             return (
               <li key={x.slot.id} className="border-t border-line first:border-t-0">
+                {sectionStart && <Caps className="pt-3 pb-1">{SECTION_TITLES[x.section]}</Caps>}
                 <button
                   type="button"
                   onClick={() => {
                     setIdx(i);
                     setList(false);
                   }}
-                  aria-current={i === current ? 'step' : undefined}
+                  aria-current={i === exIndex ? 'step' : undefined}
                   aria-label={`${i + 1}. ${x.exercise.name}${done ? ', сделано' : ''}`}
                   className="flex min-h-14 w-full items-center gap-3 text-left active:opacity-70"
                 >
                   <span className={`font-display w-[22px] text-[13px] font-semibold tabular-nums ${done ? 'text-muted' : 'text-primary'}`}>{String(i + 1).padStart(2, '0')}</span>
-                  <span className={`flex-1 text-[15px] ${i === current ? 'font-extrabold' : 'font-semibold'} ${done ? 'text-muted' : ''}`}>{x.exercise.name}</span>
+                  <span className={`flex-1 text-[15px] ${i === exIndex ? 'font-extrabold' : 'font-semibold'} ${done ? 'text-muted' : ''}`}>
+                    {x.exercise.name}
+                    {x.slot.supersetWith ? <span className="text-[13px] font-semibold text-muted"> · суперсет</span> : null}
+                  </span>
                   {done ? (
                     <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-on-primary">
                       <Check size={16} strokeWidth={3} aria-hidden />
@@ -262,6 +313,22 @@ function ActiveWorkoutView({
               </li>
             );
           })}
+          <li className="border-t border-line">
+            <Caps className="pt-3 pb-1">Кардио</Caps>
+            <button
+              type="button"
+              onClick={() => {
+                setStep({ kind: 'cardio' });
+                setList(false);
+              }}
+              aria-current={current.kind === 'cardio' ? 'step' : undefined}
+              className="flex min-h-14 w-full items-center gap-3 text-left active:opacity-70"
+            >
+              <span className="flex w-[22px] justify-center text-primary"><Flame size={16} aria-hidden /></span>
+              <span className={`flex-1 text-[15px] ${current.kind === 'cardio' ? 'font-extrabold' : 'font-semibold'}`}>{CARDIO_NAMES[CARDIO_BY_WORKOUT[session.workout]]}</span>
+              <span className="text-[13px] text-muted tabular-nums">{session.cardio ? `${session.cardio.minutes} мин` : `${CARDIO_MINUTES} мин`}</span>
+            </button>
+          </li>
         </ol>
       </Sheet>
 
@@ -269,7 +336,9 @@ function ActiveWorkoutView({
         <div className="theme-dark flex flex-col gap-2 rounded-2xl p-2">
           <p className="px-2 pb-2 text-muted">
             Сделано {totalDone} из {totalPlanned} подходов.{totalDone < totalPlanned ? ' Незаписанные подходы не попадут в историю.' : ''}
+            {session.cardio ? ` Кардио ${session.cardio.minutes} мин.` : ' Кардио не записано.'}
           </p>
+          <SaunaPicker value={session.saunaRounds} onChange={(v) => void updateSession(session.id, { saunaRounds: v })} />
           <Button size="lg" onClick={() => void finish()} disabled={totalDone === 0}>
             <Check size={20} aria-hidden /> Завершить и показать итог
           </Button>
@@ -293,7 +362,8 @@ function ActiveWorkoutView({
 }
 
 function nextSetText(plan: PlannedExercise[], current: number, sets: SetLog[], sug: Map<string, Suggestion>): { label: string; value: string } {
-  const p = plan[current]!;
+  const p = plan[current];
+  if (!p) return { label: 'Дальше', value: 'кардио' };
   const done = sets.filter((s) => s.exerciseId === p.exercise.id && s.kind === 'work');
   if (done.length >= p.sets) return { label: 'Дальше', value: 'следующее упражнение' };
   const s = sug.get(p.exercise.id);
@@ -397,10 +467,11 @@ function SetScreen({
   onLogged: () => void;
 }) {
   const ex = p.exercise;
-  const eq = ex.equipment;
+  const eq = ex;
   const work = logged.filter((s) => s.kind === 'work').sort((a, b) => a.setIndex - b.setIndex);
   const warm = logged.filter((s) => s.kind === 'warmup');
-  const isKg = ex.unit === 'kg';
+  const isAssist = ex.unit === 'assist_kg';
+  const isKg = ex.unit === 'kg' || isAssist;
   const i = firstOpenIndex(p.sets, work);
   const n = i + 1;
   const allDone = work.length >= p.sets;
@@ -431,15 +502,18 @@ function SetScreen({
     }
   };
 
-  const swap = async () => {
-    const subs = { ...settings.substitutions };
-    if (isSub) delete subs[p.slot.exerciseId];
-    else if (alt) subs[p.slot.exerciseId] = alt;
-    await updateSettings({ substitutions: subs });
+  // Замена — по code слота и только в текущем блоке (SPEC 3.4).
+  const swap = async (to?: string) => {
+    const subs = settings.substitutionsBlock === p.slot.block ? { ...settings.substitutions } : {};
+    const target = to ?? alt;
+    if (isSub && !to) delete subs[p.slot.code];
+    else if (target) subs[p.slot.code] = target;
+    await updateSettings({ substitutions: subs, substitutionsBlock: p.slot.block });
   };
 
-  const plates = eq === 'barbell' ? platesPerSide(weight, settings.barWeight, settings.plates) : null;
-  const warmups = withWarmup && isKg ? warmupSets(eq, weight, settings.barWeight) : [];
+  const barWeight = barWeightFor(ex, settings);
+  const plates = barWeight !== null && !isAssist ? platesPerSide(weight, barWeight, settings.plates) : null;
+  const warmups = withWarmup && ex.unit === 'kg' ? warmupSets(eq, weight, barWeight ?? settings.barWeight) : [];
   // Разминка — одной строкой и одним тапом: все подходы сразу (или все отменить).
   const warmDone = warmups.length > 0 && warmups.every((_, k) => warm.some((s) => s.setIndex === k));
   const toggleWarmup = async () => {
@@ -456,7 +530,7 @@ function SetScreen({
   const unitLabel = ex.unit === 'seconds' ? 'с' : 'повт.';
   const repsLabel = ex.unit === 'seconds' ? 'Секунды' : 'Повторы';
   const step = isKg ? `±${formatKg(adjacentWeight(eq, weight, 1) - weight, false)}` : '';
-  const weightText = formatKg(weight, false);
+  const weightText = isAssist ? `−${formatKg(weight, false)}` : formatKg(weight, false);
   const weightSize = weightText.length <= 2 ? 'text-[88px] leading-[96px]' : weightText.length <= 4 ? 'text-[64px] leading-[80px]' : 'text-[52px] leading-[64px]';
 
   // Строка прогрессии: значок по режиму, текст — вес и причина.
@@ -464,18 +538,19 @@ function SetScreen({
     const reason = session.isCalibration ? MANUAL_TEXT : suggestion.reason;
     if (suggestion.mode === 'progress') return { icon: <ArrowUp size={16} strokeWidth={3} aria-hidden />, cls: 'bg-primary text-on-primary', text: reason };
     if (suggestion.mode === 'stall' || suggestion.mode === 'deload') return { icon: <ArrowDown size={16} strokeWidth={3} aria-hidden />, cls: 'bg-warn text-on-primary', text: reason };
-    if (suggestion.mode === 'manual') return { icon: <Info size={16} strokeWidth={2.6} aria-hidden />, cls: 'bg-surface-2 text-ink', text: reason };
+    if (suggestion.mode === 'manual' || suggestion.mode === 'switch') return { icon: <Info size={16} strokeWidth={2.6} aria-hidden />, cls: 'bg-surface-2 text-ink', text: reason };
     return { icon: <Equal size={16} strokeWidth={3} aria-hidden />, cls: 'bg-surface-2 text-ink', text: reason };
   })();
-  const range = `${p.sets} × ${p.slot.repMin}–${p.slot.repMax}${ex.unit === 'seconds' ? ' с' : ''}${ex.perSide ? (ex.id === 'db_row' ? ' на руку' : ' на ногу') : ''}`;
+  const range = `${p.sets} × ${p.slot.repMin}–${p.slot.repMax}${ex.unit === 'seconds' ? ' с' : ''}${perSideLabel(ex)}`;
   const swapLabel = isSub ? 'Вернуть' : alt ? 'Заменить' : null;
+  const switchTo = suggestion.mode === 'switch' && suggestion.switchTo && p.slot.altExerciseIds.includes(suggestion.switchTo) ? suggestion.switchTo : null;
 
   return (
     <div className="flex flex-1 shrink-0 flex-col">
       <div className="mt-5 flex flex-col items-center gap-1">
         <Caps className="text-primary!">
           {allDone ? 'Все подходы сделаны' : `Подход ${n} из ${p.sets}`}
-          {p.slot.supersetWith ? ' · суперсет' : ''}
+          {p.slot.supersetWith ? ` · суперсет ${p.slot.code}` : ''}
         </Caps>
         {isKg && (
           <div className="mt-3 flex items-center gap-[18px]">
@@ -484,7 +559,7 @@ function SetScreen({
             </Round>
             <div className="flex w-[170px] items-baseline justify-center gap-1.5" aria-label={`Вес, подход ${n}`}>
               <span className={`font-display text-huge font-bold tabular-nums ${weightSize}`}>{weightText}</span>
-              <span className="text-xl font-bold text-muted">кг</span>
+              <span className="text-xl font-bold text-muted">{isAssist ? 'кг противовес' : 'кг'}</span>
             </div>
             <Round label={`Вес, подход ${n}: больше`} size={64} onClick={() => setWeight(adjacentWeight(eq, weight, 1))}>
               <Plus size={26} strokeWidth={2.6} aria-hidden />
@@ -515,20 +590,25 @@ function SetScreen({
         <Row>
           <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${hint.cls}`}>{hint.icon}</span>
           <span className="flex-1 py-2">
-            {isKg && suggestion.weight !== null ? (
+            {isKg && suggestion.weight !== null && suggestion.mode !== 'switch' ? (
               <>
-                <b>{formatKg(suggestion.weight)}</b> — {hint.text.replace(/^./, (c) => c.toLowerCase())}
+                <b>{isAssist ? `−${formatKg(suggestion.weight)}` : formatKg(suggestion.weight)}</b> — {hint.text.replace(/^./, (c) => c.toLowerCase())}
               </>
             ) : (
               hint.text
             )}
           </span>
+          {switchTo && (
+            <button type="button" onClick={() => void swap(switchTo)} className="h-11 shrink-0 rounded-full bg-primary px-3.5 text-sm font-extrabold text-on-primary active:scale-95">
+              Переключить
+            </button>
+          )}
         </Row>
-        {plates && (
+        {plates && barWeight !== null && (
           <Row>
             <span className="flex-1 text-muted">На сторону</span>
             <span className="font-extrabold tabular-nums">
-              {plates.perSide.length ? plates.perSide.map((x) => formatKg(x, false)).join(' + ') : 'только гриф'} · гриф {formatKg(settings.barWeight, false)}
+              {plates.perSide.length ? plates.perSide.map((x) => formatKg(x, false)).join(' + ') : 'только гриф'} · гриф {formatKg(barWeight, false)}
               {plates.remainder > 0 && <span className="text-muted"> · не хватает {formatKg(plates.remainder)}</span>}
             </span>
           </Row>
@@ -551,7 +631,7 @@ function SetScreen({
           <Row>
             <span className="flex-1 text-muted">Прошлый раз</span>
             <span className="font-extrabold tabular-nums">
-              {last.sets[0] && isKg ? `${formatKg(last.sets[0].weight, false)} × ` : ''}
+              {last.sets[0] && isKg ? `${isAssist ? '−' : ''}${formatKg(last.sets[0].weight, false)} × ` : ''}
               {last.sets.map((s) => s.reps).join(' / ')}
               {ex.unit === 'seconds' ? ' с' : ''}
             </span>
@@ -695,8 +775,9 @@ function Summary({ session, sessions }: { session: WorkoutSession; sessions: Wor
   const maxVol = Math.max(1, ...bars.map((b) => b.volume));
   const minutes = Math.round(((session.finishedAt ?? Date.now()) - session.startedAt) / 60000);
   const workCount = mine.filter((s) => s.kind === 'work').length;
-  const planned = settings ? workoutPlan(session.workout, session.date, slots, settings).reduce((a, p) => a + p.sets, 0) : 0;
-  const next = settings ? nextGym(session.date, sessions, settings) : null;
+  const lightWeeks = useLightWeeks();
+  const planned = settings ? workoutPlan(session.workout, session.date, slots, settings, { lightWeeks }).reduce((a, p) => a + p.sets, 0) : 0;
+  const next = settings ? nextGym(session.date, sessions, settings, lightWeeks) : null;
   const badge = records.length ? `Готово · ${records.length} ${pluralRu(records.length, 'рекорд', 'рекорда', 'рекордов')}` : 'Готово';
 
   return (
@@ -714,6 +795,18 @@ function Summary({ session, sessions }: { session: WorkoutSession; sessions: Wor
       <div className="mx-4 mt-6 grid grid-cols-2 gap-2.5">
         <Stat label="Время" value={String(minutes)} unit=" мин" />
         <Stat label="Подходы" value={String(workCount)} unit={planned ? ` / ${planned}` : ''} />
+        <div className="flex flex-col gap-1 rounded-3xl bg-surface px-[18px] py-4">
+          <Caps>Кардио</Caps>
+          <span className="font-display text-[30px] leading-9 font-bold tabular-nums">
+            {session.cardio ? session.cardio.minutes : '—'}
+            {session.cardio && <span className="font-sans text-[15px] font-bold text-muted"> мин</span>}
+          </span>
+          <span className="text-[13px] text-muted">{session.cardio ? CARDIO_NAMES[session.cardio.machine].toLowerCase() : 'не записано'}</span>
+        </div>
+        <div className="flex flex-col gap-2 rounded-3xl bg-surface px-[18px] py-4">
+          <Caps>Сауна</Caps>
+          <SaunaPicker value={session.saunaRounds} compact onChange={(v) => void updateSession(session.id, { saunaRounds: v })} />
+        </div>
         <div className="col-span-2 flex flex-col gap-3 rounded-3xl bg-surface px-[18px] py-4">
           <div className="flex items-end justify-between">
             <div className="flex flex-col gap-1">
@@ -792,4 +885,157 @@ function Stat({ label, value, unit }: { label: string; value: string; unit: stri
       </span>
     </div>
   );
+}
+
+// ---------- Разминка (чек-лист), кардио и сауна (SPEC 3.5, 3.7) ----------
+
+/** Разминка 10 минут — пункт чек-листа в начале тренировки: отметил всё → первое упражнение. */
+function WarmupChecklist({ onDone }: { onDone: () => void }) {
+  const [done, setDone] = useState<boolean[]>(() => WARMUP_CHECKLIST.map(() => false));
+  const all = done.every(Boolean);
+  return (
+    <div className="flex flex-1 shrink-0 flex-col">
+      <div className="mt-5 flex flex-col items-center gap-1 px-4 text-center">
+        <Caps className="text-primary!">Разминка</Caps>
+        <p className="font-display text-[26px] leading-8 font-bold">{WARMUP_MINUTES} минут</p>
+        <p className="text-[13px] text-muted">Разогрев перед первым подходом</p>
+      </div>
+      <ul className="mx-4 mt-4 rounded-3xl bg-surface px-[18px] py-1" aria-label="Разминка">
+        {WARMUP_CHECKLIST.map((item, i) => (
+          <li key={item} className="border-t border-line first:border-t-0">
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={done[i]}
+              onClick={() => setDone((d) => d.map((v, k) => (k === i ? !v : v)))}
+              className="flex min-h-14 w-full items-center gap-3 text-left active:opacity-70"
+            >
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${done[i] ? 'bg-primary text-on-primary' : 'bg-surface-2 text-muted'}`}>
+                <Check size={18} strokeWidth={3} aria-hidden />
+              </span>
+              <span className={`flex-1 text-[15px] ${done[i] ? 'font-semibold text-muted line-through' : 'font-semibold'}`}>{item}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-auto flex flex-col gap-2.5 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <button
+          type="button"
+          onClick={onDone}
+          className={`flex h-[72px] w-full items-center justify-center gap-3 rounded-full text-[19px] font-extrabold active:scale-[0.98] ${all ? 'bg-primary text-on-primary' : 'bg-surface text-ink'}`}
+        >
+          <Check size={24} strokeWidth={3} aria-hidden /> {all ? 'Разминка сделана' : 'Пропустить разминку'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const MACHINES: CardioMachine[] = ['treadmill', 'elliptical', 'bike'];
+
+/** Кардио после дополнительного блока: таймер 15 мин от сохранённого старта, тренажёр подставлен по тренировке (SPEC 6.2). */
+function CardioStep({ session, onDone, onBack }: { session: WorkoutSession; onDone: (cardio: WorkoutSession['cardio'] | null) => void; onBack: () => void }) {
+  const key = `cardio:${session.id}`;
+  const started = useKv<{ startedAt: number; machine: CardioMachine }>(key);
+  const now = useNow(1000);
+  const [machine, setMachine] = useState<CardioMachine>(session.cardio?.machine ?? started?.machine ?? CARDIO_BY_WORKOUT[session.workout]);
+  const total = CARDIO_MINUTES * 60;
+  const elapsed = started ? Math.max(0, (now - started.startedAt) / 1000) : 0;
+  const left = Math.max(0, total - elapsed);
+  const finished = !!started && left <= 0;
+  const size = 300;
+  const stroke = 18;
+  const r = size / 2 - stroke / 2;
+  const c = 2 * Math.PI * r;
+  const frac = Math.min(1, elapsed / total);
+  const done = async () => {
+    const minutes = Math.max(1, Math.round(elapsed / 60));
+    await kvDel(key);
+    onDone({ machine, minutes });
+  };
+  return (
+    <div className="flex flex-1 shrink-0 flex-col" role="region" aria-label="Кардио">
+      <div className="mx-4 mt-3 flex gap-2" role="radiogroup" aria-label="Тренажёр">
+        {MACHINES.map((m) => (
+          <button
+            key={m}
+            type="button"
+            role="radio"
+            aria-checked={machine === m}
+            disabled={!!started}
+            onClick={() => setMachine(m)}
+            className={`h-11 min-w-0 flex-1 truncate rounded-full px-2 text-[13px] font-bold disabled:opacity-60 ${machine === m ? 'bg-primary text-on-primary' : 'bg-surface text-ink'}`}
+          >
+            {CARDIO_NAMES[m]}
+          </button>
+        ))}
+      </div>
+      <div className="relative mx-auto mt-4" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90" aria-hidden>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-2)" strokeWidth={stroke} />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--energy)" strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - frac)} />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+          <Caps className="tracking-[.1em]">{finished ? 'Кардио сделано' : started ? 'Кардио' : 'Кардио · 15 мин'}</Caps>
+          <span role="timer" aria-label={`Осталось ${fmtClock(left)}`} className="font-display text-huge text-[72px] leading-[80px] font-bold tabular-nums">
+            {fmtClock(started ? left : total)}
+          </span>
+          <span className="px-6 text-center text-[13px] text-muted">{CARDIO_HINTS[machine]}</span>
+        </div>
+      </div>
+      <div className="mt-auto flex flex-col gap-2.5 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className="flex gap-2.5">
+          <button type="button" onClick={onBack} className="h-14 flex-1 rounded-full bg-surface text-[15px] font-bold active:scale-[0.98]">
+            К упражнениям
+          </button>
+          <button type="button" onClick={() => void kvDel(key).then(() => onDone(null))} className="h-14 flex-1 rounded-full bg-surface text-[15px] font-bold active:scale-[0.98]">
+            Без кардио
+          </button>
+        </div>
+        {started ? (
+          <button type="button" onClick={() => void done()} className="flex h-[72px] w-full items-center justify-center gap-3 rounded-full bg-primary text-[19px] font-extrabold text-on-primary active:scale-[0.98]">
+            <Check size={24} strokeWidth={3} aria-hidden /> {finished ? 'Готово' : 'Закончить раньше'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void kvSet(key, { startedAt: Date.now(), machine })}
+            className="flex h-[72px] w-full items-center justify-center gap-3 rounded-full bg-primary text-[19px] font-extrabold text-on-primary active:scale-[0.98]"
+          >
+            <Flame size={24} aria-hidden /> Начать кардио
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** «Сауна: 0 / 1 / 2 / 3 захода» — в итоге тренировки (SPEC 3.7). */
+function SaunaPicker({ value, onChange, compact = false }: { value: SaunaRounds | undefined; onChange: (v: SaunaRounds) => void; compact?: boolean }) {
+  return (
+    <div className={compact ? '' : 'rounded-[22px] bg-surface px-4 py-3'}>
+      {!compact && <p className="mb-2 text-[15px] font-extrabold">Сауна: заходов</p>}
+      <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Сауна, заходов">
+        {([0, 1, 2, 3] as SaunaRounds[]).map((v) => (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={value === v}
+            onClick={() => onChange(v)}
+            className={`h-12 rounded-full text-lg font-extrabold ${value === v ? 'bg-primary text-on-primary' : 'bg-surface-2'}`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-muted">{SAUNA_HINT}</p>
+    </div>
+  );
+}
+
+function perSideLabel(ex: Exercise): string {
+  if (!ex.perSide) return '';
+  if (ex.unit === 'seconds') return ' на сторону';
+  return ['db_row', 'cable_lateral_raise', 'single_arm_cable_row', 'reverse_grip_pushdown'].includes(ex.id) ? ' на руку' : ' на ногу';
 }

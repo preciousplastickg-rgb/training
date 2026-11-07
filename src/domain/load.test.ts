@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SetLog, WorkoutSession } from '../db/types';
 import { loadLevel, underloaded, weeklyLoad } from './load';
 
-const sess = (id: string, date: string): WorkoutSession => ({ id, date, workout: 'A', startedAt: 0, finishedAt: 1, isDeload: false, isCalibration: false });
+const sess = (id: string, date: string): WorkoutSession => ({ id, date, workout: 'A', block: 1, startedAt: 0, finishedAt: 1, isDeload: false, isCalibration: false });
 const set = (sessionId: string, exerciseId: string): SetLog => ({ id: Math.random().toString(), sessionId, exerciseId, slotId: 'x', setIndex: 0, kind: 'work', weight: 1000, reps: 10, doneAt: 0 });
 
 describe('нагрузка за неделю', () => {

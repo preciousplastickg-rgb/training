@@ -8,13 +8,16 @@
 //   α_корпус = α_таз + spine; α_плечо = α_корпус + 180 − shoulder; α_предплечье = α_плечо − elbow
 // Проверка по прототипу: гоблет-присед end — голеностоп 30°, колено −115°, таз 125° → корпус 40°.
 // Вид спереди: shoulderL/R — отведение от опущенной руки (±), elbow — сгибание в той же плоскости.
-// Расширения к SPEC: hipB/kneeB — вторая нога (выпады, тяга в наклоне), direction — куда идёт
-// движение start → end, props — снаряды и опоры.
+// Расширения к SPEC: hipB/kneeB — вторая нога (выпады, тяга в наклоне), foot — подошвенное сгибание
+// стопы (подъёмы на носки, + — пятка вверх), direction — куда идёт движение start → end, props — снаряды
+// и опоры, anchor — какая точка фигуры неподвижна между кадрами (пятка, носок, плечо на скамье, кисть на брусьях).
+// Программа v2 (7 ноября 2026): 19 упражнений v1 здесь, 49 новых — в animationsV2.ts.
 
 import type { Muscle } from '../db/types';
+import { ANIMATIONS_V2 } from './animationsV2';
 
 export type Joint =
-  | 'ankle' | 'knee' | 'hip' | 'spine' | 'neck' | 'shoulderL' | 'shoulderR' | 'elbowL' | 'elbowR' | 'hipB' | 'kneeB';
+  | 'ankle' | 'knee' | 'hip' | 'spine' | 'neck' | 'shoulderL' | 'shoulderR' | 'elbowL' | 'elbowR' | 'hipB' | 'kneeB' | 'foot';
 
 export interface AngleGuide {
   keyframe: string;
@@ -28,12 +31,20 @@ export interface AngleGuide {
 }
 
 export type Prop =
-  | { kind: 'bench'; under: 'torso' | 'hips' | 'kneeB' | 'ankleB' | 'support' }
-  | { kind: 'incline'; angle: number }
+  /** Скамья под частью тела; `fixed` — геометрия по кадру start (тело движется, скамья стоит). */
+  | { kind: 'bench'; under: 'torso' | 'hips' | 'kneeB' | 'ankleB' | 'ankle' | 'shoulders' | 'support'; fixed?: boolean }
+  /** Спинка вдоль корпуса: сзади (лёжа на спине) или спереди (`front` — грудью на наклонной); `seat` — сиденье, по умолчанию есть. */
+  | { kind: 'incline'; angle: number; front?: boolean; seat?: boolean; fixed?: boolean }
   | { kind: 'bar' }
+  /** Рукояти брусьев на высоте кистей кадра start. */
+  | { kind: 'handles' }
   | { kind: 'pulley'; dx: number; y: number }
+  /** Платформа под стопой, перпендикулярно голени через носок. */
   | { kind: 'platform' }
-  | { kind: 'kneePad' };
+  /** Валик над коленом (тяга блока) или под ним (`under` — гравитрон). */
+  | { kind: 'kneePad'; under?: boolean }
+  /** Подушка под плечом (скамья Скотта). */
+  | { kind: 'armPad' };
 
 export interface ExerciseAnimation {
   exerciseId: string;
@@ -49,8 +60,12 @@ export interface ExerciseAnimation {
   direction: 'up' | 'down' | 'static';
   /** Базовый угол таза для стоек кроме standing. */
   base?: number;
-  /** Как держать снаряд: goblet — гантель у груди, back — гриф на трапециях. */
-  hold?: 'goblet' | 'back' | 'hands';
+  /** Как держать снаряд: goblet — гантель у груди, back — гриф на трапециях, hips — гриф на тазу, wheel — ролик в кистях. */
+  hold?: 'goblet' | 'back' | 'hands' | 'hips' | 'wheel';
+  /** Неподвижная точка между кадрами; по умолчанию: пятка (стоя), колено (на коленях), кисть (вис), таз (прочее). */
+  anchor?: 'heel' | 'toe' | 'shoulder' | 'wrist' | 'hip' | 'knee';
+  /** Без линии пола (брусья). */
+  noFloor?: boolean;
   /**
    * Кисти ведутся по ногам (румынская тяга): угол плеча в кадрах игнорируется, рука прямая и
    * направлена так, чтобы кисть лежала на линии бедра/голени — гантели скользят по бёдрам,
@@ -66,7 +81,7 @@ const T_SQUAT = { down: 2, pause: 0.5, up: 1, rest: 0.6 };
 const T_RAISE = { down: 2, pause: 0.5, up: 1, rest: 0.6 };
 const T_PULL_DOWN = { down: 1, pause: 0.5, up: 2, rest: 0.6 };
 
-export const ANIMATIONS: ExerciseAnimation[] = [
+const ANIMATIONS_V1: ExerciseAnimation[] = [
   {
     exerciseId: 'goblet_squat', view: 'side', rig: 'standing', equipment: 'dumbbell', hold: 'goblet',
     keyframes: [
@@ -277,7 +292,8 @@ export const ANIMATIONS: ExerciseAnimation[] = [
     ],
   },
   {
-    exerciseId: 'biceps_curl', view: 'side', rig: 'standing', equipment: 'dumbbell', hold: 'hands',
+    exerciseId: 'biceps_curl', view: 'side', rig: 'standing', equipment: 'cable', hold: 'hands',
+    props: [{ kind: 'pulley', dx: 16, y: 184 }],
     keyframes: [
       { name: 'start', joints: { ankle: 0, knee: -3, hip: 3, shoulderL: 2, elbowL: 5, shoulderR: 2, elbowR: 5 } },
       { name: 'end', joints: { ankle: 0, knee: -3, hip: 3, shoulderL: 8, elbowL: 135, shoulderR: 8, elbowR: 135 } },
@@ -326,5 +342,7 @@ export const ANIMATIONS: ExerciseAnimation[] = [
     angles: [{ keyframe: 'end', segment: 'thigh', reference: 'vertical', value: 0, label: 'Бёдра', text: '≈ вертикально' }],
   },
 ];
+
+export const ANIMATIONS: ExerciseAnimation[] = [...ANIMATIONS_V1, ...ANIMATIONS_V2];
 
 export const ANIMATION_BY_ID: Record<string, ExerciseAnimation> = Object.fromEntries(ANIMATIONS.map((a) => [a.exerciseId, a]));

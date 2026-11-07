@@ -3,7 +3,7 @@ import type { SetLog, WorkoutSession } from '../db/types';
 import { recentVolumes } from './history';
 
 const session = (id: string, workout: 'A' | 'B', startedAt: number, finished = true): WorkoutSession => ({
-  id, date: '2027-01-01', workout, startedAt, ...(finished ? { finishedAt: startedAt + 1 } : {}), isDeload: false, isCalibration: false,
+  id, date: '2027-01-01', workout, block: 1, startedAt, ...(finished ? { finishedAt: startedAt + 1 } : {}), isDeload: false, isCalibration: false,
 });
 const set = (sessionId: string, weight: number, reps: number): SetLog => ({
   id: `${sessionId}-${weight}`, sessionId, exerciseId: 'x', slotId: 'x', setIndex: 0, kind: 'work', weight, reps, doneAt: 1,

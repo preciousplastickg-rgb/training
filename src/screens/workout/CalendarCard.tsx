@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { openSheet } from '../../app/uiStore';
 import { Sheet } from '../../components/Sheet';
 import { Button, Caps, Card, Chip } from '../../components/ui';
-import { CALIBRATION_DATE, PROGRAM_END, REST_DAY_STEPS } from '../../data/program';
+import { CALIBRATION_DATE, POOL_TYPE_NAMES, PROGRAM_END, REST_DAY_STEPS } from '../../data/program';
 import { DEFAULT_SETTINGS, updateSettings } from '../../db/db';
 import type { DayOverride } from '../../db/types';
 import { calendarDays, type CalendarDay } from '../../domain/calendar';
@@ -13,7 +13,7 @@ import { gymDone } from '../../domain/discipline';
 import { formatInt, formatWeekdayDate } from '../../domain/format';
 import { estimateMinutes, planOptionsOf, workoutPlan } from '../../domain/program';
 import { volume } from '../../domain/records';
-import { useAllSets, useBody, usePool, useSessions, useSettings, useSlots } from '../../hooks/useData';
+import { useAllSets, useBody, useLightWeeks, usePool, useSessions, useSettings, useSlots } from '../../hooks/useData';
 import { useToday } from '../../hooks/useToday';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -37,6 +37,7 @@ export function CalendarCard({ initialDate }: { initialDate?: string | null } = 
   const slots = useSlots();
   const pool = usePool();
   const settings = useSettings() ?? DEFAULT_SETTINGS;
+  const lightWeeks = useLightWeeks();
   const clamp = (m: string) => (m < FIRST_MONTH ? FIRST_MONTH : m > LAST_MONTH ? LAST_MONTH : m);
   // Открыт тапом по дню недели — сразу этот день.
   const [month, setMonth] = useState(() => clamp((initialDate || today).slice(0, 7)));
@@ -47,8 +48,8 @@ export function CalendarCard({ initialDate }: { initialDate?: string | null } = 
   const gridStart = weekStart(first);
   const gridEnd = addDays(weekStart(last), 6);
   const days = useMemo(
-    () => calendarDays(gridStart, gridEnd, today, sessions, gymDone(sessions, sets, slots, settings), pool, planOptionsOf(settings)),
-    [gridStart, gridEnd, today, sessions, sets, slots, settings, pool],
+    () => calendarDays(gridStart, gridEnd, today, sessions, gymDone(sessions, sets, slots, settings, lightWeeks), pool, planOptionsOf(settings, lightWeeks)),
+    [gridStart, gridEnd, today, sessions, sets, slots, settings, pool, lightWeeks],
   );
   const inMonth = days.filter((d) => d.date.startsWith(month));
   const gymCount = inMonth.filter((d) => d.status === 'gym').length;
@@ -101,7 +102,7 @@ export function CalendarCard({ initialDate }: { initialDate?: string | null } = 
         <span>→ перенос</span>
         <span>↓ разгрузка</span>
       </div>
-      <p className="mt-1 text-[11px] text-muted">Впереди — если ходить по плану. Пропуск сдвигает зал на день, чередование A/B продолжается.</p>
+      <p className="mt-1 text-[11px] text-muted">Впереди — если ходить по плану. Пропуск сдвигает зал на день, порядок A → B → C продолжается.</p>
 
       <DaySheet day={day} today={today} onClose={() => setSelected(null)} />
     </Card>
@@ -179,12 +180,13 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
   const slots = useSlots();
   const settings = useSettings() ?? DEFAULT_SETTINGS;
   const body = useBody();
+  const lightWeeks = useLightWeeks();
   const [details, setDetails] = useState<HistoryItem | null>(null);
   if (!day) return null;
   const { plan } = day;
   const steps = body.find((b) => b.date === day.date)?.steps;
   const past = day.date <= today;
-  const planned = day.workout && !day.session ? workoutPlan(day.workout, day.date, slots, settings) : [];
+  const planned = day.workout && !day.session ? workoutPlan(day.workout, day.date, slots, settings, { lightWeeks }) : [];
   const editable = day.date >= today && plan.kind !== 'prep' && plan.kind !== 'finished';
   const override = settings.dayOverrides?.[day.date] ?? 'auto';
   const setOverride = (v: DayOverride | 'auto') => {
@@ -207,7 +209,7 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
                 </Chip>
               ))}
             </div>
-            <p className="mt-1 text-xs text-muted">Расписание на всю неделю — в настройках. Буквы A/B чередуются сами.</p>
+            <p className="mt-1 text-xs text-muted">Расписание на всю неделю — в настройках. Буквы A, B, C идут по кругу сами.</p>
           </section>
         )}
         <section className="rounded-[22px] bg-surface p-4">
@@ -219,7 +221,7 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
                 {planned.length ? ` · ${planned.length} упражнений · ≈ ${estimateMinutes(planned)} мин` : ''}
               </p>
               <p className="text-sm text-muted">
-                {[day.projected ? 'по чередованию' : '', plan.isDeload ? 'разгрузка: 2 подхода, вес × 0,8' : '', plan.makeup ? 'перенос с прошлого дня' : '']
+                {[day.projected ? 'по кругу A → B → C' : '', plan.isDeload ? 'разгрузка: 2 подхода, вес × 0,8' : '', plan.lightWeek ? 'лёгкая неделя' : '', plan.makeup ? 'перенос с прошлого дня' : '']
                   .filter(Boolean)
                   .join(' · ')}
               </p>
@@ -237,7 +239,7 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
           {plan.kind === 'gym' && !day.workout && <p className="mt-1 font-semibold">Зал</p>}
           {plan.pool && (
             <p className={plan.kind === 'gym' ? 'mt-2 text-sm' : 'mt-1 font-semibold'}>
-              Бассейн{plan.pool.optional ? ' по желанию' : ''}: {plan.pool.text}
+              Бассейн · {POOL_TYPE_NAMES[plan.pool.type]}{plan.pool.optional ? ' · по желанию' : ''}: {plan.pool.text}
             </p>
           )}
           {plan.gymBlocked && <p className="text-sm text-muted">Зал переехал на завтра: вчера уже был зал.</p>}
@@ -254,6 +256,8 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
                 <span className="flex-1">
                   <b>Тренировка {day.session.workout}</b>
                   {day.session.isCalibration ? ' · подбор веса' : day.session.isDeload ? ' · разгрузка' : ''}
+                  {day.session.cardio ? ` · кардио ${day.session.cardio.minutes} мин` : ''}
+                  {day.session.saunaRounds ? ` · сауна ${day.session.saunaRounds}` : ''}
                   <span className="block text-sm text-muted">
                     {Math.round(((day.session.finishedAt ?? day.session.startedAt) - day.session.startedAt) / 60000)} мин ·{' '}
                     {formatInt(Math.round(volume(sets.filter((x) => x.sessionId === day.session!.id)) / 100))} кг
@@ -265,9 +269,9 @@ function DaySheet({ day, today, onClose }: { day: CalendarDay | null; today: str
             {day.pool.map((p) => (
               <button key={p.id} type="button" onClick={() => setDetails({ pool: p })} className="mt-1 flex min-h-11 w-full items-center gap-2 text-left">
                 <span className="flex-1">
-                  <b>Бассейн</b>
+                  <b>Бассейн · {POOL_TYPE_NAMES[p.type]}</b>
                   <span className="block text-sm text-muted">
-                    {[`${p.minutes} мин`, p.meters ? `${formatInt(p.meters)} м` : '', p.feel ? FEEL[p.feel - 1] : ''].filter(Boolean).join(' · ')}
+                    {[`${p.minutes} мин`, p.meters ? `${formatInt(p.meters)} м` : '', p.feel ? FEEL[p.feel - 1] : '', p.saunaRounds ? `сауна ${p.saunaRounds}` : ''].filter(Boolean).join(' · ')}
                   </span>
                 </span>
                 <ChevronRight size={16} className="text-muted" aria-hidden />

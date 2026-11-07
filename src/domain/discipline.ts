@@ -1,6 +1,6 @@
 // Дисциплина — SPEC 5.8.
 
-import type { LocalDate, PoolSession, ProgramSlot, SetLog, Settings, WorkoutSession } from '../db/types';
+import type { LightWeek, LocalDate, PoolSession, ProgramSlot, SetLog, Settings, WorkoutSession } from '../db/types';
 import { workoutPlan, type DayPlan } from './program';
 
 /** 'moved' — зал не состоялся, но перенесён на следующий день (одна тренировка — один пропуск). */
@@ -20,11 +20,12 @@ export function gymDone(
   sets: readonly SetLog[],
   slots: readonly ProgramSlot[],
   settings: Settings,
+  lightWeeks: readonly LightWeek[] = [],
 ): GymDone[] {
   return sessions
     .filter((s) => s.finishedAt !== undefined && !s.isCalibration)
     .map((s) => {
-      const planned = workoutPlan(s.workout, s.date, slots, settings).reduce((a, p) => a + p.sets, 0);
+      const planned = workoutPlan(s.workout, s.date, slots, settings, { lightWeeks }).reduce((a, p) => a + p.sets, 0);
       const done = sets.filter((x) => x.sessionId === s.id && x.kind === 'work').length;
       return { date: s.date, ratio: planned ? done / planned : 1 };
     });

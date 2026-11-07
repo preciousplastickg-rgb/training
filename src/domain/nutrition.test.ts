@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Adjustment, BodyEntry, Food, FoodLog } from '../db/types';
 import { addDays } from './dates';
 import { carbsFor, chickenGrams, dayTargets, dayTotals, nutritionInTarget, nutritionStats, portion, recipePer100, weeklyAdjustment } from './nutrition';
+import { dayTypeFor } from './program';
 
 const chicken: Food = { id: 'c', name: 'Куриная грудка', aliases: [], per100: { kcal: 110, p: 230, f: 15, c: 0 }, source: 'seed', approx: false, archived: false };
 const rice: Food = { id: 'r', name: 'Рис', aliases: [], per100: { kcal: 360, p: 70, f: 6, c: 790 }, source: 'seed', approx: false, archived: false };
@@ -51,9 +52,23 @@ describe('цели дня', () => {
   it('новогодняя разгрузка — поддержка 2 500', () => {
     expect(dayTargets('2026-12-31', [adj('2026-11-23', -150)], {})).toMatchObject({ kcal: 2500, maintenance: true });
   });
-  it('фаза 3 «поддержка» — 2 400 без корректировок фазы 2', () => {
-    expect(dayTargets('2027-03-10', [adj('2026-11-23', -150)], { phase3Mode: 'maintenance' }).kcal).toBe(2400);
+  it('фаза 3 «поддержка» — 2 700 / 2 550 / 2 450 по типу дня, без корректировок фазы 2', () => {
+    expect(dayTargets('2027-03-10', [adj('2026-11-23', -150)], { phase3Mode: 'maintenance' }).kcal).toBe(2450);
+    expect(dayTargets('2027-03-10', [adj('2026-11-23', -150)], { phase3Mode: 'maintenance' }, 'pool').kcal).toBe(2550);
     expect(dayTargets('2027-03-10', [adj('2026-11-23', -150)], {}).kcal).toBe(1900);
+  });
+  // SPEC 10, «Питание»: цели по типу дня.
+  it('фаза 1, вт 10 ноября без сессий — 2 150 ккал, углеводы 236 г; с сессией зала — 2 300 и 274 г', () => {
+    const tue = dayTargets('2026-11-10', [], {}, dayTypeFor('2026-11-10', [], []));
+    expect(tue).toMatchObject({ kcal: 2150, carbs: 236 });
+    const gym = dayTargets('2026-11-10', [], {}, dayTypeFor('2026-11-10', [{ date: '2026-11-10', finishedAt: 1 }], []));
+    expect(gym).toMatchObject({ kcal: 2300, carbs: 274 });
+  });
+  it('вс 15 ноября без сессий — 2 050 ккал, углеводы 211 г', () => {
+    expect(dayTargets('2026-11-15', [], {}, dayTypeFor('2026-11-15', [], []))).toMatchObject({ kcal: 2050, carbs: 211 });
+  });
+  it('фаза 3, поддержка, пн с сессией — 2 700 ккал', () => {
+    expect(dayTargets('2027-03-01', [], { phase3Mode: 'maintenance' }, dayTypeFor('2027-03-01', [{ date: '2027-03-01', finishedAt: 1 }], [])).kcal).toBe(2700);
   });
   it('в цели: ±10% калорий и белок ≥ 90%', () => {
     expect(nutritionInTarget({ kcal: 1900, p: 1400, f: 0, c: 0 }, { kcal: 2050, protein: 155 })).toBe(true);

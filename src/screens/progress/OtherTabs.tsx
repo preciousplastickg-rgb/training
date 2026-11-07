@@ -10,8 +10,8 @@ import { addDays, diffDays, weekStart } from '../../domain/dates';
 import { bestStreak, dayStatuses, disciplineSummary, gymDone, type DayStatus } from '../../domain/discipline';
 import { formatDayMonth, formatInt, pluralRu } from '../../domain/format';
 import { nutritionStats } from '../../domain/nutrition';
-import { gymDatesOf, planDays, planOptionsOf } from '../../domain/program';
-import { useAdjustments, useAllFoodLog, useAllSets, useFoods, usePool, useSessions, useSettings, useSlots } from '../../hooks/useData';
+import { dayTypeFor, gymDatesOf, planDays, planOptionsOf } from '../../domain/program';
+import { useAdjustments, useAllFoodLog, useAllSets, useFoods, useLightWeeks, usePool, useSessions, useSettings, useSlots } from '../../hooks/useData';
 import { useToday } from '../../hooks/useToday';
 
 // ---------- Питание ----------
@@ -22,8 +22,14 @@ function useNutritionStats() {
   const foods = useFoods();
   const adjustments = useAdjustments();
   const settings = useSettings() ?? DEFAULT_SETTINGS;
+  const sessions = useSessions();
+  const pool = usePool();
+  const lightWeeks = useLightWeeks();
   const map = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods]);
-  return useMemo(() => nutritionStats(logs, map, adjustments, settings, today), [logs, map, adjustments, settings, today]);
+  return useMemo(() => {
+    const opts = planOptionsOf(settings, lightWeeks);
+    return nutritionStats(logs, map, adjustments, settings, today, (d) => dayTypeFor(d, sessions, pool, opts));
+  }, [logs, map, adjustments, settings, today, sessions, pool, lightWeeks]);
 }
 
 export function NutritionTab() {
@@ -104,13 +110,14 @@ export function DisciplineTab() {
   const pool = usePool();
   const slots = useSlots();
   const settings = useSettings() ?? DEFAULT_SETTINGS;
+  const lightWeeks = useLightWeeks();
   const nutrition = useNutritionStats();
   const { plans, statuses, summary, best } = useMemo(() => {
-    const plans = planDays(PROGRAM_END, gymDatesOf(sessions), undefined, planOptionsOf(settings));
-    const gym = gymDone(sessions, sets, slots, settings);
+    const plans = planDays(PROGRAM_END, gymDatesOf(sessions), undefined, planOptionsOf(settings, lightWeeks));
+    const gym = gymDone(sessions, sets, slots, settings, lightWeeks);
     const statuses = dayStatuses(plans, gym, pool, today);
     return { plans, statuses, summary: disciplineSummary(plans, statuses), best: bestStreak(plans, statuses) };
-  }, [sessions, sets, pool, slots, settings, today]);
+  }, [sessions, sets, pool, slots, settings, today, lightWeeks]);
   const [picked, setPicked] = useState<string | null>(null);
 
   const startMonday = weekStart(PROGRAM_START);
@@ -128,7 +135,7 @@ export function DisciplineTab() {
             {summary.done}
             <span className="font-sans text-[15px] font-normal text-muted-on-ink"> / {summary.planned}</span>
           </span>
-          <span className="text-[13px] text-muted-on-ink">{pct}% тренировок</span>
+          <span className="text-[13px] text-muted-on-ink">{pct}% тренировок · зал и бассейн по плану</span>
         </div>
         <div className="flex flex-col gap-1">
           <Caps className="text-muted-on-ink!">Серия</Caps>

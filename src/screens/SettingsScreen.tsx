@@ -14,7 +14,7 @@ import { formatDayMonth, formatKg, formatScaled, parseKg } from '../domain/forma
 import { useAdjustments, useFoods, useSlots } from '../hooks/useData';
 import { BackupRows } from './settings/BackupSection';
 import { FoodsSheet } from './settings/FoodsSection';
-import { CaloriesSheet, Group, PlatesSheet, ProgramSheet, RestSheet, ScheduleSheet, scheduleText } from './settings/ProgramSheets';
+import { CaloriesSheet, Group, PlatesSheet, ProgramSheet, ScheduleSheet, scheduleText } from './settings/ProgramSheets';
 import { ViewportDiagnostics } from './settings/ViewportDiagnostics';
 
 const THEMES: { value: Theme; label: string }[] = [
@@ -28,7 +28,7 @@ interface SettingsScreenProps {
   persisted: boolean | undefined;
 }
 
-type Open = 'profile' | 'program' | 'rest' | 'plates' | 'schedule' | 'calories' | 'foods' | null;
+type Open = 'profile' | 'program' | 'plates' | 'schedule' | 'calories' | 'foods' | null;
 
 /** Строка-кнопка группы: подпись, значение, шеврон. Отступы 22 px — классом, не глобальным сбросом. */
 export function SettingsRow({ label, value, onClick, ariaLabel }: { label: string; value?: string; onClick: () => void; ariaLabel?: string }) {
@@ -52,8 +52,7 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
   const foods = useFoods();
   const adjustments = useAdjustments();
   const close = () => setOpen(null);
-  const countA = slots.filter((s) => s.workout === 'A' && (s.toPhase ?? 3) >= 2).length;
-  const countB = slots.filter((s) => s.workout === 'B' && (s.toPhase ?? 3) >= 2).length;
+  const codes = new Set(slots.map((s) => s.code)).size;
   return (
     <>
       <ScreenHeader
@@ -70,9 +69,8 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
         <section>
           <GroupTitle>Программа</GroupTitle>
           <Group className="px-0!">
-            <SettingsRow label="Тренировки A и B" value={`${countA} и ${countB}`} onClick={() => setOpen('program')} />
-            <SettingsRow label="Отдых" value={`${settings.restLong} / ${settings.restShort} / 60 с`} onClick={() => setOpen('rest')} />
-            <SettingsRow label="Гриф и блины" value={`${formatKg(settings.barWeight)} · ${settings.plates.length} видов`} onClick={() => setOpen('plates')} />
+            <SettingsRow label="Тренировки A, B, C" value={`${codes} слота · 3 блока`} onClick={() => setOpen('program')} />
+            <SettingsRow label="Гриф и блины" value={`${formatKg(settings.barWeight)} · EZ ${formatKg(settings.ezBarWeight)}`} onClick={() => setOpen('plates')} />
             <SettingsRow label="Расписание" value={scheduleText(settings)} onClick={() => setOpen('schedule')} />
             <SettingsRow label="Калории" value={adjustments.length ? `${adjustments.length} корр.` : settings.phase3Mode === 'maintenance' ? 'фаза 3: поддержка' : 'по плану'} onClick={() => setOpen('calories')} />
           </Group>
@@ -141,7 +139,6 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
 
       <ProfileSheet open={open === 'profile'} onClose={close} settings={settings} />
       <ProgramSheet open={open === 'program'} onClose={close} />
-      <RestSheet open={open === 'rest'} onClose={close} settings={settings} />
       <PlatesSheet open={open === 'plates'} onClose={close} settings={settings} />
       <ScheduleSheet open={open === 'schedule'} onClose={close} settings={settings} />
       <CaloriesSheet open={open === 'calories'} onClose={close} settings={settings} />

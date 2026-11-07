@@ -1,17 +1,17 @@
 // Календарь тренировок: план на каждый день с проекцией вперёд и факт (SPEC 3.2, 5.1, 5.8).
 
 import { PROGRAM_END, PROGRAM_START } from '../data/program';
-import type { LocalDate, PoolSession, WorkoutSession } from '../db/types';
+import type { LocalDate, PoolSession, Workout, WorkoutSession } from '../db/types';
 import { addDays } from './dates';
 import { dayStatuses, POOL_MIN_MINUTES, type DayStatus, type GymDone } from './discipline';
-import { gymDatesOf, nextWorkout, planDays, type DayPlan, type PlanOptions } from './program';
+import { gymDatesOf, nextWorkout, planDays, workoutAfter, type DayPlan, type PlanOptions } from './program';
 
 export interface CalendarDay {
   date: LocalDate;
   plan: DayPlan;
   status: DayStatus;
-  /** Тренировка в зале: сделанная или ожидаемая по чередованию. */
-  workout?: 'A' | 'B';
+  /** Тренировка в зале: сделанная или ожидаемая по кругу A → B → C. */
+  workout?: Workout;
   /** Буква ожидаемая (если ходить по плану), а не по сделанной тренировке. */
   projected: boolean;
   /** Завершённая тренировка в этот день (последняя, если их несколько). */
@@ -21,7 +21,7 @@ export interface CalendarDay {
 
 /**
  * Дни с `from` по `to` включительно.
- * Будущие залы — по плану, будто ходишь без пропусков; буквы A/B чередуются от следующей по очереди.
+ * Будущие залы — по плану, будто ходишь без пропусков; буквы A → B → C идут по кругу от следующей по очереди.
  * Пропуск сдвигает и дни, и буквы — календарь пересчитывается от фактических тренировок.
  */
 export function calendarDays(
@@ -40,12 +40,12 @@ export function calendarDays(
   const statuses = dayStatuses(plans, gym, pool, today);
 
   // Буквы на будущее: от сегодняшнего дня, если зал сегодня ещё не сделан.
-  const letters = new Map<LocalDate, 'A' | 'B'>();
+  const letters = new Map<LocalDate, Workout>();
   let next = nextWorkout(sessions);
   for (const p of plans) {
     if (p.date < today || p.kind !== 'gym' || sessionByDate.has(p.date)) continue;
     letters.set(p.date, next);
-    next = next === 'A' ? 'B' : 'A';
+    next = workoutAfter(next);
   }
 
   const out: CalendarDay[] = [];

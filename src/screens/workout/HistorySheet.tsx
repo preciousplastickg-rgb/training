@@ -3,6 +3,7 @@
 import { Sheet } from '../../components/Sheet';
 import { ConfirmDelete } from '../../components/ui';
 import { getExercise } from '../../data/exercises';
+import { CARDIO_NAMES, POOL_TYPE_NAMES } from '../../data/program';
 import { deletePool, discardSession } from '../../db/repo';
 import type { PoolSession, SetLog, WorkoutSession } from '../../db/types';
 import { formatInt, formatKg, formatScaled, formatWeekdayDate, NBSP } from '../../domain/format';
@@ -18,6 +19,7 @@ const FEEL = ['тяжело', 'так себе', 'нормально', 'хоро
 
 function setText(ex: ReturnType<typeof getExercise>, s: SetLog): string {
   if (ex.unit === 'seconds') return `${s.reps}${NBSP}с`;
+  if (ex.unit === 'assist_kg') return `−${formatKg(s.weight, false)}${NBSP}×${NBSP}${s.reps}`;
   if (ex.unit === 'reps' || s.weight === 0) return `${s.reps}`;
   return `${formatKg(s.weight, false)}${NBSP}×${NBSP}${s.reps}`;
 }
@@ -28,12 +30,13 @@ export function HistorySheet({ item, sets, onClose }: { item: HistoryItem | null
   const { gym, pool } = item;
   if (pool) {
     return (
-      <Sheet open title="Бассейн" kicker={formatWeekdayDate(pool.date)} onClose={onClose}>
+      <Sheet open title={`Бассейн · ${POOL_TYPE_NAMES[pool.type]}`} kicker={formatWeekdayDate(pool.date)} onClose={onClose}>
         <div className="flex flex-col gap-3 px-1 pb-2">
           <p className="text-lg">
             <b>{pool.minutes} мин</b>
             {pool.meters ? ` · ${formatInt(pool.meters)} м` : ''}
             {pool.feel ? ` · ${FEEL[pool.feel - 1]}` : ''}
+            {pool.saunaRounds ? ` · сауна ${pool.saunaRounds}` : ''}
           </p>
           <ConfirmDelete label="Удалить запись" onConfirm={() => deletePool(pool.id).then(onClose)} />
         </div>
@@ -52,6 +55,8 @@ export function HistorySheet({ item, sets, onClose }: { item: HistoryItem | null
         <p className="text-sm text-muted">
           {minutes} мин · объём {formatInt(Math.round(volume(mine) / 100))}{NBSP}кг · {work.length} подходов
           {gym.isCalibration ? ' · подбор веса' : gym.isDeload ? ' · разгрузка' : ''}
+          {gym.cardio ? ` · кардио ${gym.cardio.minutes} мин, ${CARDIO_NAMES[gym.cardio.machine].toLowerCase()}` : ''}
+          {gym.saunaRounds ? ` · сауна ${gym.saunaRounds}` : ''}
         </p>
         {records.length > 0 && (
           <ul className="flex flex-col gap-2 rounded-[26px] bg-surface px-5 py-3.5" aria-label="Рекорды">

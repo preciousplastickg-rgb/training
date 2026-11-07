@@ -10,8 +10,9 @@ import { addDays } from '../domain/dates';
 import { mealByHour } from '../domain/foodSearch';
 import { formatInt, formatScaled } from '../domain/format';
 import { dayTargets, dayTotals, MEAL_NAMES } from '../domain/nutrition';
-import { gymDatesOf, planForDate, planOptionsOf } from '../domain/program';
-import { useAdjustments, useBody, useFoodLog, useFoods, usePool, useSessions, useSettings } from '../hooks/useData';
+import { dayTypeFor, gymDatesOf, planForDate, planOptionsOf } from '../domain/program';
+import { POOL_TYPE_NAMES } from '../data/program';
+import { useAdjustments, useBody, useFoodLog, useFoods, useLightWeeks, usePool, useSessions, useSettings } from '../hooks/useData';
 import { useToday } from '../hooks/useToday';
 import { Sheet } from './Sheet';
 
@@ -28,10 +29,11 @@ export function AddMenu({ open, onClose }: { open: boolean; onClose: () => void 
   const body = useBody();
   const sessions = useSessions();
   const pool = usePool();
+  const lightWeeks = useLightWeeks();
   const map = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods]);
 
   const meal = mealByHour(new Date().getHours());
-  const t = dayTargets(today, adjustments, settings);
+  const t = dayTargets(today, adjustments, settings, dayTypeFor(today, sessions, pool, planOptionsOf(settings, lightWeeks)));
   const left = t.kcal - dayTotals(logs, map).total.kcal;
   const foodHint = `${MEAL_NOW[meal]} · ${left >= 0 ? `ещё ${formatInt(left)} ккал` : `перебор ${formatInt(-left)} ккал`}`;
 
@@ -41,14 +43,14 @@ export function AddMenu({ open, onClose }: { open: boolean; onClose: () => void 
   const poolToday = pool.filter((p) => p.date === today).reduce((a, p) => a + p.minutes, 0);
   const poolHint = (() => {
     if (poolToday > 0) return `сегодня записано ${poolToday} мин`;
-    const opts = planOptionsOf(settings);
+    const opts = planOptionsOf(settings, lightWeeks);
     const gym = gymDatesOf(sessions);
     for (let i = 0; i < 7; i++) {
       const d = addDays(today, i);
       const p = planForDate(d, gym, opts);
       if (p.kind === 'pool' || p.kind === 'pool_optional' || (p.kind === 'gym' && p.pool)) {
         const when = i === 0 ? 'сегодня' : i === 1 ? 'по плану завтра' : `по плану ${['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'][(new Date(d).getUTCDay() + 6) % 7]}`;
-        return `${when} · ${p.pool?.minutes ?? 30} мин`;
+        return `${when} · ${p.pool?.minutes ?? 60} мин${p.pool ? ` · ${POOL_TYPE_NAMES[p.pool.type]}` : ''}`;
       }
     }
     return 'записать за любой день';

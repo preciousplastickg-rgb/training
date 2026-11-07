@@ -1,19 +1,22 @@
-// Шторки настроек программы (REDESIGN 4, BSettings): тренировки A/B, отдых, гриф и блины, расписание, калории.
+// Шторки настроек программы (REDESIGN 4, BSettings): тренировки A, B, C по блокам, гриф и блины, расписание, калории.
 
 import { ChevronRight, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Sheet } from '../../components/Sheet';
 import { Button, Caps, Chip, Stepper, Tabs } from '../../components/ui';
 import { getExercise } from '../../data/exercises';
-import { DEFAULT_SCHEDULE } from '../../data/program';
+import { DEFAULT_SCHEDULE, MAINTENANCE_KCAL_PHASE3, WORKOUT_NAMES, WORKOUT_ORDER } from '../../data/program';
 import { updateSettings } from '../../db/db';
 import { deleteAdjustment, resetProgram, updateSlot } from '../../db/repo';
-import type { ProgramSlot, Settings, WeekSchedule } from '../../db/types';
-import { formatDayMonth, formatKg } from '../../domain/format';
+import type { BlockN, ProgramSlot, Settings, WeekSchedule, Workout } from '../../db/types';
+import { formatDayMonth, formatInt, formatKg } from '../../domain/format';
+import { blockFor } from '../../domain/program';
 import { useAdjustments, useSlots } from '../../hooks/useData';
+import { useToday } from '../../hooks/useToday';
 
 const ALL_PLATES = [2500, 2000, 1500, 1000, 500, 250, 125, 50];
 export const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+const REST_OPTIONS = [150, 120, 90, 75, 60, 0];
 
 interface SheetProps {
   open: boolean;
@@ -36,37 +39,58 @@ export function Group({ children, className = '' }: { children: ReactNode; class
   return <div className={`rounded-[26px] bg-surface px-[22px] ${className}`}>{children}</div>;
 }
 
+/** Шаг слота: свой или из каталога упражнения. */
+export function slotStep(s: ProgramSlot): number {
+  return s.step ?? getExercise(s.exerciseId).defaultStep;
+}
+
 export function stepText(s: ProgramSlot): string {
   const ex = getExercise(s.exerciseId);
-  if (ex.unit === 'seconds') return `+${s.step} с`;
-  if (ex.unit === 'reps') return `+${s.step} повт.`;
-  return `+${formatKg(s.step)}`;
+  const step = slotStep(s);
+  if (ex.unit === 'seconds') return `+${step} с`;
+  if (ex.unit === 'reps') return `+${step} повт.`;
+  if (ex.unit === 'assist_kg') return `−${formatKg(step)}`;
+  return `+${formatKg(step)}`;
 }
 
 export function ProgramSheet({ open, onClose }: SheetProps) {
   const slots = useSlots();
-  const [tab, setTab] = useState<'A' | 'B'>('A');
+  const today = useToday();
+  const [block, setBlock] = useState<BlockN>(() => blockFor(today));
+  const [tab, setTab] = useState<Workout>('A');
   const [edit, setEdit] = useState<ProgramSlot | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
-  const list = slots.filter((s) => s.workout === tab).sort((a, b) => a.order - b.order || (a.fromPhase ?? 1) - (b.fromPhase ?? 1));
+  const list = slots.filter((s) => s.workout === tab && s.block === block).sort((a, b) => a.order - b.order || (a.fromPhase ?? 1) - (b.fromPhase ?? 1));
   return (
-    <Sheet open={open} kicker="Программа" title="Тренировки A и B" onClose={onClose}>
-      <Tabs value={tab} onChange={setTab} items={[{ value: 'A', label: 'Тренировка A' }, { value: 'B', label: 'Тренировка B' }]} />
-      <Group className="mt-3">
+    <Sheet open={open} kicker="Программа" title="Тренировки A, B и C" onClose={onClose}>
+      <div className="flex gap-2" role="radiogroup" aria-label="Блок">
+        {([1, 2, 3] as BlockN[]).map((b) => (
+          <Chip key={b} active={block === b} onClick={() => setBlock(b)} role="radio" aria-checked={block === b} className="flex-1 justify-center">
+            Блок {b}
+            {b === blockFor(today) ? ' · сейчас' : ''}
+          </Chip>
+        ))}
+      </div>
+      <div className="mt-2">
+        <Tabs value={tab} onChange={setTab} items={WORKOUT_ORDER.map((w) => ({ value: w, label: `Тренировка ${w}` }))} />
+      </div>
+      <p className="mt-2 px-[22px] text-[13px] text-muted">
+        {tab}: {WORKOUT_NAMES[tab]}. Правка слота меняет только блок {block}.
+      </p>
+      <Group className="mt-2">
         <ul>
-          {list.map((s, i) => {
+          {list.map((s) => {
             const ex = getExercise(s.exerciseId);
             const phase = s.toPhase === 1 ? ' · фаза 1' : s.fromPhase === 2 ? ' · с фазы 2' : '';
             return (
               <li key={s.id} className="border-t border-line first:border-t-0">
                 <button type="button" onClick={() => setEdit(s)} className="flex min-h-[58px] w-full items-center gap-3 py-2 text-left">
-                  <span className="font-display w-7 text-sm font-bold text-muted tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+                  <span className={`font-display w-9 text-sm font-bold tabular-nums ${s.section === 'main' ? 'text-ink' : 'text-muted'}`}>{s.code}</span>
                   <span className="flex-1">
                     <span className="block text-[16px] font-semibold">{ex.name}</span>
                     <span className="block text-sm text-muted">
                       {s.sets} × {s.repMin}–{s.repMax}
-                      {ex.unit === 'seconds' ? ' с' : ''} · шаг {stepText(s)}
-                      {phase}
+                      {ex.unit === 'seconds' ? ' с' : ''} · шаг {stepText(s)} · отдых {s.restSec} с{phase}
                     </span>
                   </span>
                   <ChevronRight size={16} strokeWidth={2.4} className="text-muted" aria-hidden />
@@ -82,7 +106,7 @@ export function ProgramSheet({ open, onClose }: SheetProps) {
       {edit && <SlotSheet slot={slots.find((s) => s.id === edit.id) ?? edit} onClose={() => setEdit(null)} />}
       <Sheet open={confirmReset} title="Вернуть исходную программу?" onClose={() => setConfirmReset(false)}>
         <div className="flex flex-col gap-2 pb-2">
-          <p className="px-1 pb-2 text-muted">Подходы, повторы и шаги станут как в плане от 5 ноября. История тренировок не изменится.</p>
+          <p className="px-1 pb-2 text-muted">Подходы, повторы, шаги и отдых во всех блоках станут как в плане от 7 ноября. История тренировок не изменится.</p>
           <Button size="lg" onClick={() => void resetProgram().then(() => setConfirmReset(false))}>
             Вернуть
           </Button>
@@ -98,52 +122,33 @@ export function ProgramSheet({ open, onClose }: SheetProps) {
 function SlotSheet({ slot, onClose }: { slot: ProgramSlot; onClose: () => void }) {
   const ex = getExercise(slot.exerciseId);
   const up = (patch: Partial<ProgramSlot>) => void updateSlot(slot.id, patch);
-  const stepDelta = ex.unit === 'kg' ? 50 : ex.unit === 'seconds' ? 5 : 1;
-  const restOptions: { v: ProgramSlot['rest']; label: string }[] = [
-    { v: 'long', label: 'Долгий' },
-    { v: 'short', label: 'Обычный' },
-    { v: 60, label: '60 с' },
-  ];
+  const stepDelta = ex.unit === 'kg' || ex.unit === 'assist_kg' ? 50 : ex.unit === 'seconds' ? 5 : 1;
+  const step = slotStep(slot);
+  const repStep = ex.unit === 'seconds' ? 5 : 1;
   return (
-    <Sheet open title={ex.name} onClose={onClose}>
+    <Sheet open title={ex.name} kicker={`Блок ${slot.block} · ${slot.code} · ${slot.section === 'main' ? 'основной блок' : 'дополнительный блок'}`} onClose={onClose}>
       <Group>
         <Row label="Подходов">
           <Stepper label="Подходов" value={slot.sets} onDec={() => up({ sets: Math.max(1, slot.sets - 1) })} onInc={() => up({ sets: Math.min(8, slot.sets + 1) })} />
         </Row>
         <Row label={ex.unit === 'seconds' ? 'Секунд от' : 'Повторов от'}>
-          <Stepper label="Минимум" value={slot.repMin} onDec={() => up({ repMin: Math.max(1, slot.repMin - (ex.unit === 'seconds' ? 5 : 1)) })} onInc={() => up({ repMin: Math.min(slot.repMax, slot.repMin + (ex.unit === 'seconds' ? 5 : 1)) })} />
+          <Stepper label="Минимум" value={slot.repMin} onDec={() => up({ repMin: Math.max(1, slot.repMin - repStep) })} onInc={() => up({ repMin: Math.min(slot.repMax, slot.repMin + repStep) })} />
         </Row>
         <Row label="до">
-          <Stepper label="Максимум" value={slot.repMax} onDec={() => up({ repMax: Math.max(slot.repMin, slot.repMax - (ex.unit === 'seconds' ? 5 : 1)) })} onInc={() => up({ repMax: slot.repMax + (ex.unit === 'seconds' ? 5 : 1) })} />
+          <Stepper label="Максимум" value={slot.repMax} onDec={() => up({ repMax: Math.max(slot.repMin, slot.repMax - repStep) })} onInc={() => up({ repMax: slot.repMax + repStep })} />
         </Row>
         <Row label="Шаг прогрессии">
-          <Stepper label="Шаг" value={stepText(slot)} onDec={() => up({ step: Math.max(stepDelta, slot.step - stepDelta) })} onInc={() => up({ step: slot.step + stepDelta })} />
+          <Stepper label="Шаг" value={stepText(slot)} onDec={() => up({ step: Math.max(stepDelta, step - stepDelta) })} onInc={() => up({ step: step + stepDelta })} />
         </Row>
       </Group>
-      <Caps className="mt-4 mb-2 px-[22px]">Отдых</Caps>
-      <div className="flex gap-2 pb-2">
-        {restOptions.map((o) => (
-          <Chip key={String(o.v)} active={slot.rest === o.v} onClick={() => up({ rest: o.v })}>
-            {o.label}
+      <Caps className="mt-4 mb-2 px-[22px]">Отдых после подхода, с</Caps>
+      <div className="flex flex-wrap gap-2 pb-2">
+        {REST_OPTIONS.map((v) => (
+          <Chip key={v} active={slot.restSec === v} onClick={() => up({ restSec: v })}>
+            {v === 0 ? '0 · суперсет' : String(v)}
           </Chip>
         ))}
       </div>
-    </Sheet>
-  );
-}
-
-export function RestSheet({ open, onClose, settings }: SheetProps & { settings: Settings }) {
-  return (
-    <Sheet open={open} kicker="Программа" title="Отдых между подходами" onClose={onClose}>
-      <Group>
-        <Row label="Долгий" sub="присед, жимы, тяги">
-          <Stepper label="Долгий отдых" value={`${settings.restLong} с`} onDec={() => void updateSettings({ restLong: Math.max(30, settings.restLong - 15) })} onInc={() => void updateSettings({ restLong: settings.restLong + 15 })} />
-        </Row>
-        <Row label="Обычный">
-          <Stepper label="Обычный отдых" value={`${settings.restShort} с`} onDec={() => void updateSettings({ restShort: Math.max(30, settings.restShort - 15) })} onInc={() => void updateSettings({ restShort: settings.restShort + 15 })} />
-        </Row>
-      </Group>
-      <p className="mt-3 px-[22px] pb-2 text-sm text-muted">Суперсеты — 60 с, это задано в упражнении.</p>
     </Sheet>
   );
 }
@@ -152,8 +157,11 @@ export function PlatesSheet({ open, onClose, settings }: SheetProps & { settings
   return (
     <Sheet open={open} kicker="Программа" title="Гриф и блины" onClose={onClose}>
       <Group>
-        <Row label="Гриф">
+        <Row label="Гриф" sub="штанга">
           <Stepper label="Вес грифа" value={formatKg(settings.barWeight)} onDec={() => void updateSettings({ barWeight: Math.max(500, settings.barWeight - 250) })} onInc={() => void updateSettings({ barWeight: settings.barWeight + 250 })} />
+        </Row>
+        <Row label="Гриф EZ" sub="сгибания, скамья Скотта, французский жим">
+          <Stepper label="Вес грифа EZ" value={formatKg(settings.ezBarWeight)} onDec={() => void updateSettings({ ezBarWeight: Math.max(250, settings.ezBarWeight - 250) })} onInc={() => void updateSettings({ ezBarWeight: settings.ezBarWeight + 250 })} />
         </Row>
       </Group>
       <Caps className="mt-4 mb-2 px-[22px]">Блины в зале, на одну сторону</Caps>
@@ -219,10 +227,12 @@ export function ScheduleSheet({ open, onClose, settings }: SheetProps & { settin
           </div>
         ))}
       </div>
-      <p className="mt-3 px-[22px] text-xs text-muted">Остальные дни — отдых. Разовые изменения — тапом по дню в календаре на экране «Тренировка».</p>
+      <p className="mt-3 px-[22px] text-xs text-muted">
+        Остальные дни — отдых. Тип бассейна — по дню недели: вт техника, чт интервалы, сб длинное. Разовые изменения — тапом по дню в календаре на экране «Тренировка».
+      </p>
       {!isDefault && (
         <Button variant="ghost" size="sm" className="mt-1 w-full" onClick={() => void updateSettings({ schedule: DEFAULT_SCHEDULE })}>
-          Вернуть по плану: пн·ср·пт зал, вт·чт бассейн
+          Вернуть по плану: пн·ср·пт зал, вт·чт·сб бассейн
         </Button>
       )}
     </Sheet>
@@ -236,8 +246,10 @@ export function scheduleText(settings: Settings): string {
 
 export function CaloriesSheet({ open, onClose, settings }: SheetProps & { settings: Settings }) {
   const adjustments = useAdjustments();
+  const m = MAINTENANCE_KCAL_PHASE3;
   return (
     <Sheet open={open} kicker="Программа" title="Калории" onClose={onClose}>
+      <p className="mb-3 px-[22px] text-sm text-muted">По типу дня: зал 2 300, бассейн 2 150, отдых 2 050 ккал. Белок 155 г, жиры 65 г.</p>
       <Caps className="mb-2 px-[22px]">Корректировки</Caps>
       <Group>
         {adjustments.length === 0 ? (
@@ -262,14 +274,17 @@ export function CaloriesSheet({ open, onClose, settings }: SheetProps & { settin
         )}
       </Group>
       <Caps className="mt-4 mb-2 px-[22px]">Фаза 3, с 1 марта</Caps>
-      <div className="grid grid-cols-2 gap-2 pb-2">
+      <div className="grid grid-cols-2 gap-2 pb-1">
         <Chip active={settings.phase3Mode !== 'maintenance'} onClick={() => void updateSettings({ phase3Mode: 'deficit' })} className="justify-center">
           Дефицит
         </Chip>
         <Chip active={settings.phase3Mode === 'maintenance'} onClick={() => void updateSettings({ phase3Mode: 'maintenance' })} className="justify-center">
-          Поддержка ≈ 2 400
+          Поддержка
         </Chip>
       </div>
+      <p className="px-[22px] pb-2 text-xs text-muted">
+        Поддержка: зал {formatInt(m.gym)}, бассейн {formatInt(m.pool)}, отдых {formatInt(m.rest)} ккал.
+      </p>
     </Sheet>
   );
 }

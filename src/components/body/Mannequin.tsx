@@ -59,8 +59,9 @@ function points(p: Pose): Pt[] {
 interface Fit {
   dx: number;
   dy: number;
-  /** Масштаб вокруг перекладины — для виса, чтобы ноги не уходили за кадр. */
+  /** Масштаб: в висе — вокруг перекладины, иначе вокруг точки на полу, чтобы длинная поза (ролик) влезла в кадр. */
   scale: number;
+  pivotY: number;
 }
 
 /** Смещение фигуры: к полу (или к перекладине), по центру кадра. Одно на всё упражнение. */
@@ -68,7 +69,7 @@ function fitOffset(anim: ExerciseAnimation): Fit {
   if (anim.view === 'front') {
     const fig = frontFigure(anim, kf(anim, 'start'));
     const lowest = Math.max(...fig.plates.flatMap((pl) => pl.pts.map((q) => q.y)));
-    return { dx: 0, dy: GROUND - lowest, scale: 1 };
+    return { dx: 0, dy: GROUND - lowest, scale: 1, pivotY: GROUND };
   }
   const ps = [sidePose(anim, kf(anim, 'start')), sidePose(anim, kf(anim, 'end'))];
   const all = ps.flatMap(points);
@@ -79,11 +80,33 @@ function fitOffset(anim: ExerciseAnimation): Fit {
     const p0 = ps[0]!;
     const dy = BAR_Y + 3 - p0.wristR.y;
     const lowest = Math.max(...points(p0).map((q) => q.y)) + dy;
-    return { dx, dy, scale: Math.min(1, (GROUND - 6 - BAR_Y) / (lowest - BAR_Y)) };
+    return { dx, dy, scale: Math.min(1, (GROUND - 6 - BAR_Y) / (lowest - BAR_Y)), pivotY: BAR_Y };
   }
-  const maxY = Math.max(...points(ps[0]!).map((q) => q.y));
-  return { dx, dy: GROUND - maxY - 4, scale: 1 };
+  // Обе крайние точки с привязкой к опоре: нижняя из них — на полу (брусья с anchor: wrist опускают тело в кадре end).
+  const placed = [kf(anim, 'start'), kf(anim, 'end')].map((j) => placedSide(anim, j, { dx, dy: 0, scale: 1, pivotY: GROUND }));
+  const pts = placed.flatMap(points);
+  const maxY = Math.max(...pts.map((q) => q.y));
+  const dy = GROUND - maxY - 4;
+  // Поза длиннее или выше кадра (ролик с выкатом, жим стоя): уменьшаем вокруг середины пола, фигура остаётся на полу.
+  const span = Math.max(...pts.map((q) => q.x)) - Math.min(...pts.map((q) => q.x)) + 44;
+  const top = Math.min(...pts.map((q) => q.y)) + dy - 22;
+  const scale = Math.min(1, (W - 8) / span, top < 0 ? (GROUND - 4) / (GROUND - 4 - top) : 1);
+  return { dx, dy, scale, pivotY: GROUND };
 }
+
+type Anchor = NonNullable<ExerciseAnimation['anchor']>;
+
+/** Неподвижная точка между кадрами: по умолчанию кисть в висе, пятка стоя, колено на коленях (база 0), иначе таз. */
+function anchorOf(anim: ExerciseAnimation): Anchor {
+  if (anim.anchor) return anim.anchor;
+  if (anim.rig === 'hanging') return 'wrist';
+  if (anim.rig === 'standing') return 'heel';
+  if (anim.rig === 'kneeling' && anim.base === 0) return 'knee';
+  return 'hip';
+}
+
+const anchorPoint = (p: SidePose, a: Anchor): Pt =>
+  a === 'heel' ? p.heel : a === 'toe' ? p.toe : a === 'shoulder' ? p.shoulder : a === 'wrist' ? p.wristR : a === 'knee' ? p.knee : p.hip;
 
 /** Колено по двум длинам и положениям таза и стопы; колено — вниз-вперёд. */
 function ik2(hip: Pt, target: Pt, l1: number, l2: number): Pt {
@@ -101,20 +124,15 @@ function ik2(hip: Pt, target: Pt, l1: number, l2: number): Pt {
 
 const alphaOf = (from: Pt, to: Pt) => (Math.atan2(to.x - from.x, -(to.y - from.y)) * 180) / Math.PI;
 
-/** Вид сбоку: в каждом кадре — к своей опоре (кисти на перекладине, стопа на полу). */
+/** Вид сбоку: в каждом кадре — к своей опоре (кисти на перекладине, пятка на полу, плечи на скамье). */
 function placedSide(anim: ExerciseAnimation, joints: Joints, base: Fit): SidePose {
   const raw = sidePose(anim, joints);
-  if (anim.rig === 'hanging') {
-    const p0 = sidePose(anim, kf(anim, 'start'));
-    return translate(raw, base.dx + (p0.wristR.x - raw.wristR.x), base.dy + (p0.wristR.y - raw.wristR.y));
-  }
+  const anchor = anchorOf(anim);
+  const p0 = sidePose(anim, kf(anim, 'start'));
+  const ref0 = anchorPoint(p0, anchor);
+  const ref = anchorPoint(raw, anchor);
+  const p = translate(raw, base.dx + ref0.x - ref.x, base.dy + ref0.y - ref.y);
   if (anim.rig === 'standing' || anim.rig === 'kneeling') {
-    // Опорная стопа не скользит: держим пятку (или колено на полу) там же, где в кадре start.
-    const p0 = sidePose(anim, kf(anim, 'start'));
-    const kneeling = anim.rig === 'kneeling' && anim.base === 0;
-    const ref0 = kneeling ? p0.knee : p0.heel;
-    const ref = kneeling ? raw.knee : raw.heel;
-    const p = translate(raw, base.dx + ref0.x - ref.x, base.dy + ref0.y - ref.y);
     // Задняя стопа на скамье неподвижна (болгарские выпады): колено — обратной кинематикой.
     if (anim.props?.some((x) => x.kind === 'bench' && x.under === 'ankleB')) {
       // Скамья на высоте колена, в шаге позади передней стопы.
@@ -128,9 +146,8 @@ function placedSide(anim: ExerciseAnimation, joints: Joints, base: Fit): SidePos
       p.a.thighB = alphaOf(knee, p.hip);
       p.a.shinB = aShinB;
     }
-    return p;
   }
-  return translate(raw, base.dx, base.dy);
+  return p;
 }
 
 /** Поза и пластины кадра. */
@@ -281,6 +298,16 @@ function Disc({ at, r }: { at: Pt; r: number }) {
 }
 
 function Equipment({ anim, p, start }: { anim: ExerciseAnimation; p: Pose; start: Pose }) {
+  if (anim.hold === 'wheel' && p.view === 'side') {
+    // Ролик для пресса: колесо в кистях.
+    const h = handPoint(p.elbowR, p.wristR);
+    return (
+      <g>
+        <circle cx={h.x} cy={h.y + 4} r={7} fill="var(--fig-bg)" stroke={INK} strokeOpacity={0.72} strokeWidth={2.2} />
+        <circle cx={h.x} cy={h.y + 4} r={2} fill={INK} fillOpacity={0.72} />
+      </g>
+    );
+  }
   if (anim.equipment === 'none') return null;
   if (p.view === 'front') {
     if (anim.equipment !== 'dumbbell') return null;
@@ -313,7 +340,10 @@ function Equipment({ anim, p, start }: { anim: ExerciseAnimation; p: Pose; start
     );
   }
   if (anim.equipment === 'barbell') {
-    const at = anim.hold === 'back' ? mov(mov(p.shoulder, frontOf(p.a.torso), -6), dir(p.a.torso), 2) : hand;
+    const at =
+      anim.hold === 'back' ? mov(mov(p.shoulder, frontOf(p.a.torso), -6), dir(p.a.torso), 2)
+        : anim.hold === 'hips' ? mov(mov(p.hip, frontOf(p.a.torso), 9), dir(p.a.torso), 4)
+          : hand;
     return <Disc at={at} r={15} />;
   }
   // cable: рукоять и трос к блоку
@@ -333,7 +363,7 @@ const PROP = { fill: 'var(--surface-2)', stroke: 'var(--m-outline)', strokeWidth
 
 function Props({ anim, p, start }: { anim: ExerciseAnimation; p: Pose; start: Pose }) {
   const out: React.ReactNode[] = [];
-  if (anim.rig !== 'hanging') {
+  if (anim.rig !== 'hanging' && !anim.noFloor) {
     out.push(<line key="floor" x1={8} y1={GROUND + 0.6} x2={W - 8} y2={GROUND + 0.6} stroke="var(--line)" strokeWidth={1.6} strokeLinecap="round" />);
   }
   for (const [i, prop] of (anim.props ?? []).entries()) {
@@ -348,16 +378,41 @@ function Props({ anim, p, start }: { anim: ExerciseAnimation; p: Pose; start: Po
       }
       continue;
     }
+    if (prop.kind === 'handles') {
+      // Брусья: рукояти на высоте кистей кадра start.
+      const h = handPoint(start.elbowR, start.wristR);
+      out.push(<line key={i} x1={h.x - 24} y1={h.y + 1.5} x2={h.x + 24} y2={h.y + 1.5} stroke="var(--muted)" strokeWidth={2.6} strokeLinecap="round" />);
+    }
+    if (prop.kind === 'armPad') {
+      // Скамья Скотта: подушка под плечом (ближняя рука), ниже него по направлению к полу.
+      const u = dir(p.a.upperArmR);
+      const n1 = dir(p.a.upperArmR + 90);
+      const n = n1.y >= 0 ? n1 : dir(p.a.upperArmR - 90);
+      const a = mov(mov(p.shoulder, u, 2), n, 7);
+      const b = mov(mov(p.elbowR, u, 12), n, 7);
+      out.push(<path key={i} d={capsule(a, b, 7, 7)} {...PROP} />);
+      out.push(<rect key={`${i}l`} x={b.x - 2.5} y={b.y} width={5} height={Math.max(0, GROUND - b.y)} {...PROP} />);
+    }
     if (prop.kind === 'bench') {
+      const s0 = prop.fixed ? start : p;
       let x1: number, x2: number, top: number;
       if (prop.under === 'torso') {
-        x1 = Math.min(p.head.x, p.shoulder.x) - 6;
-        x2 = p.hip.x + 14;
-        top = Math.max(p.hip.y, p.shoulder.y) + 11;
+        // Голова может быть и слева (лёжа на спине), и справа (на животе): скамья от края до края.
+        x1 = Math.min(s0.head.x, s0.shoulder.x, s0.hip.x) - 6;
+        x2 = Math.max(s0.head.x, s0.shoulder.x, s0.hip.x) + 14;
+        top = Math.max(s0.hip.y, s0.shoulder.y) + 11;
       } else if (prop.under === 'hips') {
-        x1 = p.hip.x - 16;
-        x2 = p.hip.x + 22;
-        top = p.hip.y + 11;
+        x1 = s0.hip.x - 16;
+        x2 = s0.hip.x + 22;
+        top = s0.hip.y + 11;
+      } else if (prop.under === 'shoulders') {
+        x1 = s0.shoulder.x - 30;
+        x2 = s0.shoulder.x + 8;
+        top = s0.shoulder.y + 9;
+      } else if (prop.under === 'ankle') {
+        x1 = start.ankle.x - 16;
+        x2 = start.ankle.x + 12;
+        top = start.ankle.y + 4;
       } else if (prop.under === 'support') {
         x1 = Math.min(p.kneeB?.x ?? p.knee.x, p.ankleB?.x ?? p.knee.x) - 6;
         x2 = p.wristL.x + 10;
@@ -373,22 +428,29 @@ function Props({ anim, p, start }: { anim: ExerciseAnimation; p: Pose; start: Po
       out.push(<rect key={`${i}b`} x={x2 - 8} y={top + 6} width={4} height={Math.max(0, GROUND - top - 6)} {...PROP} />);
     }
     if (prop.kind === 'incline') {
-      const back = frontOf(p.a.torso);
-      const a = mov(mov(p.hip, back, -13), dir(p.a.torso), -6);
-      const b = mov(mov(p.shoulder, back, -13), dir(p.a.torso), 10);
+      // Спинка вдоль корпуса: сзади (лёжа на спине) или спереди (`front` — грудью на наклонной скамье).
+      const s0 = prop.fixed ? start : p;
+      const side = prop.front ? 13 : -13;
+      const back = frontOf(s0.a.torso);
+      const a = mov(mov(s0.hip, back, side), dir(s0.a.torso), -6);
+      const b = mov(mov(s0.shoulder, back, side), dir(s0.a.torso), 10);
       out.push(<path key={i} d={capsule(a, b, 6, 6)} {...PROP} />);
-      const seatEnd = mov(a, dir(p.a.thigh + 180), 26);
-      out.push(<path key={`${i}s`} d={capsule(a, seatEnd, 6, 6)} {...PROP} />);
+      if (prop.seat !== false) {
+        const seatEnd = mov(a, dir(s0.a.thigh + 180), 26);
+        out.push(<path key={`${i}s`} d={capsule(a, seatEnd, 6, 6)} {...PROP} />);
+      }
       out.push(<rect key={`${i}l`} x={a.x - 2.5} y={a.y} width={5} height={Math.max(0, GROUND - a.y)} {...PROP} />);
     }
     if (prop.kind === 'platform') {
+      // Перпендикулярно голени, чуть ниже носка: при подъёме на носки пятка отрывается, носок остаётся на платформе.
       const n = dir(p.a.shin + 90);
-      const a = mov(mov(p.ankle, dir(p.a.shin), -5), n, -14);
-      const b = mov(mov(p.ankle, dir(p.a.shin), -5), n, 26);
+      const o = mov(p.toe, dir(p.a.shin), -3);
+      const a = mov(o, n, -24);
+      const b = mov(o, n, 14);
       out.push(<path key={i} d={capsule(a, b, 5, 5)} {...PROP} />);
     }
     if (prop.kind === 'kneePad') {
-      const k = mov(p.knee, { x: 0, y: -1 }, 13);
+      const k = mov(p.knee, { x: 0, y: prop.under ? 1 : -1 }, prop.under ? 9 : 13);
       out.push(<rect key={i} x={k.x - 9} y={k.y - 4} width={18} height={8} rx={4} {...PROP} />);
     }
   }
@@ -555,7 +617,7 @@ export function Mannequin({ exerciseId, frame, playing = true, size = 220, showG
     return () => cancelAnimationFrame(raf);
   }, [animate, visible]);
 
-  const offset = useMemo<Fit>(() => (anim ? fitOffset(anim) : { dx: 0, dy: 0, scale: 1 }), [anim]);
+  const offset = useMemo<Fit>(() => (anim ? fitOffset(anim) : { dx: 0, dy: 0, scale: 1, pivotY: GROUND }), [anim]);
   const startPose = useMemo(() => (anim ? figureAt(anim, kf(anim, 'start'), offset).pose : null), [anim, offset]);
 
   const state: CycleState | null = !anim
@@ -597,7 +659,7 @@ export function Mannequin({ exerciseId, frame, playing = true, size = 220, showG
       aria-label="Техника упражнения"
       style={{ '--fig-bg': 'var(--surface)' } as CSSProperties}
     >
-      <g transform={offset.scale < 1 ? `translate(${W / 2} ${BAR_Y}) scale(${offset.scale}) translate(${-W / 2} ${-BAR_Y})` : undefined}>
+      <g transform={offset.scale < 1 ? `translate(${W / 2} ${offset.pivotY}) scale(${offset.scale}) translate(${-W / 2} ${-offset.pivotY})` : undefined}>
         <Props anim={anim} p={pose} start={startPose} />
         <Body skin={skin} plates={plates} hl={hl} gid={gid} symmetric={anim.view === 'front'} />
         <Equipment anim={anim} p={pose} start={startPose} />

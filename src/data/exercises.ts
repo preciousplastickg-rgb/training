@@ -1,5 +1,7 @@
 // Упражнения с подсказками — SPEC 6.6. Ключевые моменты и ошибки — дословно из SPEC.
+// Программа v2 (7 ноября 2026): 19 упражнений v1 здесь, 49 новых — в exercisesV2.ts; итого 68.
 
+import { EXERCISES_V2 } from './exercisesV2';
 import type { Exercise, Muscle } from '../db/types';
 
 export const MUSCLE_NAMES: Record<Muscle, string> = {
@@ -19,13 +21,14 @@ export const MUSCLE_NAMES: Record<Muscle, string> = {
   calves: 'Икры',
 };
 
-export const EXERCISES: Exercise[] = [
+const EXERCISES_V1: Exercise[] = [
   {
     id: 'goblet_squat',
     name: 'Гоблет-присед',
     short: 'Гоблет-присед',
     equipment: 'dumbbell',
     unit: 'kg',
+    defaultStep: 200,
     perSide: false,
     muscles: { primary: ['quads', 'glutes'], secondary: ['abs'] },
     muscleRoles: { quads: 'разгибают колени', glutes: 'поднимают таз', abs: 'держит корпус' },
@@ -44,6 +47,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Присед',
     equipment: 'barbell',
     unit: 'kg',
+    defaultStep: 500,
     perSide: false,
     muscles: { primary: ['quads', 'glutes'], secondary: ['hamstrings', 'lower_back'] },
     muscleRoles: { quads: 'главная работа', glutes: 'разгибают таз', hamstrings: 'помогают внизу', lower_back: 'держит спину прямой' },
@@ -62,6 +66,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Жим лёжа',
     equipment: 'barbell',
     unit: 'kg',
+    defaultStep: 250,
     perSide: false,
     muscles: { primary: ['chest', 'triceps'], secondary: ['front_delt'] },
     muscleRoles: { chest: 'главная работа', triceps: 'дожимают вверху', front_delt: 'помогает со старта' },
@@ -80,6 +85,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Тяга гантели',
     equipment: 'dumbbell',
     unit: 'kg',
+    defaultStep: 200,
     perSide: true,
     muscles: { primary: ['lats', 'upper_back'], secondary: ['biceps', 'rear_delt'] },
     muscleRoles: { lats: 'тянут локоть назад', upper_back: 'сводит лопатку', biceps: 'сгибает руку', rear_delt: 'помогает вверху' },
@@ -98,6 +104,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Румынская',
     equipment: 'dumbbell',
     unit: 'kg',
+    defaultStep: 200,
     perSide: false,
     muscles: { primary: ['hamstrings', 'glutes'], secondary: ['lower_back'] },
     muscleRoles: { hamstrings: 'главная работа, тянутся внизу', glutes: 'разгибают таз вверху', lower_back: 'держит спину прямой' },
@@ -116,6 +123,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Румынская',
     equipment: 'barbell',
     unit: 'kg',
+    defaultStep: 500,
     perSide: false,
     muscles: { primary: ['hamstrings', 'glutes'], secondary: ['lower_back', 'upper_back'] },
     muscleRoles: { hamstrings: 'главная работа', glutes: 'разгибают таз вверху', lower_back: 'держит спину прямой', upper_back: 'держит лопатки сведёнными' },
@@ -130,10 +138,11 @@ export const EXERCISES: Exercise[] = [
   },
   {
     id: 'lateral_raise',
-    name: 'Махи гантелями в стороны',
+    name: 'Махи гантелями в стороны стоя',
     short: 'Махи',
     equipment: 'dumbbell',
     unit: 'kg',
+    defaultStep: 100,
     perSide: false,
     muscles: { primary: ['side_delt'], secondary: ['upper_back'] },
     muscleRoles: { side_delt: 'поднимает руку в сторону', upper_back: 'стабилизирует лопатку' },
@@ -152,6 +161,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Планка',
     equipment: 'bodyweight',
     unit: 'seconds',
+    defaultStep: 10,
     perSide: false,
     muscles: { primary: ['abs'], secondary: ['glutes', 'front_delt'] },
     muscleRoles: { abs: 'держит корпус', glutes: 'держат таз', front_delt: 'держит плечи' },
@@ -166,6 +176,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Жим сидя',
     equipment: 'dumbbell',
     unit: 'kg',
+    defaultStep: 200,
     perSide: false,
     muscles: { primary: ['front_delt', 'side_delt'], secondary: ['triceps'] },
     muscleRoles: { front_delt: 'главная работа', side_delt: 'поднимает руку', triceps: 'дожимает вверху' },
@@ -180,10 +191,11 @@ export const EXERCISES: Exercise[] = [
   },
   {
     id: 'lat_pulldown',
-    name: 'Тяга верхнего блока к груди',
+    name: 'Тяга верхнего блока широким хватом',
     short: 'Тяга блока',
     equipment: 'cable',
     unit: 'kg',
+    defaultStep: 500,
     perSide: false,
     muscles: { primary: ['lats'], secondary: ['biceps', 'upper_back'] },
     muscleRoles: { lats: 'главная работа', biceps: 'сгибает руку', upper_back: 'сводит лопатки' },
@@ -202,6 +214,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Подтягивания',
     equipment: 'bodyweight',
     unit: 'reps',
+    defaultStep: 2,
     perSide: false,
     muscles: { primary: ['lats'], secondary: ['biceps', 'upper_back'] },
     muscleRoles: { lats: 'главная работа', biceps: 'сгибает руку', upper_back: 'сводит лопатки' },
@@ -211,7 +224,7 @@ export const EXERCISES: Exercise[] = [
       'Опускайся до прямых рук',
     ],
     mistakes: ['Раскачка и рывки ногами', 'Половина амплитуды'],
-    setup: 'Прямой хват. Если пока не получается 8 раз — используй гравитрон или вернись к тяге блока.',
+    setup: 'Прямой хват. Если пока не получается 8 раз — замени на гравитрон (кнопка «Заменить»).',
     videoQuery: 'подтягивания техника для начинающих',
   },
   {
@@ -220,6 +233,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Выпады',
     equipment: 'dumbbell',
     unit: 'kg',
+    defaultStep: 200,
     perSide: true,
     muscles: { primary: ['quads', 'glutes'], secondary: ['hamstrings'] },
     muscleRoles: { quads: 'разгибают колено', glutes: 'поднимают таз', hamstrings: 'помогают внизу' },
@@ -238,6 +252,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Жим ногами',
     equipment: 'machine',
     unit: 'kg',
+    defaultStep: 1000,
     perSide: false,
     muscles: { primary: ['quads', 'glutes'], secondary: ['hamstrings'] },
     muscleRoles: { quads: 'главная работа', glutes: 'разгибают таз', hamstrings: 'помогают внизу' },
@@ -256,6 +271,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Жим наклонный',
     equipment: 'dumbbell',
     unit: 'kg',
+    defaultStep: 200,
     perSide: false,
     muscles: { primary: ['chest', 'front_delt'], secondary: ['triceps'] },
     muscleRoles: { chest: 'верх груди, главная', front_delt: 'помогает со старта', triceps: 'дожимает вверху' },
@@ -274,6 +290,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Жим гантелей',
     equipment: 'dumbbell',
     unit: 'kg',
+    defaultStep: 200,
     perSide: false,
     muscles: { primary: ['chest', 'triceps'], secondary: ['front_delt'] },
     muscleRoles: { chest: 'главная работа', triceps: 'дожимают вверху', front_delt: 'помогает со старта' },
@@ -288,24 +305,26 @@ export const EXERCISES: Exercise[] = [
   },
   {
     id: 'biceps_curl',
-    name: 'Сгибания на бицепс',
-    short: 'Бицепс',
-    equipment: 'dumbbell',
+    name: 'Сгибания на бицепс на блоке',
+    short: 'Бицепс на блоке',
+    equipment: 'cable',
     unit: 'kg',
+    defaultStep: 500,
     perSide: false,
     muscles: { primary: ['biceps'], secondary: [] },
     muscleRoles: { biceps: 'главная работа' },
     cues: ['Локти прижаты к корпусу', 'Подъём без раскачки', 'Вниз медленно, 2 секунды'],
     mistakes: ['Раскачка спиной', 'Локти уходят вперёд'],
-    setup: 'Стоя, гантели в опущенных руках ладонями вперёд.',
-    videoQuery: 'сгибания рук с гантелями на бицепс техника',
+    setup: 'Нижний блок, прямая или EZ-рукоять. Стоя, локти у корпуса.',
+    videoQuery: 'сгибания на бицепс на блоке техника',
   },
   {
     id: 'triceps_pushdown',
-    name: 'Разгибания на блоке',
+    name: 'Разгибания на трицепс с канатом',
     short: 'Трицепс',
     equipment: 'cable',
     unit: 'kg',
+    defaultStep: 500,
     perSide: false,
     muscles: { primary: ['triceps'], secondary: [] },
     muscleRoles: { triceps: 'главная работа' },
@@ -320,6 +339,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Подъём ног',
     equipment: 'bodyweight',
     unit: 'reps',
+    defaultStep: 2,
     perSide: false,
     muscles: { primary: ['abs'], secondary: [] },
     muscleRoles: { abs: 'подкручивает таз' },
@@ -334,6 +354,7 @@ export const EXERCISES: Exercise[] = [
     short: 'Скручивания',
     equipment: 'cable',
     unit: 'kg',
+    defaultStep: 500,
     perSide: false,
     muscles: { primary: ['abs'], secondary: [] },
     muscleRoles: { abs: 'скручивает корпус' },
@@ -343,6 +364,8 @@ export const EXERCISES: Exercise[] = [
     videoQuery: 'скручивания на блоке стоя на коленях техника',
   },
 ];
+
+export const EXERCISES: Exercise[] = [...EXERCISES_V1, ...EXERCISES_V2];
 
 export const EXERCISE_BY_ID: Record<string, Exercise> = Object.fromEntries(EXERCISES.map((e) => [e.id, e]));
 

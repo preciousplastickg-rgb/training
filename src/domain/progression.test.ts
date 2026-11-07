@@ -122,3 +122,45 @@ describe('упражнения на время и повторы', () => {
     expect(s.targets).toEqual([12, 12, 12]);
   });
 });
+
+// SPEC 10, «Прогрессия» — обязательные тесты программы v2.
+describe('программа v2: гравитрон, жим ногами, EZ', () => {
+  const assisted: ProgressionInput = {
+    ...base, exercise: { id: 'pullup_assisted', equipment: 'machine', unit: 'assist_kg' }, repMin: 6, repMax: 10, step: 500,
+  };
+  it('pullup_assisted, противовес 30 кг, 10 / 10 / 10 при repMax 10 → следующий противовес 25 кг', () => {
+    const s = suggest({ ...assisted, history: [entry('a', 3000, [10, 10, 10])] });
+    expect(s.mode).toBe('progress');
+    expect(s.weight).toBe(2500);
+    expect(s.targets).toEqual([6, 6, 6]);
+  });
+  it('pullup_assisted, противовес 0, 10 / 10 / 10 → карточка «переключить на pullup»', () => {
+    const s = suggest({ ...assisted, history: [entry('a', 0, [10, 10, 10])] });
+    expect(s.mode).toBe('switch');
+    expect(s.switchTo).toBe('pullup');
+    expect(s.reason).toBe('Подтягиваешься сам — переключить на подтягивания?');
+    const dip = suggest({ ...assisted, exercise: { id: 'dip_assisted', equipment: 'machine', unit: 'assist_kg' }, history: [entry('a', 0, [10, 10, 10])] });
+    expect(dip).toMatchObject({ mode: 'switch', switchTo: 'dip' });
+  });
+  it('pullup_assisted, застой 3 сессии на 20 кг → противовес 25 кг', () => {
+    const s = suggest({
+      ...assisted,
+      history: [entry('a', 2000, [8, 8, 7]), entry('b', 2000, [8, 7, 7]), entry('c', 2000, [8, 8, 7])],
+    });
+    expect(s.mode).toBe('stall');
+    expect(s.weight).toBe(2500);
+  });
+  it('гравитрон: первая сессия — подбор противовеса; не все подходы на максимуме — тот же противовес, +1 повтор', () => {
+    expect(suggest(assisted)).toMatchObject({ mode: 'manual', weight: null });
+    const s = suggest({ ...assisted, history: [entry('a', 2000, [10, 9, 8])] });
+    expect(s).toMatchObject({ mode: 'hold', weight: 2000, targets: [10, 9, 9] });
+  });
+  it('leg_press 100 кг, 15 / 15 / 15 при repMax 15 → 110 кг (шаг 10, округление 5)', () => {
+    const s = suggest({ ...base, exercise: { equipment: 'machine', unit: 'kg' }, repMin: 10, repMax: 15, step: 1000, history: [entry('a', 10000, [15, 15, 15])] });
+    expect(s.weight).toBe(11000);
+  });
+  it('ez_curl 25 кг, 12 / 12 / 12 при repMax 12 → 27,5 кг', () => {
+    const s = suggest({ ...base, exercise: { equipment: 'barbell', unit: 'kg' }, repMin: 10, repMax: 12, step: 250, history: [entry('a', 2500, [12, 12, 12])] });
+    expect(s.weight).toBe(2750);
+  });
+});

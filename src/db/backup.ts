@@ -2,28 +2,38 @@
 
 import { z } from 'zod';
 import { appToday } from '../app/clock';
-import { db, type AppDB } from './db';
+import { db, SLOT_SEED_VERSION, type AppDB } from './db';
+import { isSlotV1, migratePoolV1, migrateSessionsV1, migrateSetsV1, migrateSettingsV1, migrateSlotsV1, type SlotV1 } from './migrate';
+import type { Food, PoolSession, ProgramSlot, SetLog, SettingsRow, WorkoutSession } from './types';
 
 export const BACKUP_APP = 'training-pwa';
-export const BACKUP_VERSION = 1;
+/** 2 — программа v2 (A/B/C по блокам, тип бассейна, пульс, лёгкие недели). Бэкап версии 1 принимается и мигрирует при импорте. */
+export const BACKUP_VERSION = 2;
 
 const localDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const int = z.number().int();
+const phase = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+const sauna = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]);
 
 const session = z.object({
-  id: z.string(), date: localDate, workout: z.enum(['A', 'B']), startedAt: z.number(), finishedAt: z.number().optional(),
+  id: z.string(), date: localDate, workout: z.enum(['A', 'B', 'C']), block: phase.optional(), startedAt: z.number(), finishedAt: z.number().optional(),
   isDeload: z.boolean(), isCalibration: z.boolean(), note: z.string().optional(),
+  cardio: z.object({ machine: z.enum(['treadmill', 'elliptical', 'bike']), minutes: int }).optional(), saunaRounds: sauna.optional(),
 });
 const set = z.object({
   id: z.string(), sessionId: z.string(), exerciseId: z.string(), slotId: z.string(), setIndex: int, kind: z.enum(['warmup', 'work']),
   weight: int, reps: int, rir: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(), doneAt: z.number(),
 });
-const pool = z.object({ id: z.string(), date: localDate, minutes: int, meters: int.optional(), feel: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(), note: z.string().optional() });
-const body = z.object({ date: localDate, weight: int.optional(), waist: int.optional(), neck: int.optional(), steps: int.optional() });
+const pool = z.object({
+  id: z.string(), date: localDate, type: z.enum(['technique', 'intervals', 'long']).optional(), minutes: int, meters: int.optional(),
+  feel: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(), saunaRounds: sauna.optional(), note: z.string().optional(),
+});
+const body = z.object({ date: localDate, weight: int.optional(), waist: int.optional(), neck: int.optional(), steps: int.optional(), restingHr: int.optional() });
 const per100 = z.object({ kcal: int, p: int, f: int, c: int });
 const food = z.object({
   id: z.string(), name: z.string(), aliases: z.array(z.string()), per100, unitName: z.string().optional(), unitGrams: int.optional(),
   source: z.enum(['seed', 'user', 'recipe']), approx: z.boolean(), archived: z.boolean(),
+  category: z.enum(['meat', 'dairy', 'grain', 'veg', 'fruit', 'fat', 'sweet', 'drink', 'dish']).optional(),
 });
 const recipe = z.object({ foodId: z.string(), items: z.array(z.object({ foodId: z.string(), grams: int })), cookedWeight: int });
 const foodLog = z.object({
@@ -31,26 +41,28 @@ const foodLog = z.object({
   quick: z.object({ name: z.string(), kcal: int, p: int }).optional(), createdAt: z.number(),
 });
 const adjustment = z.object({ id: z.string(), date: localDate, deltaKcal: int, reason: z.string() });
+/** Слот v2; поля v1 (`rest`, обязательный `step`) тоже принимаются — импорт их мигрирует. */
 const slot = z.object({
-  id: z.string(), workout: z.enum(['A', 'B']), order: int, exerciseId: z.string(), altExerciseIds: z.array(z.string()),
-  sets: int, repMin: int, repMax: int, step: int, rest: z.union([z.literal('long'), z.literal('short'), int]),
-  supersetWith: z.string().optional(), fromPhase: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
-  toPhase: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  id: z.string(), workout: z.enum(['A', 'B', 'C']), code: z.string().optional(), order: int, section: z.enum(['main', 'accessory']).optional(),
+  block: phase.optional(), exerciseId: z.string(), altExerciseIds: z.array(z.string()),
+  sets: int, repMin: int, repMax: int, step: z.number().optional(), restSec: int.optional(), rest: z.union([z.literal('long'), z.literal('short'), int]).optional(),
+  supersetWith: z.string().optional(), fromPhase: phase.optional(), toPhase: phase.optional(),
 });
 const settings = z.object({
   id: z.literal('main'), name: z.string().optional(), heightCm: z.number(), startDate: localDate, startWeight: int, targetWeight: int, targetBodyFat: z.number(),
-  restLong: int, restShort: int, barWeight: int, plates: z.array(int), sound: z.boolean(), theme: z.enum(['light', 'dark', 'system']),
-  substitutions: z.record(z.string(), z.string()), lastBackupAt: z.number().optional(),
+  restLong: int.optional(), restShort: int.optional(), barWeight: int, ezBarWeight: int.optional(), plates: z.array(int), sound: z.boolean(),
+  theme: z.enum(['light', 'dark', 'system']), substitutions: z.record(z.string(), z.string()), substitutionsBlock: phase.optional(), lastBackupAt: z.number().optional(),
   phase3Mode: z.enum(['maintenance', 'deficit']).optional(), onboarded: z.boolean().optional(),
   schedule: z.object({ gym: z.array(int), pool: z.array(int), poolOptional: z.array(int) }).optional(),
   dayOverrides: z.record(z.string(), z.enum(['gym', 'pool', 'rest'])).optional(),
 });
 const kv = z.object({ key: z.string(), value: z.unknown() });
 const exerciseNote = z.object({ exerciseId: z.string(), text: z.string(), updatedAt: z.number() });
+const lightWeek = z.object({ id: z.string(), start: localDate, end: localDate, reason: z.literal('resting_hr') });
 
 export const backupSchema = z.object({
   app: z.literal(BACKUP_APP),
-  version: z.literal(BACKUP_VERSION),
+  version: z.union([z.literal(1), z.literal(2)]),
   exportedAt: z.number(),
   tables: z.object({
     sessions: z.array(session),
@@ -66,6 +78,8 @@ export const backupSchema = z.object({
     kv: z.array(kv),
     /** Появились со схемой v2: бэкап без них — старый, но годный. */
     exerciseNotes: z.array(exerciseNote).optional(),
+    /** Со схемы v3. */
+    lightWeeks: z.array(lightWeek).optional(),
   }),
 });
 
@@ -76,10 +90,10 @@ export type TableName = keyof Backup['tables'];
 const KV_SKIP = new Set(['restTimer', 'silhouette:last']);
 
 export async function exportBackup(database: AppDB = db): Promise<Backup> {
-  const [sessions, sets, pool, bodyT, foods, foodLogT, adjustments, recipes, slots, settingsT, kvT, exerciseNotes] = await Promise.all([
+  const [sessions, sets, pool, bodyT, foods, foodLogT, adjustments, recipes, slots, settingsT, kvT, exerciseNotes, lightWeeks] = await Promise.all([
     database.sessions.toArray(), database.sets.toArray(), database.pool.toArray(), database.body.toArray(),
     database.foods.toArray(), database.foodLog.toArray(), database.adjustments.toArray(), database.recipes.toArray(),
-    database.slots.toArray(), database.settings.toArray(), database.kv.toArray(), database.exerciseNotes.toArray(),
+    database.slots.toArray(), database.settings.toArray(), database.kv.toArray(), database.exerciseNotes.toArray(), database.lightWeeks.toArray(),
   ]);
   return {
     app: BACKUP_APP,
@@ -87,7 +101,7 @@ export async function exportBackup(database: AppDB = db): Promise<Backup> {
     exportedAt: Date.now(),
     tables: {
       sessions, sets, pool, body: bodyT, foods, foodLog: foodLogT, adjustments, recipes, slots,
-      settings: settingsT, kv: kvT.filter((r) => !KV_SKIP.has(r.key)), exerciseNotes,
+      settings: settingsT, kv: kvT.filter((r) => !KV_SKIP.has(r.key)), exerciseNotes, lightWeeks,
     } as Backup['tables'],
   };
 }
@@ -110,32 +124,55 @@ export function parseBackup(text: string): ParseResult {
   return { ok: true, backup: r.data, counts };
 }
 
+/** Таблицы к записи: бэкап версии 1 (программа A/B) мигрирует так же, как база при обновлении. */
+export function tablesToWrite(backup: Backup): {
+  sessions: WorkoutSession[]; sets: SetLog[]; pool: PoolSession[]; slots: ProgramSlot[]; settings: SettingsRow[];
+} {
+  const t = backup.tables;
+  if (backup.version >= 2 && t.slots.every((s) => !isSlotV1(s))) {
+    return { sessions: t.sessions as WorkoutSession[], sets: t.sets, pool: t.pool as PoolSession[], slots: t.slots as ProgramSlot[], settings: t.settings as SettingsRow[] };
+  }
+  const { slots, slotIdMap } = migrateSlotsV1(t.slots as (SlotV1 | ProgramSlot)[]);
+  return {
+    sessions: migrateSessionsV1(t.sessions as WorkoutSession[]),
+    sets: migrateSetsV1(t.sets, slotIdMap),
+    pool: migratePoolV1(t.pool as PoolSession[]),
+    slots,
+    settings: t.settings.map((row) => migrateSettingsV1(row as SettingsRow) as SettingsRow),
+  };
+}
+
 /** «Заменить всё»: все таблицы, кроме фото, очищаются и заполняются из бэкапа. */
 export async function replaceAll(backup: Backup, database: AppDB = db): Promise<void> {
   const t = backup.tables;
+  const w = tablesToWrite(backup);
   await database.transaction(
     'rw',
-    [database.sessions, database.sets, database.pool, database.body, database.foods, database.foodLog, database.adjustments, database.recipes, database.slots, database.settings, database.kv, database.exerciseNotes],
+    [
+      database.sessions, database.sets, database.pool, database.body, database.foods, database.foodLog, database.adjustments, database.recipes,
+      database.slots, database.settings, database.kv, database.exerciseNotes, database.lightWeeks,
+    ],
     async () => {
       await Promise.all([
         database.sessions.clear(), database.sets.clear(), database.pool.clear(), database.body.clear(), database.foods.clear(),
         database.foodLog.clear(), database.adjustments.clear(), database.recipes.clear(), database.slots.clear(), database.settings.clear(), database.kv.clear(),
-        database.exerciseNotes.clear(),
+        database.exerciseNotes.clear(), database.lightWeeks.clear(),
       ]);
-      await database.sessions.bulkAdd(t.sessions);
-      await database.sets.bulkAdd(t.sets);
-      await database.pool.bulkAdd(t.pool);
+      await database.sessions.bulkAdd(w.sessions);
+      await database.sets.bulkAdd(w.sets);
+      await database.pool.bulkAdd(w.pool);
       await database.body.bulkAdd(t.body);
-      await database.foods.bulkAdd(t.foods);
+      await database.foods.bulkAdd(t.foods as Food[]);
       await database.foodLog.bulkAdd(t.foodLog);
       await database.adjustments.bulkAdd(t.adjustments);
       await database.recipes.bulkAdd(t.recipes);
-      await database.slots.bulkAdd(t.slots);
-      await database.settings.bulkAdd(t.settings);
-      await database.kv.bulkAdd(t.kv.map((r) => ({ key: r.key, value: r.value })));
+      await database.slots.bulkAdd(w.slots);
+      await database.settings.bulkAdd(w.settings);
+      await database.kv.bulkAdd(t.kv.filter((r) => r.key !== 'seed:slots').map((r) => ({ key: r.key, value: r.value })));
       await database.exerciseNotes.bulkAdd(t.exerciseNotes ?? []);
+      await database.lightWeeks.bulkAdd(t.lightWeeks ?? []);
       // seed не должен перезаписать импортированные программу и продукты
-      await database.kv.put({ key: 'seed:slots', value: 1 });
+      await database.kv.put({ key: 'seed:slots', value: SLOT_SEED_VERSION });
       await database.kv.put({ key: 'seed:foods', value: 1 });
     },
   );

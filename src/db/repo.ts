@@ -3,8 +3,10 @@
 import { SEED_FOODS } from '../data/foods';
 import { SEED_SLOTS } from '../data/program';
 import { appToday as today } from '../app/clock';
+import { lightWeekFrom } from '../domain/heart';
+import { blockFor } from '../domain/program';
 import type { HistoryEntry } from '../domain/progression';
-import { db, ensureSettings, updateSettings, type AppDB } from './db';
+import { db, ensureSettings, SLOT_SEED_VERSION, updateSettings, type AppDB } from './db';
 import type {
   Adjustment, BodyEntry, Food, FoodLog, LocalDate, PoolSession, ProgramSlot, Recipe, SetLog, WorkoutSession,
 } from './types';
@@ -20,9 +22,10 @@ export const FOOD_SEED_VERSION = 2;
 export async function seedIfNeeded(database: AppDB = db): Promise<void> {
   await ensureSettings(database);
   await database.transaction('rw', database.slots, database.foods, database.kv, async () => {
-    if (!(await database.kv.get('seed:slots'))) {
-      await database.slots.bulkPut(SEED_SLOTS);
-      await database.kv.put({ key: 'seed:slots', value: 1 });
+    // Программа v2: при первом запуске — seed целиком; база прошлых версий приходит сюда уже мигрированной (db.ts).
+    if ((await database.kv.get('seed:slots'))?.value !== SLOT_SEED_VERSION) {
+      if ((await database.slots.count()) === 0) await database.slots.bulkPut(SEED_SLOTS);
+      await database.kv.put({ key: 'seed:slots', value: SLOT_SEED_VERSION });
     }
     if ((await database.kv.get('seed:foods'))?.value !== FOOD_SEED_VERSION) {
       const existing = new Map((await database.foods.toArray()).map((f) => [f.id, f]));
@@ -79,8 +82,14 @@ export async function startSession(input: Pick<WorkoutSession, 'workout' | 'isDe
   const existing = await activeSession();
   if (existing) return existing.id;
   const id = uid();
-  await db.sessions.add({ id, date: today(), startedAt: Date.now(), ...input });
+  const date = today();
+  await db.sessions.add({ id, date, block: blockFor(date), startedAt: Date.now(), ...input });
   return id;
+}
+
+/** Кардио после дополнительного блока и сауна — в сессию (SPEC 3.5, 3.7). */
+export async function updateSession(id: string, patch: Partial<Pick<WorkoutSession, 'cardio' | 'saunaRounds' | 'note'>>): Promise<void> {
+  await db.sessions.update(id, patch);
 }
 
 /** Подход пишется в БД сразу — незавершённая тренировка переживает закрытие приложения. */
@@ -108,6 +117,7 @@ export async function finishSession(id: string, note?: string): Promise<void> {
   const finishedAt = lastDone > 0 && now - lastDone > STALE_SESSION_MS ? lastDone : now;
   await db.sessions.update(id, { finishedAt, ...(note ? { note } : {}) });
   await kvDel('restTimer');
+  await db.kv.bulkDelete([`warmup:${id}`, `cardio:${id}`]);
 }
 
 /** Отменить тренировку целиком: сессия и её подходы удаляются. */
@@ -115,7 +125,7 @@ export async function discardSession(id: string): Promise<void> {
   await db.transaction('rw', db.sessions, db.sets, db.kv, async () => {
     await db.sets.where('sessionId').equals(id).delete();
     await db.sessions.delete(id);
-    await db.kv.delete('restTimer');
+    await db.kv.bulkDelete(['restTimer', `warmup:${id}`, `cardio:${id}`]);
   });
 }
 
@@ -158,6 +168,17 @@ export async function exerciseHistory(exerciseId: string, excludeSessionId?: str
 
 export async function addPool(p: Omit<PoolSession, 'id'>): Promise<void> {
   await db.pool.add({ ...p, id: uid() });
+}
+
+// ---------- Лёгкая неделя по пульсу (SPEC 5.9) ----------
+
+/** «Принять» сегодня → лёгкая неделя с завтрашнего дня на 7 дней. */
+export async function acceptLightWeek(acceptedOn: LocalDate = today()): Promise<void> {
+  await db.lightWeeks.add({ id: uid(), ...lightWeekFrom(acceptedOn) });
+}
+
+export async function dismissLightWeek(date: LocalDate): Promise<void> {
+  await kvSet('lightWeekDismissed', date);
 }
 
 export async function deletePool(id: string): Promise<void> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adjacentWeight, increaseWeight, platesPerSide, reduceWeight, roundWeight, warmupSets } from './weights';
+import { adjacentWeight, barWeightFor, increaseWeight, platesPerSide, reduceWeight, roundWeight, warmupSets } from './weights';
 
 const PLATES = [2500, 2000, 1500, 1000, 500, 250, 125];
 
@@ -58,5 +58,29 @@ describe('блины', () => {
   it('легче грифа — null; ненабираемый остаток', () => {
     expect(platesPerSide(1500, 2000, PLATES)).toBeNull();
     expect(platesPerSide(2100, 2000, PLATES)?.remainder).toBe(100);
+  });
+});
+
+// SPEC 10, «Прогрессия»: блины для EZ-грифа; округление по оборудованию v2.
+describe('программа v2: EZ-гриф и округление', () => {
+  it('27,5 кг при ezBarWeight 10 кг: на сторону 5 + 2,5 + 1,25', () => {
+    expect(platesPerSide(2750, 1000, PLATES)).toEqual({ perSide: [500, 250, 125], remainder: 0 });
+    expect(barWeightFor({ id: 'ez_curl', equipment: 'barbell' }, { barWeight: 2000, ezBarWeight: 1000 })).toBe(1000);
+    expect(barWeightFor({ id: 'bench_press', equipment: 'barbell' }, { barWeight: 2000, ezBarWeight: 1000 })).toBe(2000);
+    expect(barWeightFor({ id: 'leg_press', equipment: 'machine' }, { barWeight: 2000, ezBarWeight: 1000 })).toBeNull();
+  });
+  it('противовес гравитрона — 5 кг, может быть 0; блин гиперэкстензии — 2,5 кг от 0', () => {
+    const assist = { equipment: 'machine', unit: 'assist_kg' } as const;
+    expect(roundWeight(assist, 2600)).toBe(2500);
+    expect(adjacentWeight(assist, 500, -1)).toBe(0);
+    expect(adjacentWeight(assist, 0, -1)).toBe(0);
+    const plate = { equipment: 'bodyweight', unit: 'kg' } as const;
+    expect(adjacentWeight(plate, 0, 1)).toBe(250);
+    expect(adjacentWeight(plate, 250, -1)).toBe(0);
+    expect(roundWeight('machine', 10500, 'up')).toBe(10500);
+  });
+  it('разминка только для веса в кг: у гравитрона и повторов её нет', () => {
+    expect(warmupSets({ equipment: 'machine', unit: 'assist_kg' }, 3000, 2000)).toEqual([]);
+    expect(warmupSets({ equipment: 'machine', unit: 'kg' }, 10000, 2000)).toEqual([{ weight: 5000, reps: 8 }, { weight: 7500, reps: 3 }]);
   });
 });

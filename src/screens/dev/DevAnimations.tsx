@@ -6,7 +6,7 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { Chip } from '../../components/ui';
 import { EXERCISES } from '../../data/exercises';
 
-/** Приёмка манекена: все 19 упражнений, кадры start и end рядом (SPEC 6.7.2). */
+/** Приёмка манекена: все 68 упражнений, кадры start и end рядом (SPEC 6.7.2). */
 export function DevAnimations() {
   const [guides, setGuides] = useState(true);
   return (

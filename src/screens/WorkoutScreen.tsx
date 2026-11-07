@@ -1,7 +1,7 @@
 // Вкладка «Тренировка» — макет BWorkout (REDESIGN 4): чёрная карточка со списком упражнений и CTA,
 // «Эта неделя» — 7 строк со статусом, ссылка «Календарь» → месячный вид (SPEC 6.9) в шторке, история.
 
-import { ChevronRight, History, Play, Waves } from 'lucide-react';
+import { ChevronRight, Flame, History, Play, Waves } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { navigate } from '../app/router';
 import { unlockAudio } from '../app/sound';
@@ -11,17 +11,17 @@ import { Sheet } from '../components/Sheet';
 import { Button, Caps, Card, HeroCard, SectionTitle } from '../components/ui';
 import { DEFAULT_SETTINGS } from '../db/db';
 import { startSession } from '../db/repo';
-import type { PoolSession, WorkoutSession } from '../db/types';
+import type { PoolSession, Workout, WorkoutSession } from '../db/types';
 import { calendarDays } from '../domain/calendar';
 import { addDays, weekStart } from '../domain/dates';
 import { gymDone } from '../domain/discipline';
 import { formatDayMonth, formatKg, formatInt, NBSP } from '../domain/format';
 import { suggestionFor } from '../domain/history';
-import { deloadFor, estimateMinutes, gymDatesOf, nextWorkout, phaseWeek, planForDate, planOptionsOf, workoutPlan, type PlannedExercise } from '../domain/program';
+import { deloadFor, estimateMinutes, gymDatesOf, nextWorkout, planForDate, planOptionsOf, programLine, workoutAfter, workoutPlan, type PlannedExercise } from '../domain/program';
 import { volume } from '../domain/records';
 import { monthStats, weekRows, type WeekRow } from '../domain/week';
-import { PROGRAM_START } from '../data/program';
-import { useActiveSession, useAllSets, useBody, usePool, useSessions, useSettings, useSlots } from '../hooks/useData';
+import { CARDIO_BY_WORKOUT, CARDIO_MINUTES, CARDIO_NAMES, POOL_TYPE_NAMES, PROGRAM_START, WORKOUT_NAMES } from '../data/program';
+import { useActiveSession, useAllSets, useBody, useLightWeeks, usePool, useSessions, useSettings, useSlots } from '../hooks/useData';
 import { useToday } from '../hooks/useToday';
 import { EmptyState } from '../components/EmptyState';
 import { CalendarCard } from './workout/CalendarCard';
@@ -41,25 +41,26 @@ export function WorkoutScreen() {
   const [info, setInfo] = useState<string | null>(null);
   // null — закрыт, '' — открыт на текущем месяце, дата — открыт сразу на этом дне.
   const [calendar, setCalendar] = useState<string | null>(null);
+  const lightWeeks = useLightWeeks();
   const auto = nextWorkout(sessions);
-  const [override, setOverride] = useState<'A' | 'B' | null>(null);
+  const [override, setOverride] = useState<Workout | null>(null);
   const workout = override ?? auto;
+  const nextShown = workoutAfter(workout);
   const beforeStart = date < PROGRAM_START;
   const isDeload = deloadFor(date) !== null;
-  const plan = useMemo(() => workoutPlan(workout, date, slots, settings), [workout, date, slots, settings]);
-  const pw = phaseWeek(date);
-  const dayPlan = planForDate(date, gymDatesOf(sessions), planOptionsOf(settings));
+  const plan = useMemo(() => workoutPlan(workout, date, slots, settings, { lightWeeks }), [workout, date, slots, settings, lightWeeks]);
+  const dayPlan = planForDate(date, gymDatesOf(sessions), planOptionsOf(settings, lightWeeks));
   const doneToday = sessions.some((s) => s.date === date && s.finishedAt !== undefined && !s.isCalibration);
 
-  const week = useMemo(() => weekRows(date, sessions, sets, pool, slots, settings, body), [date, sessions, sets, pool, slots, settings, body]);
+  const week = useMemo(() => weekRows(date, sessions, sets, pool, slots, settings, body, lightWeeks), [date, sessions, sets, pool, slots, settings, body, lightWeeks]);
   const month = date.slice(0, 7);
   const stats = useMemo(() => {
     const [y, m] = month.split('-').map(Number) as [number, number];
     const first = `${month}-01`;
     const end = addDays(m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`, -1);
-    const days = calendarDays(weekStart(first), end, date, sessions, gymDone(sessions, sets, slots, settings), pool, planOptionsOf(settings));
+    const days = calendarDays(weekStart(first), end, date, sessions, gymDone(sessions, sets, slots, settings, lightWeeks), pool, planOptionsOf(settings, lightWeeks));
     return monthStats(days, month, date);
-  }, [month, date, sessions, sets, slots, settings, pool]);
+  }, [month, date, sessions, sets, slots, settings, pool, lightWeeks]);
 
   const start = async (calibration: boolean) => {
     unlockAudio();
@@ -67,11 +68,11 @@ export function WorkoutScreen() {
     navigate('session');
   };
 
-  const kicker = beforeStart ? 'Подбор веса' : dayPlan.kind === 'gym' && !doneToday ? (isDeload ? 'Сегодня · разгрузка' : 'Сегодня') : isDeload ? 'Следующая · разгрузка' : 'Следующая';
+  const kicker = beforeStart ? 'Подбор веса' : dayPlan.kind === 'gym' && !doneToday ? (isDeload ? 'Сегодня · разгрузка' : dayPlan.lightWeek ? 'Сегодня · лёгкая неделя' : 'Сегодня') : isDeload ? 'Следующая · разгрузка' : 'Следующая';
 
   return (
     <>
-      <ScreenHeader title="Тренировка" subtitle={pw ? `Фаза ${pw.phase.n} · ${pw.phase.name}` : beforeStart ? 'Подготовка' : 'Программа завершена'} />
+      <ScreenHeader title="Тренировка" subtitle={beforeStart ? 'Подготовка' : programLine(date)} />
       <div className="flex flex-col gap-3 px-4 pb-6">
         {active && (
           <HeroCard className="flex flex-col gap-4 rounded-[30px]! px-5! pt-[22px]! pb-5!">
@@ -94,8 +95,9 @@ export function WorkoutScreen() {
                 <span className="text-sm whitespace-nowrap text-muted-on-ink">≈ {estimateMinutes(plan)} мин</span>
               </div>
               <h2 className="font-display text-[30px] leading-9 font-bold">Тренировка {workout}</h2>
+              <p className="-mt-1 text-[15px] text-muted-on-ink">{WORKOUT_NAMES[workout]}</p>
             </div>
-            <PlanList plan={plan} sets={sets} sessions={sessions} isDeload={isDeload} calibration={beforeStart} onInfo={setInfo} />
+            <PlanList plan={plan} sets={sets} sessions={sessions} isDeload={isDeload} calibration={beforeStart} onInfo={setInfo} workout={workout} />
             {beforeStart ? (
               <div className="mt-3.5 flex flex-col gap-2">
                 <Button size="lg" className="w-full" onClick={() => void start(true)}>
@@ -110,10 +112,10 @@ export function WorkoutScreen() {
             )}
             <button
               type="button"
-              onClick={() => setOverride(override ? null : auto === 'A' ? 'B' : 'A')}
+              onClick={() => setOverride(nextShown === auto ? null : nextShown)}
               className="mt-1 min-h-11 text-sm font-bold text-muted-on-ink underline underline-offset-2"
             >
-              {override ? `Вернуть тренировку ${auto}` : `Показать тренировку ${auto === 'A' ? 'B' : 'A'}`}
+              {nextShown === auto ? `Вернуть тренировку ${auto}` : `Показать тренировку ${nextShown}`}
             </button>
           </HeroCard>
         )}
@@ -144,13 +146,15 @@ export function WorkoutScreen() {
 export function setsLabel(p: PlannedExercise): string {
   const { repMin, repMax } = p.slot;
   const unit = p.exercise.unit === 'seconds' ? ' с' : '';
-  const side = p.exercise.perSide ? (p.exercise.id === 'db_row' ? ' на руку' : ' на ногу') : '';
+  const side = p.exercise.perSide ? (p.exercise.unit === 'seconds' ? ' на сторону' : ' на ногу') : '';
   return `${p.sets} × ${repMin}–${repMax}${unit}${side}`;
 }
 
-/** Строки упражнений в чёрной карточке: номер лаймом, название, рабочий вес, подходы × повторы. Тап — «Как делать». */
+const SECTION_TITLES = { main: 'Основной блок', accessory: 'Дополнительный блок' } as const;
+
+/** Строки упражнений в чёрной карточке: разделители блоков, номер лаймом, название, рабочий вес, подходы × повторы, внизу кардио. Тап — «Как делать». */
 function PlanList({
-  plan, sets, sessions, isDeload, calibration, onInfo,
+  plan, sets, sessions, isDeload, calibration, onInfo, workout,
 }: {
   plan: PlannedExercise[];
   sets: ReturnType<typeof useAllSets>;
@@ -158,22 +162,25 @@ function PlanList({
   isDeload: boolean;
   calibration: boolean;
   onInfo: (id: string) => void;
+  workout: Workout;
 }) {
   return (
     <ul className="flex flex-col">
       {plan.map((p, i) => {
         const s = suggestionFor(p, sets, sessions, { isDeload, isCalibration: calibration });
         const value =
-          p.exercise.unit === 'kg'
+          p.exercise.unit === 'kg' || p.exercise.unit === 'assist_kg'
             ? s.weight === null
               ? 'подбери'
-              : formatKg(s.weight)
+              : `${p.exercise.unit === 'assist_kg' ? '−' : ''}${formatKg(s.weight)}`
             : p.exercise.unit === 'seconds'
               ? `${s.targets[0]}${NBSP}с`
               : `${s.targets[0]} раз`;
         const range = `${p.sets} × ${p.slot.repMin}–${p.slot.repMax}${p.exercise.unit === 'seconds' ? ' с' : ''}`;
+        const sectionStart = i === 0 || plan[i - 1]!.section !== p.section;
         return (
           <li key={p.slot.id}>
+            {sectionStart && <Caps className="pt-2.5 pb-1 text-muted-on-ink!">{SECTION_TITLES[p.section]}</Caps>}
             <button
               type="button"
               onClick={() => onInfo(p.exercise.id)}
@@ -188,6 +195,14 @@ function PlanList({
           </li>
         );
       })}
+      <li>
+        <Caps className="pt-2.5 pb-1 text-muted-on-ink!">Кардио</Caps>
+        <div className="flex min-h-[46px] items-center gap-3 border-t border-[#26282C] py-1.5">
+          <span className="flex w-[22px] shrink-0 justify-center text-primary"><Flame size={15} aria-hidden /></span>
+          <span className="min-w-0 flex-1 text-[15px] leading-5 font-semibold">{CARDIO_NAMES[CARDIO_BY_WORKOUT[workout]]}</span>
+          <span className="shrink-0 text-[13px] whitespace-nowrap text-muted-on-ink tabular-nums">{CARDIO_MINUTES} мин · пульс 120–135</span>
+        </div>
+      </li>
     </ul>
   );
 }
@@ -276,7 +291,7 @@ function SessionHistory({ sessions }: { sessions: WorkoutSession[] }) {
                     {row(
                       formatDayMonth(p.date),
                       <>
-                        Бассейн <Waves size={14} className="text-protein" aria-hidden />
+                        Бассейн · {POOL_TYPE_NAMES[p.type]} <Waves size={14} className="text-protein" aria-hidden />
                       </>,
                       'Бассейн',
                       <>{p.minutes} мин{p.meters ? ` · ${formatInt(p.meters)} м` : ''}</>,

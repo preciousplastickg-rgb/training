@@ -13,7 +13,7 @@ test('первый запуск: % жира и цель, затем «Сегод
   await page.getByRole('button', { name: 'Готово' }).click();
 
   await expect(page.getByText('Понедельник, 9 ноября')).toBeVisible();
-  await expect(page.getByText('фаза 1 · неделя 1 из 4')).toBeVisible();
+  await expect(page.getByText('Блок 1 · неделя 1 из 7 · фаза 1')).toBeVisible();
   // понедельник — зал, тренировка A
   await expect(page.getByRole('heading', { name: 'Тренировка A' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Начать тренировку' })).toBeVisible();

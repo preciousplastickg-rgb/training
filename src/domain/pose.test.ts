@@ -7,10 +7,10 @@ import { handPoint } from './anatomy';
 const end = (id: string) => ANIMATION_BY_ID[id]!.keyframes.find((k) => k.name === 'end')!.joints;
 
 describe('манекен', () => {
-  it('анимация есть для каждого из 19 упражнений', () => {
-    expect(EXERCISES).toHaveLength(19);
+  it('анимация есть для каждого из 68 упражнений', () => {
+    expect(EXERCISES).toHaveLength(68);
     for (const e of EXERCISES) expect(ANIMATION_BY_ID[e.id], e.id).toBeDefined();
-    expect(ANIMATIONS).toHaveLength(19);
+    expect(ANIMATIONS).toHaveLength(68);
   });
   it('эталон: гоблет-присед end — корпус 40°, бедро ≈ горизонтально, голень 30°', () => {
     const p = sidePose(ANIMATION_BY_ID.goblet_squat!, end('goblet_squat'));

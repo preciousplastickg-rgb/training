@@ -1,7 +1,7 @@
 // Прогресс · Тело — макет BProgressBody (REDESIGN 4): чёрный герой со средним весом и графиком,
 // три мини-карточки (% жира, талия, мышцы), силуэт (SPEC 6.7), фото со слайдером.
 
-import { Camera, ChevronsLeftRight, Trash2 } from 'lucide-react';
+import { Camera, ChevronsLeftRight, HeartPulse, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Silhouette, useSilhouetteFactors } from '../../components/body/Silhouette';
 import { LineChart, type Marker } from '../../components/charts/Charts';
@@ -13,6 +13,7 @@ import { addPhoto, deletePhoto } from '../../db/repo';
 import type { BodyEntry, ProgressPhoto, Settings } from '../../db/types';
 import { avg7, bodyFatAt, firstBodyFat, firstWith, forecastDate, latestWith, leanMass, weightSeries } from '../../domain/body';
 import { addDays, diffDays } from '../../domain/dates';
+import { hrBaseline, hrSeries } from '../../domain/heart';
 import { formatDayMonth, formatScaled, NBSP } from '../../domain/format';
 import { useBody, usePhotos, useSettings } from '../../hooks/useData';
 import { useToday } from '../../hooks/useToday';
@@ -50,6 +51,8 @@ export function BodyTab() {
           {leanDelta === null ? null : Math.abs(leanDelta) < 50 ? 'держим' : `${sign(leanDelta)}${kg(Math.abs(leanDelta))}`}
         </Mini>
       </div>
+
+      <HrCard body={body} today={today} />
 
       <Card className="flex flex-col items-center gap-2 rounded-[28px]!">
         <div className="flex w-full items-baseline justify-between px-1">
@@ -304,6 +307,51 @@ function Photos() {
           }}
         />
       </label>
+    </Card>
+  );
+}
+
+// ---------- Пульс в покое (SPEC 5.9, 6.4) ----------
+
+/** Мини-график пульса за 4 недели с линией базовой линии: 3 дня подряд выше базовой + 5 — лёгкая неделя. */
+function HrCard({ body, today }: { body: BodyEntry[]; today: string }) {
+  const from = addDays(today, -27);
+  const series = useMemo(() => hrSeries(body, from, today), [body, from, today]);
+  const baseline = hrBaseline(body, today);
+  const last = [...series].reverse().find((p): p is { date: string; hr: number } => p.hr !== null);
+  const n = diffDays(from, today);
+  const labels = [0, 7, 14, 21, 27].map((x) => ({ x, label: formatDayMonth(addDays(from, x)).split(' ')[0]! }));
+  return (
+    <Card className="flex flex-col gap-2 rounded-[28px]!">
+      <div className="flex items-baseline justify-between px-1">
+        <h2 className="font-display flex items-center gap-1.5 text-[17px] font-bold">
+          <HeartPulse size={16} className="text-energy" aria-hidden /> Пульс в покое
+        </h2>
+        <span className="text-[13px] text-muted">{baseline !== null ? `базовая ${formatScaled(Math.round(baseline * 10), 10, 0)}` : 'утром лёжа'}</span>
+      </div>
+      {last ? (
+        <>
+          <p className="px-1 text-[13px] text-muted">
+            <b className="font-display text-[22px] text-ink tabular-nums">{last.hr}</b> уд/мин · {last.date === today ? 'сегодня' : formatDayMonth(last.date)}
+            {baseline !== null && last.hr >= baseline + 5 ? <span className="font-bold text-warn"> · выше базовой</span> : null}
+          </p>
+          <LineChart
+            ariaLabel="Пульс в покое по дням и базовая линия"
+            height={120}
+            xMax={n}
+            series={[
+              { label: 'Пульс', kind: 'dots', color: 'var(--energy)', dotR: 3, opacity: 1, points: series.map((p, i) => ({ x: i, y: p.hr })) },
+              { label: 'Пульс', kind: 'line', color: 'var(--energy)', width: 2, points: series.map((p, i) => ({ x: i, y: p.hr })) },
+            ]}
+            hlines={baseline !== null ? [{ y: baseline, color: 'var(--ink)', label: `базовая ${formatScaled(Math.round(baseline * 10), 10, 0)}` }] : []}
+            xLabels={labels}
+            yFormat={(v) => String(Math.round(v))}
+            yPad={0.2}
+          />
+        </>
+      ) : (
+        <p className="py-4 text-center text-sm text-muted">Записывай пульс утром в шторке веса — появится базовая линия</p>
+      )}
     </Card>
   );
 }

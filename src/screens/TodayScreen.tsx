@@ -1,6 +1,6 @@
 // «Сегодня» — SPEC 6.1 в редизайне B (docs/design/b/BToday.dc.html, REDESIGN 4).
 
-import { Check, ChevronRight, CloudDownload, Minus, Play, Plus, SlidersHorizontal, Trash2, Waves } from 'lucide-react';
+import { Check, ChevronRight, CloudDownload, Flame, HeartPulse, Minus, Play, Plus, SlidersHorizontal, Trash2, Waves } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { navigate } from '../app/router';
 import { unlockAudio } from '../app/sound';
@@ -8,20 +8,24 @@ import { openSheet } from '../app/uiStore';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Sheet } from '../components/Sheet';
 import { Bar, Button, Caps, Card, HeroCard } from '../components/ui';
-import { CALIBRATION_DATE, CHECKPOINTS, PROGRAM_START, REST_DAY_STEPS } from '../data/program';
+import {
+  CALIBRATION_DATE, CARDIO_BY_WORKOUT, CARDIO_MINUTES, CARDIO_NAMES, CHECKPOINTS, LIGHT_WEEK_COOLDOWN_DAYS, LIGHT_WEEK_TEXT, MAINTENANCE_KCAL_PHASE3,
+  POOL_TYPE_NAMES, PROGRAM_START, REST_DAY_STEPS, WORKOUT_NAMES,
+} from '../data/program';
 import { DEFAULT_SETTINGS, updateSettings } from '../db/db';
-import { applyAdjustment, discardSession, dismissAdjustment, finishSession, kvSet, putBody, setPhase3Mode, startSession } from '../db/repo';
+import { acceptLightWeek, applyAdjustment, discardSession, dismissAdjustment, dismissLightWeek, finishSession, kvSet, putBody, setPhase3Mode, startSession } from '../db/repo';
 import type { BodyEntry, Settings, WorkoutSession } from '../db/types';
 import { avg7, forecastDate, pathProgress, roundTargetKg, targetRefinement, weeklyChange } from '../domain/body';
 import { diffDays } from '../domain/dates';
+import { lightWeekSignal } from '../domain/heart';
 import { formatDayMonth, formatInt, formatKg, formatScaled, formatWeekdayDate, parseKg, pluralRu } from '../domain/format';
 import { strengthSeries, suggestionFor } from '../domain/history';
 import { sessionRecords, volume } from '../domain/records';
 import { dayTargets, dayTotals, weeklyAdjustment } from '../domain/nutrition';
-import { estimateMinutes, gymDatesOf, nextWorkout, phaseWeek, planForDate, planOptionsOf, workoutPlan } from '../domain/program';
+import { dayTypeFor, estimateMinutes, gymDatesOf, nextWorkout, planForDate, planOptionsOf, programLine, workoutPlan } from '../domain/program';
 import { weekStrip, type WeekDay } from '../domain/week';
 import {
-  useActiveSession, useAdjustments, useAllSets, useBody, useFoodLog, useFoods, useKv, usePool, useSessions, useSettings, useSlots,
+  useActiveSession, useAdjustments, useAllSets, useBody, useFoodLog, useFoods, useKv, useLightWeeks, usePool, useSessions, useSettings, useSlots,
 } from '../hooks/useData';
 import { useToday } from '../hooks/useToday';
 import { HistorySheet } from './workout/HistorySheet';
@@ -65,9 +69,8 @@ function Badge({ children }: { children: string }) {
 }
 
 function phaseLine(date: string): string {
-  const pw = phaseWeek(date);
-  if (pw) return `фаза ${pw.phase.n} · неделя ${pw.week} из ${pw.weeks}`;
-  return date < PROGRAM_START ? `старт ${formatDayMonth(PROGRAM_START)}` : 'программа завершена';
+  if (date < PROGRAM_START) return `старт ${formatDayMonth(PROGRAM_START)}`;
+  return programLine(date);
 }
 
 function DayHero({ date, settings, body }: { date: string; settings: Settings; body: BodyEntry[] }) {
@@ -76,12 +79,13 @@ function DayHero({ date, settings, body }: { date: string; settings: Settings; b
   const slots = useSlots();
   const sets = useAllSets();
   const active = useActiveSession();
-  const plan = planForDate(date, gymDatesOf(sessions), planOptionsOf(settings));
+  const lightWeeks = useLightWeeks();
+  const plan = planForDate(date, gymDatesOf(sessions), planOptionsOf(settings, lightWeeks));
   const workout = nextWorkout(sessions);
   const doneToday = sessions.find((s) => s.date === date && s.finishedAt !== undefined && !s.isCalibration);
   const poolToday = pool.filter((p) => p.date === date).reduce((a, p) => a + p.minutes, 0);
-  const wp = workoutPlan(workout, date, slots, settings);
-  const week = useMemo(() => weekStrip(date, sessions, pool, settings), [date, sessions, pool, settings]);
+  const wp = workoutPlan(workout, date, slots, settings, { lightWeeks });
+  const week = useMemo(() => weekStrip(date, sessions, pool, settings, lightWeeks), [date, sessions, pool, settings, lightWeeks]);
   const [summary, setSummary] = useState(false);
 
   const start = async (calibration: boolean) => {
@@ -164,18 +168,36 @@ function DayHero({ date, settings, body }: { date: string; settings: Settings; b
     } else {
       badge = 'Зал сегодня';
       title = `Тренировка ${workout}`;
-      text = `${wp.length} упражнений · ≈ ${estimateMinutes(wp)} мин${firstText}${plan.isDeload ? ' · разгрузка' : ''}${plan.makeup ? ' · перенесена со вчера' : ''}`;
+      const main = wp.filter((x) => x.section === 'main').length;
+      const acc = wp.filter((x) => x.section === 'accessory').length;
+      text = `${WORKOUT_NAMES[workout]} · ≈ ${estimateMinutes(wp)} мин${firstText}${plan.isDeload ? ' · разгрузка' : ''}${plan.lightWeek ? ' · лёгкая неделя' : ''}${plan.makeup ? ' · перенесена со вчера' : ''}`;
       cta = (
         <Button size="lg" className="w-full" onClick={() => void start(false)}>
           Начать тренировку <Play size={18} fill="currentColor" aria-hidden />
         </Button>
       );
-      if (plan.pool) extra = <p className="text-center text-sm text-muted-on-ink">Бассейн сегодня — по желанию</p>;
+      extra = (
+        <>
+          <ul className="-mt-2 flex flex-col gap-1 text-[14px] text-muted-on-ink" aria-label="Состав тренировки">
+            <li>
+              Основной блок · <b className="text-white">{main} {pluralRu(main, 'упражнение', 'упражнения', 'упражнений')}</b>
+            </li>
+            <li>
+              Дополнительный блок · <b className="text-white">{acc} {pluralRu(acc, 'упражнение', 'упражнения', 'упражнений')}</b>
+            </li>
+            <li className="flex items-center gap-1.5">
+              <Flame size={14} aria-hidden /> Кардио · <b className="text-white">{CARDIO_MINUTES} мин · {CARDIO_NAMES[CARDIO_BY_WORKOUT[workout]].toLowerCase()}</b>
+            </li>
+          </ul>
+          {plan.pool && <p className="text-center text-sm text-muted-on-ink">Бассейн сегодня — по желанию</p>}
+        </>
+      );
     }
   } else if (plan.kind === 'pool' || plan.kind === 'pool_optional') {
     const optional = plan.kind === 'pool_optional';
+    const typeName = plan.pool ? POOL_TYPE_NAMES[plan.pool.type] : '';
     badge = optional ? 'Бассейн по желанию' : 'Бассейн';
-    title = poolToday > 0 ? `Бассейн · ${poolToday} мин` : 'Бассейн';
+    title = poolToday > 0 ? `Бассейн · ${poolToday} мин` : typeName ? `Бассейн · ${typeName}` : 'Бассейн';
     text = poolToday > 0 ? 'Записан' : plan.gymBlocked ? `Вчера был зал — сегодня без зала. ${plan.pool?.text ?? ''}` : (plan.pool?.text ?? '');
     cta = (
       <Button size="lg" variant={poolToday > 0 ? 'dark' : 'primary'} className="w-full" onClick={() => openSheet('pool')}>
@@ -189,6 +211,7 @@ function DayHero({ date, settings, body }: { date: string; settings: Settings; b
       if (steps >= REST_DAY_STEPS) badge = 'Сделано';
       text = `${formatInt(steps)} шагов · цель ${formatInt(REST_DAY_STEPS)}`;
     }
+    if (plan.gymBlocked) text += ' · вчера был зал, зал перенесён на завтра';
     cta = (
       <Button size="lg" variant="dark" className="w-full" onClick={() => openSheet('weight', { focus: 'steps' })}>
         {steps ? 'Изменить шаги' : 'Записать шаги'}
@@ -325,8 +348,11 @@ function NutritionTiles({ date, settings }: { date: string; settings: Settings }
   const logs = useFoodLog(date);
   const foods = useFoods();
   const adjustments = useAdjustments();
+  const sessions = useSessions();
+  const pool = usePool();
+  const lightWeeks = useLightWeeks();
   const foodMap = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods]);
-  const t = dayTargets(date, adjustments, settings);
+  const t = dayTargets(date, adjustments, settings, dayTypeFor(date, sessions, pool, planOptionsOf(settings, lightWeeks)));
   const { total } = dayTotals(logs, foodMap);
   const protein = Math.round(total.p / 10);
   const tile = (label: string, color: string, value: string, of: number, left: number, ratio: number, unit: string) => (
@@ -438,8 +464,12 @@ function Hints({ date, settings, body }: { date: string; settings: Settings; bod
   const sets = useAllSets();
   const adjustments = useAdjustments();
   const pool = usePool();
-  const t = dayTargets(date, adjustments, settings);
+  const lightWeeks = useLightWeeks();
+  const t = dayTargets(date, adjustments, settings, dayTypeFor(date, sessions, pool, planOptionsOf(settings, lightWeeks)));
   const card = weeklyAdjustment(date, body, strengthSeries(sets, sessions), t.kcal);
+  const hrSignal = lightWeekSignal(body, date, lightWeeks);
+  const hrDismissed = useKv<string>('lightWeekDismissed');
+  const showHr = hrSignal && !(hrDismissed && diffDays(hrDismissed, date) >= 0 && diffDays(hrDismissed, date) < LIGHT_WEEK_COOLDOWN_DAYS);
   const dismissed = useKv<number>(card ? `adjDismissed:${card.weekOf}` : 'none');
   const applied = card ? adjustments.some((a) => a.date >= card.weekOf) : false;
   const next = CHECKPOINTS.find((c) => diffDays(date, c.date) >= -1);
@@ -487,17 +517,39 @@ function Hints({ date, settings, body }: { date: string; settings: Settings; bod
           </div>
         </Card>
       )}
+      {showHr && hrSignal && (
+        <Card className="flex flex-col gap-3 p-5!">
+          <Caps>Пульс в покое</Caps>
+          <p className="flex items-start gap-2 font-bold">
+            <HeartPulse size={18} className="mt-0.5 shrink-0 text-energy" aria-hidden />
+            <span>{LIGHT_WEEK_TEXT}</span>
+          </p>
+          <p className="-mt-1 text-sm text-muted">
+            Базовая {formatScaled(Math.round(hrSignal.baseline * 10), 10, 0)} · последние дни {hrSignal.days.map((d) => d.hr).join(' / ')}
+          </p>
+          <div className="flex gap-2">
+            <Button className="flex-1" onClick={() => void acceptLightWeek(date)}>
+              Принять
+            </Button>
+            <Button variant="secondary" className="flex-1" onClick={() => void dismissLightWeek(date)}>
+              Не сейчас
+            </Button>
+          </div>
+        </Card>
+      )}
       {phase3Ask && (
         <Card className="flex flex-col gap-3 p-5!">
           <Caps>Фаза «Рельеф» с 1 марта</Caps>
           <p className="font-bold">Какие калории?</p>
-          <p className="-mt-2 text-sm text-muted">Поддержка ≈ 2 400 ккал сохранит силу; дефицит — продолжит снижение.</p>
+          <p className="-mt-2 text-sm text-muted">
+            Поддержка — {formatInt(MAINTENANCE_KCAL_PHASE3.gym)} / {formatInt(MAINTENANCE_KCAL_PHASE3.pool)} / {formatInt(MAINTENANCE_KCAL_PHASE3.rest)} ккал (зал / бассейн / отдых) сохранит силу; дефицит — продолжит снижение.
+          </p>
           <div className="flex gap-2">
             <Button className="flex-1" onClick={() => void setPhase3Mode('maintenance')}>
               Поддержка
             </Button>
             <Button variant="secondary" className="flex-1" onClick={() => void setPhase3Mode('deficit')}>
-              Дефицит
+              Дефицит дальше
             </Button>
           </div>
         </Card>
