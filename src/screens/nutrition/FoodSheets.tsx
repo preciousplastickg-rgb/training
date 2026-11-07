@@ -4,13 +4,13 @@
 import { Minus, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Sheet } from '../../components/Sheet';
-import { Button, Caps, Field, HeroCard } from '../../components/ui';
+import { Button, Caps, Field, HeroCard, Stepper } from '../../components/ui';
 import { FOOD_CATEGORIES } from '../../data/foods';
-import { addFoodLog, saveRecipe, updateFoodLog } from '../../db/repo';
-import type { Food, FoodCategory, FoodLog } from '../../db/types';
+import { addFoodLog, saveQuickFood, saveRecipe, updateFoodLog } from '../../db/repo';
+import type { Food, FoodCategory, FoodLog, FoodUnit } from '../../db/types';
 import { formatInt, formatMacro, NBSP } from '../../domain/format';
 import { frequentFoods, norm, recentFoods, searchFoods } from '../../domain/foodSearch';
-import { MEAL_NAMES, portion, recipePer100, type DayTargets, type Macros, type Meal } from '../../domain/nutrition';
+import { MAX_KCAL_PER_100, MEAL_NAMES, portion, quickFoodDraft, recipePer100, unitLabel, type DayTargets, type Macros, type Meal } from '../../domain/nutrition';
 
 export type AddMode = 'search' | 'quick' | 'recipe';
 
@@ -25,6 +25,7 @@ export interface DayContext {
 /** Строка результата: название (совпадение жирнее), «на 100 г · белок 31 г», ккал Unbounded справа. */
 export function FoodRow({ food, query = '', onClick }: { food: Food; query?: string; onClick: () => void }) {
   const unit = food.unitName && food.unitGrams ? portion(food, food.unitGrams) : null;
+  const u = unitLabel(food);
   const q = norm(query);
   const i = q ? norm(food.name).indexOf(q) : -1;
   const name: ReactNode =
@@ -45,7 +46,7 @@ export function FoodRow({ food, query = '', onClick }: { food: Food; query?: str
           {food.approx && <span className="ml-1 font-normal text-muted">≈</span>}
         </span>
         <span className="text-[13px] text-muted">
-          {unit ? `${food.unitName} ${food.unitGrams} г · белок ${formatMacro(unit.p, false)} г` : `на 100 г · белок ${formatMacro(food.per100.p, false)} г`}
+          {unit ? `${food.unitName} ${food.unitGrams} ${u} · белок ${formatMacro(unit.p, false)} г` : `на 100 ${u} · белок ${formatMacro(food.per100.p, false)} г`}
         </span>
       </span>
       <span className="font-display text-base font-bold tabular-nums">{unit ? unit.kcal : food.per100.kcal}</span>
@@ -123,8 +124,12 @@ export function AddFoodSheet({
           <>
             <MealPills value={meal} onChange={setMeal} />
             <QuickForm
-              onDone={async (q) => {
-                await addFoodLog({ date, meal, quick: q });
+              initialName={query}
+              doneLabel={`Добавить в ${MEAL_ACC[meal]}`}
+              onDone={async (draft, amount) => {
+                // Продукт — в базу (или уже такой же из базы), в дневник — порция этого продукта.
+                const foodId = await saveQuickFood(draft);
+                await addFoodLog({ date, meal, foodId, grams: amount });
                 onClose();
               }}
             />
@@ -157,7 +162,7 @@ export function AddFoodSheet({
               results.length ? (
                 <ResultsCard items={results} query={query} onPick={setPicked} />
               ) : (
-                <p className="px-1.5 text-sm text-muted">Ничего не нашлось — попробуй «Быстро» внизу.</p>
+                <p className="px-1.5 text-sm text-muted">Ничего не нашлось — добавь через «Быстро» внизу: продукт сохранится в базе.</p>
               )
             ) : cat ? (
               <ResultsCard title={`${catLabel} · ${catalog.length}`} items={catalog} onPick={setPicked} onBack={() => setCat(null)} />
@@ -188,7 +193,7 @@ export function AddFoodSheet({
               onClick={() => setMode('quick')}
               className="mt-auto flex h-14 w-full items-center justify-center rounded-full border border-hero-line bg-hero text-[15px] font-extrabold text-white active:opacity-80"
             >
-              Быстро: только ккал и белок
+              Быстро: свой продукт на 100 г или мл
             </button>
           </>
         )}
@@ -276,13 +281,12 @@ export function GramsPicker({
   /** Итоги и цели дня — строка «День после». */
   day?: DayContext;
 }) {
-  const [grams, setGrams] = useState(initial ?? food.unitGrams ?? 100);
+  const [grams, setGrams] = useState(initial ?? food.unitGrams ?? (food.unit === 'ml' ? 250 : 100));
   const m = portion(food, grams);
+  const u = unitLabel(food);
+  const what = food.unit === 'ml' ? 'Миллилитры' : 'Граммы';
   const presets: { label: string; g: number }[] = [
-    { label: '50', g: 50 },
-    { label: '100', g: 100 },
-    { label: '150', g: 150 },
-    { label: '200', g: 200 },
+    ...(food.unit === 'ml' ? [100, 200, 250, 330] : [50, 100, 150, 200]).map((g) => ({ label: String(g), g })),
     ...(food.unitName && food.unitGrams ? [{ label: `1 ${food.unitName}`, g: food.unitGrams }] : []),
   ];
   const after = day ? { kcal: day.total.kcal + m.kcal, p: day.total.p + m.p } : null;
@@ -295,18 +299,18 @@ export function GramsPicker({
         </span>
         <span className="text-[13px] text-muted">
           {mealAcc ? `в ${mealAcc} · ` : ''}
-          {food.per100.kcal} ккал на 100 г
+          {food.per100.kcal} ккал на 100 {u}
         </span>
       </div>
       <div className="flex items-center justify-between py-2">
-        <button type="button" aria-label="Граммы: меньше" onClick={() => setGrams((g) => Math.max(5, g - (g > 100 ? 10 : 5)))} className="flex h-16 w-16 items-center justify-center rounded-full bg-surface active:scale-95">
+        <button type="button" aria-label={`${what}: меньше`} onClick={() => setGrams((g) => Math.max(5, g - (g > 100 ? 10 : 5)))} className="flex h-16 w-16 items-center justify-center rounded-full bg-surface active:scale-95">
           <Minus size={26} strokeWidth={2.6} aria-hidden />
         </button>
-        <div className="flex items-baseline gap-1.5" aria-label="Граммы">
+        <div className="flex items-baseline gap-1.5" aria-label={what}>
           <span className="font-display text-huge text-[64px] leading-[72px] font-bold tabular-nums">{grams}</span>
-          <span className="text-xl font-bold text-muted">г</span>
+          <span className="text-xl font-bold text-muted">{u}</span>
         </div>
-        <button type="button" aria-label="Граммы: больше" onClick={() => setGrams((g) => g + (g >= 100 ? 10 : 5))} className="flex h-16 w-16 items-center justify-center rounded-full bg-surface active:scale-95">
+        <button type="button" aria-label={`${what}: больше`} onClick={() => setGrams((g) => g + (g >= 100 ? 10 : 5))} className="flex h-16 w-16 items-center justify-center rounded-full bg-surface active:scale-95">
           <Plus size={26} strokeWidth={2.6} aria-hidden />
         </button>
       </div>
@@ -386,23 +390,123 @@ function StackBar({ now, add, target, color, light, label }: { now: number; add:
 
 // ---------- Быстро и своё блюдо ----------
 
-function QuickForm({ onDone }: { onDone: (q: { name: string; kcal: number; p: number }) => void }) {
-  const [name, setName] = useState('');
+const num = (s: string): number => {
+  const v = Number(s.replace(',', '.').replace(/\s/g, ''));
+  return Number.isFinite(v) ? v : NaN;
+};
+
+/**
+ * Быстрая запись своего продукта: значения на 100 г или на 100 мл (с этикетки), сколько съел или выпил,
+ * итог порции. Продукт сохраняется в базе — дальше находится поиском, как любой другой.
+ */
+function QuickForm({
+  initialName = '', doneLabel, onDone,
+}: {
+  initialName?: string;
+  doneLabel: string;
+  onDone: (draft: Omit<Food, 'id'>, amount: number) => void | Promise<void>;
+}) {
+  const [name, setName] = useState(initialName);
+  const [unit, setUnit] = useState<FoodUnit>('g');
   const [kcal, setKcal] = useState('');
   const [p, setP] = useState('');
-  const k = Math.round(Number(kcal.replace(',', '.')));
-  const pr = Math.round(Number(p.replace(',', '.')) * 10);
+  const [f, setF] = useState('');
+  const [c, setC] = useState('');
+  const [amount, setAmount] = useState(100);
+  const [busy, setBusy] = useState(false);
+  const u = unit === 'ml' ? 'мл' : 'г';
+  const g10 = (v: string) => (v.trim() === '' ? 0 : Math.round(num(v) * 10));
+  const per100: Macros = { kcal: Math.round(num(kcal)), p: g10(p), f: g10(f), c: g10(c) };
+  const numbersOk = kcal.trim() !== '' && [per100.kcal, per100.p, per100.f, per100.c].every((v) => Number.isFinite(v) && v >= 0);
+  const tooMuch = numbersOk && per100.kcal > MAX_KCAL_PER_100;
+  const valid = !!name.trim() && numbersOk && !tooMuch && amount > 0;
+  const m = numbersOk ? portion({ per100 }, amount) : null;
+  const presets = unit === 'ml' ? [100, 200, 250, 330, 500] : [50, 100, 150, 200, 300];
+  const switchUnit = (next: FoodUnit) => {
+    if (next === unit) return;
+    setUnit(next);
+    setAmount(next === 'ml' ? 250 : 100);
+  };
   return (
-    <div className="flex flex-col gap-3">
-      <p className="px-1 text-sm text-muted">Когда ешь в кафе и не знаешь состава — запиши на глаз.</p>
-      <Field label="Что съел" placeholder="Плов в кафе" value={name} onChange={(e) => setName(e.target.value)} />
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Калории" suffix="ккал" inputMode="numeric" value={kcal} onChange={(e) => setKcal(e.target.value)} />
-        <Field label="Белок" suffix="г" inputMode="decimal" value={p} onChange={(e) => setP(e.target.value)} />
+    <div className="flex flex-col gap-3.5">
+      <Field label="Название" placeholder={unit === 'ml' ? 'Кефир 2,5%' : 'Плов в кафе'} value={name} onChange={(e) => setName(e.target.value)} />
+      <div className="flex gap-1.5" role="radiogroup" aria-label="В чём меряется">
+        {(['g', 'ml'] as const).map((x) => (
+          <button
+            key={x}
+            type="button"
+            role="radio"
+            aria-checked={unit === x}
+            onClick={() => switchUnit(x)}
+            className={`min-h-11 flex-1 rounded-full px-2 text-sm font-bold ${unit === x ? 'border border-hero-line bg-hero text-primary' : 'bg-surface'}`}
+          >
+            {x === 'g' ? 'Еда · граммы' : 'Напиток · миллилитры'}
+          </button>
+        ))}
       </div>
-      <Button size="lg" disabled={!name.trim() || !(k > 0)} onClick={() => onDone({ name: name.trim(), kcal: k, p: Number.isFinite(pr) ? pr : 0 })}>
-        Добавить
+      <div className="flex flex-col gap-2">
+        <Caps className="px-1">На 100 {u} — как на этикетке</Caps>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Калории" suffix="ккал" inputMode="numeric" placeholder="0" value={kcal} onChange={(e) => setKcal(e.target.value)} />
+          <Field label="Белок" suffix="г" inputMode="decimal" placeholder="0" value={p} onChange={(e) => setP(e.target.value)} />
+          <Field label="Жиры" suffix="г" inputMode="decimal" placeholder="0" value={f} onChange={(e) => setF(e.target.value)} />
+          <Field label="Углеводы" suffix="г" inputMode="decimal" placeholder="0" value={c} onChange={(e) => setC(e.target.value)} />
+        </div>
+        {tooMuch && (
+          <p className="px-1 text-sm font-bold text-warn">
+            Больше {MAX_KCAL_PER_100} ккал на 100 {u} не бывает. Нужны калории на 100 {u}, а не на всю порцию.
+          </p>
+        )}
+      </div>
+      <div className="flex flex-col gap-2">
+        <Caps className="px-1">{unit === 'ml' ? 'Сколько выпил' : 'Сколько съел'}</Caps>
+        <Stepper
+          label={unit === 'ml' ? 'Сколько выпил, мл' : 'Сколько съел, г'}
+          value={amount}
+          unit={u}
+          onDec={() => setAmount((a) => Math.max(5, a - (a > 100 ? 10 : 5)))}
+          onInc={() => setAmount((a) => Math.min(5000, a + (a >= 100 ? 10 : 5)))}
+          onEdit={(raw) => {
+            const v = Math.round(num(raw));
+            if (v > 0 && v <= 5000) setAmount(v);
+          }}
+        />
+        <div className="grid grid-cols-5 gap-1.5">
+          {presets.map((g) => (
+            <button
+              key={g}
+              type="button"
+              aria-pressed={amount === g}
+              aria-label={`${g} ${u}`}
+              onClick={() => setAmount(g)}
+              className={`h-11 rounded-full text-[15px] font-bold ${amount === g ? 'border border-hero-line bg-hero text-primary' : 'bg-surface'}`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+      <HeroCard className="grid grid-cols-4 gap-1.5 rounded-[28px]! p-5!" >
+        <Macro value={m ? formatInt(m.kcal) : '—'} label="Ккал" color="#FF9A78" />
+        <Macro value={m ? formatMacro(m.p, false) : '—'} label="Белок" color="#A6C0FF" />
+        <Macro value={m ? formatMacro(m.f, false) : '—'} label="Жиры" />
+        <Macro value={m ? formatMacro(m.c, false) : '—'} label="Углев." />
+      </HeroCard>
+      <Button
+        size="lg"
+        disabled={!valid || busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await onDone(quickFoodDraft({ name, unit, per100 }), amount);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {doneLabel}
       </Button>
+      <p className="px-1 text-center text-[13px] text-muted">Продукт сохранится в базе — в следующий раз найдёшь его поиском.</p>
     </div>
   );
 }
@@ -443,7 +547,7 @@ function RecipeForm({ foods, onDone }: { foods: Food[]; onDone: () => void }) {
               return (
                 <div key={i} className="flex min-h-12 items-center gap-2 border-t border-line text-[15px] first:border-t-0">
                   <span className="flex-1 truncate font-semibold">{f?.name}</span>
-                  <span className="text-muted tabular-nums">{it.grams}{NBSP}г</span>
+                  <span className="text-muted tabular-nums">{it.grams}{NBSP}{unitLabel(f)}</span>
                   <button type="button" aria-label="Убрать" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))} className="-mr-2 flex h-11 w-11 items-center justify-center text-muted">
                     <Trash2 size={16} aria-hidden />
                   </button>

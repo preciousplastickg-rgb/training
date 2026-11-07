@@ -41,6 +41,9 @@ test('подход 1 тапом, таймер от endsAt, восстановл�
 test('«Как делать»: фигура, режимы «Движение / Верх / Низ», углы постоянно списком', async ({ page }) => {
   await skipOnboarding(page);
   await page.getByRole('navigation', { name: 'Основное меню' }).getByRole('button', { name: 'Тренировка' }).click();
+  // Сначала — «Начать», состав раскрывается по нажатию.
+  await expect(page.getByRole('button', { name: /^Гоблет-присед/ })).toHaveCount(0);
+  await page.getByRole('button', { name: /^Состав/ }).click();
   await page.getByRole('button', { name: /^Гоблет-присед/ }).first().click();
   const sheet = page.getByRole('dialog');
   await expect(sheet.getByRole('img', { name: 'Техника упражнения' })).toBeVisible();

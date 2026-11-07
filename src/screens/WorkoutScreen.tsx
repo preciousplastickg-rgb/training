@@ -1,7 +1,8 @@
-// Вкладка «Тренировка» — макет BWorkout (REDESIGN 4): чёрная карточка со списком упражнений и CTA,
-// «Эта неделя» — 7 строк со статусом, ссылка «Календарь» → месячный вид (SPEC 6.9) в шторке, история.
+// Вкладка «Тренировка» — макет BWorkout (REDESIGN 4): чёрная карточка — сразу «Начать тренировку», состав по нажатию;
+// «Ближайшие 7 дней» — с сегодняшнего дня, тап по залу раскрывает его упражнения; «Календарь» → месячный вид
+// (SPEC 6.9) в шторке; история.
 
-import { ChevronRight, Flame, History, Play, Waves } from 'lucide-react';
+import { ChevronDown, ChevronRight, Flame, History, Play, Waves } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { navigate } from '../app/router';
 import { unlockAudio } from '../app/sound';
@@ -11,13 +12,13 @@ import { Sheet } from '../components/Sheet';
 import { Button, Caps, Card, HeroCard, SectionTitle } from '../components/ui';
 import { DEFAULT_SETTINGS } from '../db/db';
 import { startSession } from '../db/repo';
-import type { PoolSession, Workout, WorkoutSession } from '../db/types';
+import type { PoolSession, ProgramSlot, Settings, LightWeek, Workout, WorkoutSession } from '../db/types';
 import { calendarDays } from '../domain/calendar';
 import { addDays, weekStart } from '../domain/dates';
 import { gymDone } from '../domain/discipline';
-import { formatDayMonth, formatKg, formatInt, NBSP } from '../domain/format';
+import { formatDayMonth, formatKg, formatInt, NBSP, pluralRu } from '../domain/format';
 import { suggestionFor } from '../domain/history';
-import { deloadFor, estimateMinutes, gymDatesOf, nextWorkout, planForDate, planOptionsOf, programLine, workoutAfter, workoutPlan, type PlannedExercise } from '../domain/program';
+import { deloadFor, estimateMinutes, gymDatesOf, nextWorkout, planForDate, planOptionsOf, programLine, workoutPlan, type PlannedExercise } from '../domain/program';
 import { volume } from '../domain/records';
 import { monthStats, weekRows, type WeekRow } from '../domain/week';
 import { CARDIO_BY_WORKOUT, CARDIO_MINUTES, CARDIO_NAMES, POOL_TYPE_NAMES, PROGRAM_START, WORKOUT_NAMES } from '../data/program';
@@ -42,17 +43,16 @@ export function WorkoutScreen() {
   // null — закрыт, '' — открыт на текущем месяце, дата — открыт сразу на этом дне.
   const [calendar, setCalendar] = useState<string | null>(null);
   const lightWeeks = useLightWeeks();
-  const auto = nextWorkout(sessions);
-  const [override, setOverride] = useState<Workout | null>(null);
-  const workout = override ?? auto;
-  const nextShown = workoutAfter(workout);
+  const workout = nextWorkout(sessions);
+  const [showPlan, setShowPlan] = useState(false);
   const beforeStart = date < PROGRAM_START;
   const isDeload = deloadFor(date) !== null;
   const plan = useMemo(() => workoutPlan(workout, date, slots, settings, { lightWeeks }), [workout, date, slots, settings, lightWeeks]);
   const dayPlan = planForDate(date, gymDatesOf(sessions), planOptionsOf(settings, lightWeeks));
   const doneToday = sessions.some((s) => s.date === date && s.finishedAt !== undefined && !s.isCalibration);
 
-  const week = useMemo(() => weekRows(date, sessions, sets, pool, slots, settings, body, lightWeeks), [date, sessions, sets, pool, slots, settings, body, lightWeeks]);
+  // Ближайшие 7 дней — с сегодняшнего, а не с понедельника: что ждёт впереди.
+  const week = useMemo(() => weekRows(date, sessions, sets, pool, slots, settings, body, lightWeeks, date), [date, sessions, sets, pool, slots, settings, body, lightWeeks]);
   const month = date.slice(0, 7);
   const stats = useMemo(() => {
     const [y, m] = month.split('-').map(Number) as [number, number];
@@ -88,7 +88,7 @@ export function WorkoutScreen() {
         )}
 
         {!active && slots.length > 0 && (
-          <HeroCard className="flex flex-col gap-1.5 rounded-[30px]! px-5! pt-[22px]! pb-5!">
+          <HeroCard className="flex flex-col gap-1.5 rounded-[30px]! px-5! pt-[22px]! pb-4!">
             <div className="mb-2.5 flex flex-col gap-1.5">
               <div className="flex items-baseline justify-between gap-3">
                 <Caps className="text-primary!">{kicker}</Caps>
@@ -97,36 +97,49 @@ export function WorkoutScreen() {
               <h2 className="font-display text-[30px] leading-9 font-bold">Тренировка {workout}</h2>
               <p className="-mt-1 text-[15px] text-muted-on-ink">{WORKOUT_NAMES[workout]}</p>
             </div>
-            <PlanList plan={plan} sets={sets} sessions={sessions} isDeload={isDeload} calibration={beforeStart} onInfo={setInfo} workout={workout} />
+            {/* Кнопка — сразу под названием: начать можно, не листая состав. */}
             {beforeStart ? (
-              <div className="mt-3.5 flex flex-col gap-2">
+              <div className="flex flex-col gap-2">
                 <Button size="lg" className="w-full" onClick={() => void start(true)}>
                   Пробная тренировка: подбор веса
                 </Button>
                 <p className="text-center text-[13px] text-muted-on-ink">Вес вводишь сам. Возьми такой, с которым легко сделаешь 12.</p>
               </div>
             ) : (
-              <Button size="lg" className="mt-3.5 w-full" onClick={() => void start(false)}>
-                Начать
+              <Button size="lg" className="w-full" onClick={() => void start(false)}>
+                Начать тренировку <Play size={18} fill="currentColor" aria-hidden />
               </Button>
             )}
             <button
               type="button"
-              onClick={() => setOverride(nextShown === auto ? null : nextShown)}
-              className="mt-1 min-h-11 text-sm font-bold text-muted-on-ink underline underline-offset-2"
+              aria-expanded={showPlan}
+              onClick={() => setShowPlan((v) => !v)}
+              className="mt-1.5 flex min-h-12 items-center justify-between gap-3 rounded-full bg-white/8 px-[18px] text-left text-[15px] font-bold active:opacity-70"
             >
-              {nextShown === auto ? `Вернуть тренировку ${auto}` : `Показать тренировку ${nextShown}`}
+              <span className="min-w-0 truncate">
+                Состав
+                <span className="font-semibold text-muted-on-ink">
+                  {' · '}
+                  {plan.length} {pluralRu(plan.length, 'упражнение', 'упражнения', 'упражнений')} и кардио
+                </span>
+              </span>
+              <ChevronDown size={20} className={`shrink-0 transition-transform ${showPlan ? 'rotate-180' : ''}`} aria-hidden />
             </button>
+            {showPlan && <PlanList plan={plan} sets={sets} sessions={sessions} isDeload={isDeload} calibration={beforeStart} onInfo={setInfo} workout={workout} />}
           </HeroCard>
         )}
 
         <div className="flex items-baseline justify-between px-1.5 pt-2.5">
-          <h2 className="font-display text-lg font-bold">Эта неделя</h2>
+          <h2 className="font-display text-lg font-bold">Ближайшие 7 дней</h2>
           <button type="button" onClick={() => setCalendar('')} className="min-h-11 text-sm font-bold underline underline-offset-2">
             Календарь
           </button>
         </div>
-        <WeekList rows={week} onPick={(d) => setCalendar(d)} />
+        <WeekList
+          rows={week}
+          onPick={(d) => setCalendar(d)}
+          renderPlan={(r) => <DayPlan row={r} slots={slots} settings={settings} lightWeeks={lightWeeks} sets={sets} sessions={sessions} onInfo={setInfo} />}
+        />
         {(stats.gymPlanned > 0 || stats.poolPlanned > 0) && (
           <p className="px-1.5 text-sm text-muted">
             {MONTHS[Number(month.slice(5)) - 1]}: зал {stats.gymDone} из {stats.gymPlanned} · бассейн {stats.poolDone} из {stats.poolPlanned}
@@ -152,9 +165,12 @@ export function setsLabel(p: PlannedExercise): string {
 
 const SECTION_TITLES = { main: 'Основной блок', accessory: 'Дополнительный блок' } as const;
 
-/** Строки упражнений в чёрной карточке: разделители блоков, номер лаймом, название, рабочий вес, подходы × повторы, внизу кардио. Тап — «Как делать». */
+/**
+ * Строки упражнений: разделители блоков, номер, название, рабочий вес, подходы × повторы, внизу кардио. Тап — «Как делать».
+ * `dark` — в чёрной карточке (номер лаймом), `light` — на белой карточке дня в списке недели.
+ */
 function PlanList({
-  plan, sets, sessions, isDeload, calibration, onInfo, workout,
+  plan, sets, sessions, isDeload, calibration, onInfo, workout, tone = 'dark',
 }: {
   plan: PlannedExercise[];
   sets: ReturnType<typeof useAllSets>;
@@ -163,7 +179,12 @@ function PlanList({
   calibration: boolean;
   onInfo: (id: string) => void;
   workout: Workout;
+  tone?: 'dark' | 'light';
 }) {
+  const dark = tone === 'dark';
+  const line = dark ? 'border-[#26282C]' : 'border-line';
+  const muted = dark ? 'text-muted-on-ink' : 'text-muted';
+  const num = dark ? 'text-primary' : 'text-muted';
   return (
     <ul className="flex flex-col">
       {plan.map((p, i) => {
@@ -180,27 +201,27 @@ function PlanList({
         const sectionStart = i === 0 || plan[i - 1]!.section !== p.section;
         return (
           <li key={p.slot.id}>
-            {sectionStart && <Caps className="pt-2.5 pb-1 text-muted-on-ink!">{SECTION_TITLES[p.section]}</Caps>}
+            {sectionStart && <Caps className={`pt-2.5 pb-1 ${dark ? 'text-muted-on-ink!' : ''}`}>{SECTION_TITLES[p.section]}</Caps>}
             <button
               type="button"
               onClick={() => onInfo(p.exercise.id)}
               aria-label={`${p.exercise.name}: как делать`}
-              className="flex min-h-[46px] w-full items-center gap-3 border-t border-[#26282C] py-1.5 text-left active:opacity-70"
+              className={`flex min-h-[46px] w-full items-center gap-3 border-t ${line} py-1.5 text-left active:opacity-70`}
             >
-              <span className="font-display w-[22px] shrink-0 text-[13px] font-semibold text-primary tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+              <span className={`font-display w-[22px] shrink-0 text-[13px] font-semibold ${num} tabular-nums`}>{String(i + 1).padStart(2, '0')}</span>
               <span className="min-w-0 flex-1 text-[15px] leading-5 font-semibold">{p.exercise.name}</span>
               <span className="text-[15px] font-extrabold tabular-nums">{value}</span>
-              <span className="shrink-0 text-right text-[13px] whitespace-nowrap text-muted-on-ink tabular-nums">{range}</span>
+              <span className={`shrink-0 text-right text-[13px] whitespace-nowrap ${muted} tabular-nums`}>{range}</span>
             </button>
           </li>
         );
       })}
       <li>
-        <Caps className="pt-2.5 pb-1 text-muted-on-ink!">Кардио</Caps>
-        <div className="flex min-h-[46px] items-center gap-3 border-t border-[#26282C] py-1.5">
-          <span className="flex w-[22px] shrink-0 justify-center text-primary"><Flame size={15} aria-hidden /></span>
+        <Caps className={`pt-2.5 pb-1 ${dark ? 'text-muted-on-ink!' : ''}`}>Кардио</Caps>
+        <div className={`flex min-h-[46px] items-center gap-3 border-t ${line} py-1.5`}>
+          <span className={`flex w-[22px] shrink-0 justify-center ${dark ? 'text-primary' : 'text-energy'}`}><Flame size={15} aria-hidden /></span>
           <span className="min-w-0 flex-1 text-[15px] leading-5 font-semibold">{CARDIO_NAMES[CARDIO_BY_WORKOUT[workout]]}</span>
-          <span className="shrink-0 text-[13px] whitespace-nowrap text-muted-on-ink tabular-nums">{CARDIO_MINUTES} мин · пульс 120–135</span>
+          <span className={`shrink-0 text-[13px] whitespace-nowrap ${muted} tabular-nums`}>{CARDIO_MINUTES} мин · пульс 120–135</span>
         </div>
       </li>
     </ul>
@@ -218,18 +239,49 @@ const PILL: Record<WeekRow['status'], { text: string; cls: string }> = {
   finished: { text: 'финиш', cls: 'text-muted' },
 };
 
-/** «Эта неделя»: 7 строк по 60 px — день, что сделано или по плану, статус-таблетка; сегодня — на лаймовой подложке. Тап — день в календаре. */
-function WeekList({ rows, onPick }: { rows: WeekRow[]; onPick: (date: string) => void }) {
+/** Упражнения запланированного дня: план на эту дату (разгрузка, лёгкая неделя), веса — по истории. */
+function DayPlan({
+  row, slots, settings, lightWeeks, sets, sessions, onInfo,
+}: {
+  row: WeekRow;
+  slots: ProgramSlot[];
+  settings: Settings;
+  lightWeeks: LightWeek[];
+  sets: ReturnType<typeof useAllSets>;
+  sessions: WorkoutSession[];
+  onInfo: (id: string) => void;
+}) {
+  const workout = row.workout!;
+  const plan = useMemo(() => workoutPlan(workout, row.date, slots, settings, { lightWeeks }), [workout, row.date, slots, settings, lightWeeks]);
+  return (
+    <div className="px-[18px] pb-3">
+      <p className="pb-1 text-[13px] text-muted">
+        {WORKOUT_NAMES[workout]} · ≈ {estimateMinutes(plan)} мин
+      </p>
+      <PlanList plan={plan} sets={sets} sessions={sessions} isDeload={deloadFor(row.date) !== null} calibration={false} onInfo={onInfo} workout={workout} tone="light" />
+    </div>
+  );
+}
+
+/**
+ * «Ближайшие 7 дней»: строки по 60 px — день, что по плану или сделано, статус-таблетка; сегодня — на лаймовой подложке.
+ * Тап по запланированному залу раскрывает его упражнения, по остальным дням — день в календаре.
+ */
+function WeekList({ rows, onPick, renderPlan }: { rows: WeekRow[]; onPick: (date: string) => void; renderPlan: (r: WeekRow) => React.ReactNode }) {
+  const [open, setOpen] = useState<string | null>(null);
   return (
     <Card className="overflow-hidden p-0!">
-      <ol aria-label="Эта неделя">
+      <ol aria-label="Ближайшие 7 дней">
         {rows.map((r) => {
           const pill = PILL[r.status];
+          const expandable = r.workout !== undefined && (r.status === 'today' || r.status === 'plan');
+          const isOpen = expandable && open === r.date;
           return (
             <li key={r.date} className="border-t border-line first:border-t-0" aria-current={r.today ? 'date' : undefined}>
               <button
                 type="button"
-                onClick={() => onPick(r.date)}
+                onClick={() => (expandable ? setOpen(isOpen ? null : r.date) : onPick(r.date))}
+                aria-expanded={expandable ? isOpen : undefined}
                 className="flex min-h-[60px] w-full items-center gap-3.5 px-[18px] text-left active:opacity-70"
                 style={r.today ? { background: 'color-mix(in srgb, var(--lime) 18%, var(--surface))' } : undefined}
               >
@@ -242,7 +294,9 @@ function WeekList({ rows, onPick }: { rows: WeekRow[]; onPick: (date: string) =>
                   {r.sub && <span className="truncate text-[13px] text-muted">{r.sub}</span>}
                 </span>
                 <span className={`rounded-full px-2.5 py-[5px] text-xs font-extrabold whitespace-nowrap ${pill.cls}`}>{pill.text}</span>
+                {expandable && <ChevronDown size={18} className={`-mr-1 shrink-0 text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden />}
               </button>
+              {isOpen && renderPlan(r)}
             </li>
           );
         })}

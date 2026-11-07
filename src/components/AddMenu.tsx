@@ -1,6 +1,7 @@
-// Меню «+» — макет BMenu (REDESIGN 4): три строки 80 px с контекстом, внизу «Вчерашний …» и «Быстро».
+// Меню «+» — макет BMenu (REDESIGN 4): строки 80 px с контекстом (еда, вес, бассейн, сон и медитация),
+// внизу «Вчерашний …» и «Быстро».
 
-import { ChevronRight, Scale, Utensils, Waves } from 'lucide-react';
+import { Brain, ChevronRight, Scale, Utensils, Waves } from 'lucide-react';
 import { useMemo } from 'react';
 import { navigate } from '../app/router';
 import { openSheet } from '../app/uiStore';
@@ -8,7 +9,7 @@ import { DEFAULT_SETTINGS } from '../db/db';
 import { copyMeal } from '../db/repo';
 import { addDays } from '../domain/dates';
 import { mealByHour } from '../domain/foodSearch';
-import { formatInt, formatScaled } from '../domain/format';
+import { formatDuration, formatInt, formatScaled } from '../domain/format';
 import { dayTargets, dayTotals, MEAL_NAMES } from '../domain/nutrition';
 import { dayTypeFor, gymDatesOf, planForDate, planOptionsOf } from '../domain/program';
 import { POOL_TYPE_NAMES } from '../data/program';
@@ -56,6 +57,14 @@ export function AddMenu({ open, onClose }: { open: boolean; onClose: () => void 
     return 'записать за любой день';
   })();
 
+  const todayEntry = body.find((b) => b.date === today);
+  const mindHint = [
+    todayEntry?.sleepMin !== undefined ? `сон ${formatDuration(todayEntry.sleepMin)}` : 'сон не записан',
+    todayEntry?.meditationMin ? `медитация ${formatDuration(todayEntry.meditationMin)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   const yesterdayHasMeal = yesterday.some((l) => l.meal === meal);
   const go = (fn: () => void) => {
     onClose();
@@ -65,6 +74,7 @@ export function AddMenu({ open, onClose }: { open: boolean; onClose: () => void 
     { label: 'Еда', hint: foodHint, icon: Utensils, cls: 'bg-energy text-white', action: () => (navigate('nutrition'), openSheet('food')) },
     { label: 'Вес', hint: weightHint, icon: Scale, cls: 'bg-primary text-on-primary', action: () => openSheet('weight') },
     { label: 'Бассейн', hint: poolHint, icon: Waves, cls: 'bg-protein text-white', action: () => openSheet('pool') },
+    { label: 'Сон и медитация', hint: mindHint, icon: Brain, cls: 'bg-fat text-white', action: () => (navigate('progress'), openSheet('mind')) },
   ];
 
   return (
@@ -103,7 +113,7 @@ export function AddMenu({ open, onClose }: { open: boolean; onClose: () => void 
           onClick={() => go(() => (navigate('nutrition'), openSheet('food_quick')))}
           className="h-12 flex-1 rounded-full bg-surface text-sm font-bold active:opacity-80"
         >
-          Быстро: ккал + белок
+          Быстро: свой продукт
         </button>
       </div>
       <span className="sr-only">{MEAL_NAMES[meal]}</span>

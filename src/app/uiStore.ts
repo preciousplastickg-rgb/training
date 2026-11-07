@@ -1,8 +1,11 @@
 // Глобальные шторки (меню «+» открывает их с любого экрана).
 import { useSyncExternalStore } from 'react';
 
-/** food_quick — «Быстро: ккал + белок» из меню «+»: сразу форма быстрой записи. */
-export type GlobalSheet = 'weight' | 'pool' | 'food' | 'food_quick' | null;
+/**
+ * food_quick — «Быстро» из меню «+»: сразу форма быстрой записи (свой продукт на 100 г или 100 мл).
+ * mind — «Сон и медитация»: «Прогресс» открывается на вкладке «Разум».
+ */
+export type GlobalSheet = 'weight' | 'pool' | 'food' | 'food_quick' | 'mind' | null;
 
 let current: GlobalSheet = null;
 /** Дата записи для шторки (бассейн за прошедший день из календаря); по умолчанию — сегодня. */

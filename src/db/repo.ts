@@ -3,6 +3,7 @@
 import { SEED_FOODS } from '../data/foods';
 import { SEED_SLOTS } from '../data/program';
 import { appToday as today } from '../app/clock';
+import { findSameUserFood } from '../domain/foodSearch';
 import { lightWeekFrom } from '../domain/heart';
 import { blockFor } from '../domain/program';
 import type { HistoryEntry } from '../domain/progression';
@@ -240,6 +241,17 @@ export async function saveFood(food: Omit<Food, 'id'> & { id?: string }): Promis
   const id = food.id ?? uid();
   await db.foods.put({ ...food, id });
   return id;
+}
+
+/** Продукт из быстрой записи: такой же свой продукт уже есть — взять его, нет — добавить в базу. Возвращает id. */
+export async function saveQuickFood(draft: Omit<Food, 'id'>, database: AppDB = db): Promise<string> {
+  return database.transaction('rw', database.foods, async () => {
+    const same = findSameUserFood(await database.foods.where('source').equals('user').toArray(), draft);
+    if (same) return same.id;
+    const id = uid();
+    await database.foods.add({ ...draft, id });
+    return id;
+  });
 }
 
 export async function saveRecipe(food: Omit<Food, 'id' | 'source'> & { id?: string }, recipe: Omit<Recipe, 'foodId'>): Promise<string> {

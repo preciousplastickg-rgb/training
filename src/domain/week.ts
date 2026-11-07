@@ -1,9 +1,10 @@
 // Полоса недели на «Сегодня» (REDESIGN 4): 7 кружков пн–вс — сделано (зал A/B/C, бассейн), сегодня, план.
+// Список на вкладке «Тренировка» — те же 7 дней, но с сегодняшнего: что ждёт впереди.
 
 import { POOL_TYPE_NAMES, PROGRAM_END, PROGRAM_START, REST_DAY_STEPS } from '../data/program';
 import type { BodyEntry, LightWeek, LocalDate, PoolSession, ProgramSlot, SetLog, Settings, Workout, WorkoutSession } from '../db/types';
 import type { CalendarDay } from './calendar';
-import { addDays, weekStart } from './dates';
+import { addDays, isoWeekday, weekStart } from './dates';
 import { POOL_MIN_MINUTES } from './discipline';
 import { formatInt } from './format';
 import { gymDatesOf, nextWorkout, planDays, planOptionsOf, workoutAfter, workoutPlan } from './program';
@@ -30,8 +31,9 @@ export function weekStrip(
   pool: readonly PoolSession[],
   settings: Pick<Settings, 'schedule' | 'dayOverrides'>,
   lightWeeks: readonly LightWeek[] = [],
+  /** Первый из 7 дней: по умолчанию понедельник недели `today`. */
+  start: LocalDate = weekStart(today),
 ): WeekDay[] {
-  const start = weekStart(today);
   const end = addDays(start, 6);
   const finished = sessions.filter((s) => s.finishedAt !== undefined && !s.isCalibration);
   const byDate = new Map(finished.map((s) => [s.date, s]));
@@ -63,7 +65,7 @@ export function weekStrip(
       state = 'gym_missed';
       label = '–';
     }
-    out.push({ date: d, name: NAMES[i]!, state, label, today: d === today, past: d < today });
+    out.push({ date: d, name: NAMES[isoWeekday(d) - 1]!, state, label, today: d === today, past: d < today });
   }
   return out;
 }
@@ -83,11 +85,16 @@ export interface WeekRow {
   sub: string;
   status: WeekRowStatus;
   today: boolean;
+  /** Буква тренировки — у сделанного и запланированного зала. */
+  workout?: Workout;
 }
 
 const poolTitle = (type: PoolSession['type'] | undefined) => (type ? `Бассейн · ${POOL_TYPE_NAMES[type]}` : 'Бассейн');
 
-/** 7 строк текущей недели: что сделано (с длительностью и объёмом), что сегодня, что по плану. */
+/**
+ * 7 строк: что сделано (с длительностью и объёмом), что сегодня, что по плану.
+ * `start` — первый день: понедельник текущей недели или сегодня («Ближайшие 7 дней»).
+ */
 export function weekRows(
   today: LocalDate,
   sessions: readonly WorkoutSession[],
@@ -97,9 +104,10 @@ export function weekRows(
   settings: Settings,
   body: readonly BodyEntry[] = [],
   lightWeeks: readonly LightWeek[] = [],
+  start: LocalDate = weekStart(today),
 ): WeekRow[] {
-  const strip = weekStrip(today, sessions, pool, settings, lightWeeks);
-  const end = addDays(weekStart(today), 6);
+  const strip = weekStrip(today, sessions, pool, settings, lightWeeks, start);
+  const end = addDays(start, 6);
   const plans = new Map(planDays(end, gymDatesOf(sessions), today, planOptionsOf(settings, lightWeeks)).map((p) => [p.date, p]));
   const finished = sessions.filter((s) => s.finishedAt !== undefined && !s.isCalibration);
   return strip.map((d) => {
@@ -111,7 +119,7 @@ export function weekRows(
         const s = finished.find((x) => x.date === d.date)!;
         const min = Math.round(((s.finishedAt ?? s.startedAt) - s.startedAt) / 60000);
         const vol = volume(sets.filter((x) => x.sessionId === s.id));
-        return { ...base, title: `Тренировка ${s.workout}`, sub: `${min} мин · ${formatInt(Math.round(vol / 100))} кг${s.isDeload ? ' · разгрузка' : ''}`, status: 'done' };
+        return { ...base, title: `Тренировка ${s.workout}`, sub: `${min} мин · ${formatInt(Math.round(vol / 100))} кг${s.isDeload ? ' · разгрузка' : ''}`, status: 'done', workout: s.workout };
       }
       case 'pool_done': {
         const mine = pool.filter((p) => p.date === d.date);
@@ -122,7 +130,7 @@ export function weekRows(
       case 'gym_plan': {
         const n = workoutPlan(d.label as Workout, d.date, slots, settings, { lightWeeks }).length;
         const sub = `${n} упражнений${plan?.isDeload ? ' · разгрузка' : ''}${plan?.lightWeek ? ' · лёгкая неделя' : ''}${plan?.makeup ? ' · перенос' : ''}`;
-        return { ...base, title: `Тренировка ${d.label}`, sub, status: d.today ? 'today' : 'plan' };
+        return { ...base, title: `Тренировка ${d.label}`, sub, status: d.today ? 'today' : 'plan', workout: d.label as Workout };
       }
       case 'gym_missed':
         return { ...base, title: 'Тренировка', sub: plans.get(addDays(d.date, 1))?.makeup ? 'перенесена на завтра' : 'не состоялась', status: 'missed' };

@@ -30,6 +30,8 @@ describe('бэкап', () => {
     await a.slots.update('b1-A2', { sets: 4 });
     await a.exerciseNotes.put({ exerciseId: 'bench_press', text: 'хват 81 см', updatedAt: 1 });
     await a.lightWeeks.add({ id: 'lw', start: '2026-12-11', end: '2026-12-17', reason: 'resting_hr' });
+    await a.body.put({ date: '2027-02-01', sleepMin: 450, meditationMin: 15 });
+    await a.foods.add({ id: 'my-ayran', name: 'Айран домашний', aliases: [], per100: { kcal: 40, p: 25, f: 15, c: 30 }, unit: 'ml', source: 'user', approx: false, archived: false, category: 'drink' });
 
     const json = JSON.stringify(await exportBackup(a));
     const parsed = parseBackup(json);
@@ -49,6 +51,9 @@ describe('бэкап', () => {
     expect(await b.kv.get('restTimer')).toBeUndefined();
     expect(await b.foods.count()).toBe(await a.foods.count());
     expect((await b.exerciseNotes.get('bench_press'))?.text).toBe('хват 81 см');
+    // сон, медитация и продукт в миллилитрах переживают бэкап
+    expect(await b.body.get('2027-02-01')).toEqual({ date: '2027-02-01', sleepMin: 450, meditationMin: 15 });
+    expect((await b.foods.get('my-ayran'))?.unit).toBe('ml');
   });
 
   it('бэкап прошлой версии без заметок принимается', () => {

@@ -63,6 +63,17 @@ describe('список недели', () => {
     expect(rows(8400)[6]).toMatchObject({ title: 'Отдых', sub: `${formatInt(8400)} из ${formatInt(8000)} шагов`, status: 'done' });
     expect(rows(3000)[6]).toMatchObject({ title: 'Отдых', sub: `${formatInt(3000)} из ${formatInt(8000)} шагов`, status: 'rest' });
   });
+  it('ближайшие 7 дней — с сегодняшнего дня, а не с понедельника; буквы идут по кругу дальше', () => {
+    const done = [session('2027-01-11', 'A'), session('2027-01-13', 'B')];
+    const rows = weekRows('2027-01-15', done, [], [], SEED_SLOTS, DEFAULT_SETTINGS, [], [], '2027-01-15');
+    expect(rows.map((r) => `${r.name} ${r.day}`)).toEqual(['Пт 15', 'Сб 16', 'Вс 17', 'Пн 18', 'Вт 19', 'Ср 20', 'Чт 21']);
+    expect(rows[0]).toMatchObject({ title: 'Тренировка C', status: 'today', today: true, workout: 'C' });
+    expect(rows[1]).toMatchObject({ title: 'Бассейн · длинное плавание', status: 'plan' });
+    expect(rows[1]!.workout).toBeUndefined();
+    expect(rows[2]).toMatchObject({ title: 'Отдых', status: 'rest' });
+    expect(rows[3]).toMatchObject({ title: 'Тренировка A', status: 'plan', workout: 'A' });
+    expect(rows[5]).toMatchObject({ title: 'Тренировка B', status: 'plan', workout: 'B' });
+  });
   it('до старта — подготовка', () => {
     const rows = weekRows('2026-11-05', [], [], [], SEED_SLOTS, DEFAULT_SETTINGS);
     expect(rows[0]).toMatchObject({ title: 'Подготовка', status: 'prep' });

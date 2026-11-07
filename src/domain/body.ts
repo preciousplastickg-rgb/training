@@ -117,6 +117,40 @@ export function firstBodyFat(entries: readonly BodyEntry[], heightCm: number): n
   return best ? bodyFatPercent(best.waist!, best.neck!, heightCm) : null;
 }
 
+export interface BodyComposition {
+  /** Средний вес за 7 дней, иначе последний записанный. */
+  weight: Kg100 | null;
+  /** % жира по последним талии и шее и разница с первым замером. */
+  fat: number | null;
+  fatDelta: number | null;
+  /** Сухая масса («мышцы») и разница со стартом, Kg100. */
+  lean: Kg100 | null;
+  leanDelta: Kg100 | null;
+  /** Талия, см × 10, и разница с первым замером. */
+  waist: number | null;
+  waistDelta: number | null;
+}
+
+/** Состав тела на дату: то, что показывают «Прогресс · Тело» и карточка тела на «Сегодня». */
+export function bodyComposition(entries: readonly BodyEntry[], heightCm: number, startWeight: Kg100, date: LocalDate): BodyComposition {
+  const weight = avg7(entries, date) ?? latestWith(entries, 'weight', date)?.weight ?? null;
+  const fat = bodyFatAt(entries, heightCm, date);
+  const fat0 = firstBodyFat(entries, heightCm);
+  const waist = latestWith(entries, 'waist', date)?.waist ?? null;
+  const waist0 = firstWith(entries, 'waist')?.waist ?? null;
+  const lean = weight !== null && fat !== null ? leanMass(weight, fat) : null;
+  const lean0 = fat0 !== null ? leanMass(firstWith(entries, 'weight')?.weight ?? startWeight, fat0) : null;
+  return {
+    weight,
+    fat,
+    fatDelta: fat !== null && fat0 !== null ? Math.round((fat - fat0) * 10) / 10 : null,
+    lean,
+    leanDelta: lean !== null && lean0 !== null ? lean - lean0 : null,
+    waist,
+    waistDelta: waist !== null && waist0 !== null ? waist - waist0 : null,
+  };
+}
+
 /** Ряд для графика: вес по дням и среднее за 7 дней. */
 export function weightSeries(entries: readonly BodyEntry[], from: LocalDate, to: LocalDate) {
   const byDate = new Map(entries.filter((e) => e.weight !== undefined).map((e) => [e.date, e.weight!]));

@@ -28,10 +28,11 @@ const pool = z.object({
   id: z.string(), date: localDate, type: z.enum(['technique', 'intervals', 'long']).optional(), minutes: int, meters: int.optional(),
   feel: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(), saunaRounds: sauna.optional(), note: z.string().optional(),
 });
-const body = z.object({ date: localDate, weight: int.optional(), waist: int.optional(), neck: int.optional(), steps: int.optional(), restingHr: int.optional() });
+const body = z.object({ date: localDate, weight: int.optional(), waist: int.optional(), neck: int.optional(), steps: int.optional(), restingHr: int.optional(),
+  sleepMin: int.optional(), meditationMin: int.optional() });
 const per100 = z.object({ kcal: int, p: int, f: int, c: int });
 const food = z.object({
-  id: z.string(), name: z.string(), aliases: z.array(z.string()), per100, unitName: z.string().optional(), unitGrams: int.optional(),
+  id: z.string(), name: z.string(), aliases: z.array(z.string()), per100, unit: z.enum(['g', 'ml']).optional(), unitName: z.string().optional(), unitGrams: int.optional(),
   source: z.enum(['seed', 'user', 'recipe']), approx: z.boolean(), archived: z.boolean(),
   category: z.enum(['meat', 'dairy', 'grain', 'veg', 'fruit', 'fat', 'sweet', 'drink', 'dish']).optional(),
 });

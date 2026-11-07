@@ -181,3 +181,18 @@ describe('seed', () => {
     expect((await database.slots.get('b1-A2'))?.sets).toBe(4);
   });
 });
+
+describe('быстрая запись → база продуктов', () => {
+  it('новый продукт добавляется; такой же — берётся из базы; другие значения — отдельный продукт, старый не меняется', async () => {
+    const { saveQuickFood } = await import('./repo');
+    const { quickFoodDraft } = await import('../domain/nutrition');
+    const draft = quickFoodDraft({ name: 'Айран домашний', unit: 'ml', per100: { kcal: 40, p: 25, f: 15, c: 30 } });
+    const id = await saveQuickFood(draft, database);
+    expect(await database.foods.get(id)).toMatchObject({ name: 'Айран домашний', unit: 'ml', source: 'user', category: 'drink' });
+    expect(await saveQuickFood({ ...draft, name: 'айран  домашний' }, database)).toBe(id);
+    const other = await saveQuickFood({ ...draft, per100: { ...draft.per100, kcal: 45 } }, database);
+    expect(other).not.toBe(id);
+    expect((await database.foods.get(id))?.per100.kcal).toBe(40);
+    expect(await database.foods.count()).toBe(2);
+  });
+});

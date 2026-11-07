@@ -22,7 +22,7 @@ test('оболочка: меню, переходы, «+», настройки', 
   await nav.getByRole('button', { name: 'Добавить запись' }).click();
   const sheet = page.getByRole('dialog', { name: 'Добавить' });
   await expect(sheet).toBeVisible();
-  for (const name of ['Еда', 'Вес', 'Бассейн']) {
+  for (const name of ['Еда', 'Вес', 'Бассейн', 'Сон и медитация']) {
     await expect(sheet.getByText(name, { exact: true })).toBeVisible();
   }
   await page.keyboard.press('Escape');

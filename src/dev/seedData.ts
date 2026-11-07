@@ -46,6 +46,8 @@ export interface SeedResult {
 
 export function generateSeed(settings: Pick<Settings, 'substitutions' | 'substitutionsBlock' | 'phase3Mode'>): SeedResult {
   const rand = rng(20261109);
+  // Сон и медитация — своим генератором: основная последовательность (вес, еда) не сдвигается.
+  const randMind = rng(20270104);
   const sessions: WorkoutSession[] = [];
   const sets: SetLog[] = [];
   const pool: PoolSession[] = [];
@@ -109,6 +111,9 @@ export function generateSeed(settings: Pick<Settings, 'substitutions' | 'substit
     }
     if (rand() > 0.3) entry.steps = 6000 + Math.round(rand() * 6000);
     if (rand() > 0.15) entry.restingHr = 58 + Math.round((rand() - 0.5) * 4) - (plan.isDeload ? 2 : 0);
+    // Сон 6–8,5 ч с шагом 15 мин, ~15% ночей без записи; медитация с третьей недели, 10–20 мин в 70% дней.
+    if (randMind() > 0.15) entry.sleepMin = 360 + Math.round((randMind() * 150) / 15) * 15;
+    if (i >= 14 && randMind() > 0.3) entry.meditationMin = 10 + Math.round(randMind() * 2) * 5;
     if (Object.keys(entry).length > 1) body.push(entry);
 
     // Питание: 85% дней в цели.

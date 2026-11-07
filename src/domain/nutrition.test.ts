@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Adjustment, BodyEntry, Food, FoodLog } from '../db/types';
 import { addDays } from './dates';
-import { carbsFor, chickenGrams, dayTargets, dayTotals, nutritionInTarget, nutritionStats, portion, recipePer100, weeklyAdjustment } from './nutrition';
+import { carbsFor, chickenGrams, dayTargets, dayTotals, nutritionInTarget, nutritionStats, portion, recipePer100, unitLabel, weeklyAdjustment } from './nutrition';
 import { dayTypeFor } from './program';
 
 const chicken: Food = { id: 'c', name: 'Куриная грудка', aliases: [], per100: { kcal: 110, p: 230, f: 15, c: 0 }, source: 'seed', approx: false, archived: false };
@@ -141,5 +141,15 @@ describe('подсказки и статистика питания', () => {
     expect(nutritionStats([], foods, [], { phase3Mode: 'deficit' }, '2026-11-10')).toBeNull();
     // две недели спустя без записей — пустые недели в график не попадают
     expect(nutritionStats(logs, foods, [], { phase3Mode: 'deficit' }, '2026-11-24')!.weeks.map((w) => w.start)).toEqual(['2026-11-09']);
+  });
+});
+
+describe('миллилитры', () => {
+  it('порция в мл считается как в г: 250 мл кефира 40 ккал/100 мл = 100 ккал', () => {
+    const kefir = { per100: { kcal: 40, p: 30, f: 10, c: 40 }, unit: 'ml' as const };
+    expect(portion(kefir, 250)).toEqual({ kcal: 100, p: 75, f: 25, c: 100 });
+    expect(unitLabel(kefir)).toBe('мл');
+    expect(unitLabel({})).toBe('г');
+    expect(unitLabel(undefined)).toBe('г');
   });
 });

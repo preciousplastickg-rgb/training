@@ -178,13 +178,15 @@ export function Sparkline({ values, color = 'var(--progress)', width = 90, heigh
 }
 
 export function BarChart({
-  bars, target, height = 180, ariaLabel, format = (v: number) => String(v),
+  bars, target, height = 180, ariaLabel, format = (v: number) => String(v), okColor = 'var(--progress)',
 }: {
   bars: { label: string; value: number; ok: boolean }[];
   target: { value: number; label: string }[];
   height?: number;
   ariaLabel: string;
   format?: (v: number) => string;
+  /** Цвет столбика «в цели»; «мимо» — всегда --energy. */
+  okColor?: string;
 }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const max = Math.max(1, ...bars.map((b) => b.value), ...target.map((t) => t.value)) * 1.1;
@@ -201,7 +203,7 @@ export function BarChart({
           const w = slot * 0.64;
           return (
             <g key={i}>
-              <rect x={x} y={py(b.value)} width={w} height={height - B - py(b.value)} rx={4} fill={b.ok ? 'var(--progress)' : 'var(--energy)'} opacity={b.value ? 0.9 : 0.2} />
+              <rect x={x} y={py(b.value)} width={w} height={height - B - py(b.value)} rx={4} fill={b.ok ? okColor : 'var(--energy)'} opacity={b.value ? 0.9 : 0.2} />
               <text x={x + w / 2} y={height - 6} fontSize={10} textAnchor="middle" fill="var(--muted)">
                 {b.label}
               </text>

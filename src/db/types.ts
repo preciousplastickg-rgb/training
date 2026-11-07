@@ -147,6 +147,10 @@ export interface BodyEntry {
   steps?: number;
   /** Пульс в покое, удары в минуту, утром лёжа (SPEC 5.9). */
   restingHr?: number;
+  /** Сон за ночь, которая закончилась утром этой даты, минуты. */
+  sleepMin?: number;
+  /** Медитация за день, минуты (сумма за все подходы). */
+  meditationMin?: number;
 }
 
 /** Лёгкая неделя по пульсу (SPEC 5.9): слоты accessory по 2 подхода, субботний бассейн 30 мин спокойно. */
@@ -176,6 +180,8 @@ export interface Food {
   name: string;
   aliases: string[];
   per100: { kcal: number; p: number; f: number; c: number };
+  /** В чём меряется: граммы (по умолчанию) или миллилитры. per100 — на 100 г или на 100 мл, FoodLog.grams — в этих же единицах. */
+  unit?: FoodUnit;
   unitName?: string;
   unitGrams?: number;
   source: 'seed' | 'user' | 'recipe';
@@ -184,6 +190,8 @@ export interface Food {
   /** Раздел каталога — для просмотра без поиска. */
   category?: FoodCategory;
 }
+
+export type FoodUnit = 'g' | 'ml';
 
 export type FoodCategory = 'meat' | 'dairy' | 'grain' | 'veg' | 'fruit' | 'fat' | 'sweet' | 'drink' | 'dish';
 
@@ -198,6 +206,7 @@ export interface FoodLog {
   date: LocalDate;
   meal: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   foodId?: Id;
+  /** Граммы или миллилитры — по Food.unit. */
   grams?: number;
   quick?: { name: string; kcal: number; p: number };
   createdAt: number;

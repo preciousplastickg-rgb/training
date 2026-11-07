@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SEED_FOODS } from '../data/foods';
 import type { FoodLog } from '../db/types';
-import { frequentFoods, mealByHour, recentFoods, searchFoods } from './foodSearch';
+import { findSameUserFood, frequentFoods, mealByHour, recentFoods, searchFoods } from './foodSearch';
+import { quickFoodDraft } from './nutrition';
 
 const names = (q: string) => searchFoods(SEED_FOODS, q).map((f) => f.name);
 
@@ -40,5 +41,24 @@ describe('недавние и частые', () => {
     expect(mealByHour(13)).toBe('lunch');
     expect(mealByHour(19)).toBe('dinner');
     expect(mealByHour(23)).toBe('snack');
+  });
+});
+
+describe('быстрая запись → своя база', () => {
+  const kefir = { ...quickFoodDraft({ name: 'Кефир 1%', unit: 'ml', per100: { kcal: 40, p: 30, f: 10, c: 40 } }), id: 'k' };
+  it('черновик: на 100 мл, свой, напиток', () => {
+    expect(kefir).toMatchObject({ name: 'Кефир 1%', unit: 'ml', source: 'user', category: 'drink', archived: false });
+    expect(quickFoodDraft({ name: '  Плов   в кафе ', unit: 'g', per100: { kcal: 180, p: 60, f: 80, c: 220 } })).not.toHaveProperty('category');
+  });
+  it('тот же продукт — по названию без регистра, единице и значениям; другие значения — другой продукт', () => {
+    expect(findSameUserFood([kefir], { name: 'кефир  1%', unit: 'ml', per100: kefir.per100 })?.id).toBe('k');
+    expect(findSameUserFood([kefir], { name: 'Кефир 1%', unit: 'g', per100: kefir.per100 })).toBeUndefined();
+    expect(findSameUserFood([kefir], { name: 'Кефир 1%', unit: 'ml', per100: { ...kefir.per100, kcal: 41 } })).toBeUndefined();
+    expect(findSameUserFood([{ ...kefir, archived: true }], { name: 'Кефир 1%', unit: 'ml', per100: kefir.per100 })).toBeUndefined();
+    expect(findSameUserFood([{ ...kefir, source: 'seed' }], { name: 'Кефир 1%', unit: 'ml', per100: kefir.per100 })).toBeUndefined();
+  });
+  it('новый продукт находится поиском', () => {
+    const tan = { ...quickFoodDraft({ name: 'Тан газированный', unit: 'ml', per100: { kcal: 24, p: 11, f: 15, c: 10 } }), id: 't' };
+    expect(searchFoods([...SEED_FOODS.map((f, i) => ({ ...f, id: String(i) })), tan], 'тан газ').map((f) => f.id)).toEqual(['t']);
   });
 });

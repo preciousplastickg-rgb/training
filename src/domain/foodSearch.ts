@@ -4,6 +4,18 @@ import type { Food, FoodLog } from '../db/types';
 
 export const norm = (s: string) => s.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}%,. ]/gu, ' ').replace(/\s+/g, ' ').trim();
 
+/**
+ * Тот же свой продукт: название (регистр, «ё» и лишние пробелы не важны), единица и значения на 100 совпадают,
+ * не из архива. Повторная быстрая запись берёт его, а не плодит копии. Значения отличаются — это другой продукт:
+ * старый не трогаем, иначе пересчитаются прошлые дни.
+ */
+export function findSameUserFood(foods: readonly Food[], draft: Pick<Food, 'name' | 'unit' | 'per100'>): Food | undefined {
+  const n = norm(draft.name);
+  const unit = draft.unit ?? 'g';
+  const same = (a: Food['per100'], b: Food['per100']) => a.kcal === b.kcal && a.p === b.p && a.f === b.f && a.c === b.c;
+  return n ? foods.find((f) => f.source === 'user' && !f.archived && norm(f.name) === n && (f.unit ?? 'g') === unit && same(f.per100, draft.per100)) : undefined;
+}
+
 /** По названию и синонимам; сначала совпадения с начала слова, архивные — не показываем. */
 export function searchFoods(foods: readonly Food[], query: string, limit = 30): Food[] {
   const q = norm(query);

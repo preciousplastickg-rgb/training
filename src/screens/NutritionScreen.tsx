@@ -12,7 +12,7 @@ import type { Food, FoodLog } from '../db/types';
 import { addDays } from '../domain/dates';
 import { formatDayMonth, formatInt, NBSP } from '../domain/format';
 import { mealByHour } from '../domain/foodSearch';
-import { chickenGrams, dayTargets, dayTotals, logMacros, MEAL_NAMES, MEALS, type Meal } from '../domain/nutrition';
+import { chickenGrams, dayTargets, dayTotals, logMacros, MEAL_NAMES, MEALS, unitLabel, type Meal } from '../domain/nutrition';
 import { useAdjustments, useAllFoodLog, useFoodLog, useFoods, useLightWeeks, usePool, useSessions, useSettings } from '../hooks/useData';
 import { dayTypeFor, planOptionsOf } from '../domain/program';
 import { useToday } from '../hooks/useToday';
@@ -167,7 +167,7 @@ export function NutritionScreen() {
 
         <div className="flex gap-2">
           <button type="button" onClick={() => setAdd({ meal: mealByHour(new Date().getHours()), mode: 'quick' })} className="h-[50px] flex-1 rounded-full bg-surface text-sm font-extrabold active:opacity-80">
-            Быстро: ккал + белок
+            Быстро: свой продукт
           </button>
           <button type="button" onClick={() => setAdd({ meal: mealByHour(new Date().getHours()), mode: 'recipe' })} className="h-[50px] flex-1 rounded-full bg-surface text-sm font-extrabold active:opacity-80">
             Мои блюда
@@ -273,7 +273,7 @@ function SwipeRow({ entry, food, kcal, onTap, onDelete }: { entry: FoodLog; food
           {food?.name ?? entry.quick?.name ?? 'Продукт удалён'}
           {food?.approx && <span className="ml-1 text-muted">≈</span>}
         </span>
-        <span className="text-[13px] text-muted tabular-nums">{entry.grams ? `${entry.grams}${NBSP}г` : 'быстро'}</span>
+        <span className="text-[13px] text-muted tabular-nums">{entry.grams ? `${entry.grams}${NBSP}${unitLabel(food)}` : 'быстро'}</span>
         <span className="w-[52px] text-right text-[15px] font-bold tabular-nums">{formatInt(kcal)}</span>
       </div>
     </li>

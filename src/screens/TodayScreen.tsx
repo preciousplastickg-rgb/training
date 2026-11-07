@@ -1,4 +1,5 @@
 // «Сегодня» — SPEC 6.1 в редизайне B (docs/design/b/BToday.dc.html, REDESIGN 4).
+// Сверху — календарь недели и тренировка дня, затем путь к цели, питание, вес; внизу — тело: силуэт, % жира, мышцы.
 
 import { Check, ChevronRight, CloudDownload, Flame, HeartPulse, Minus, Play, Plus, SlidersHorizontal, Trash2, Waves } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -15,10 +16,10 @@ import {
 import { DEFAULT_SETTINGS, updateSettings } from '../db/db';
 import { acceptLightWeek, applyAdjustment, discardSession, dismissAdjustment, dismissLightWeek, finishSession, kvSet, putBody, setPhase3Mode, startSession } from '../db/repo';
 import type { BodyEntry, Settings, WorkoutSession } from '../db/types';
-import { avg7, forecastDate, pathProgress, roundTargetKg, targetRefinement, weeklyChange } from '../domain/body';
+import { avg7, bodyComposition, forecastDate, pathProgress, roundTargetKg, targetRefinement, weeklyChange } from '../domain/body';
 import { diffDays } from '../domain/dates';
 import { lightWeekSignal } from '../domain/heart';
-import { formatDayMonth, formatInt, formatKg, formatScaled, formatWeekdayDate, parseKg, pluralRu } from '../domain/format';
+import { formatDayMonth, formatInt, formatKg, formatScaled, formatWeekdayDate, NBSP, parseKg, pluralRu } from '../domain/format';
 import { strengthSeries, suggestionFor } from '../domain/history';
 import { sessionRecords, volume } from '../domain/records';
 import { dayTargets, dayTotals, weeklyAdjustment } from '../domain/nutrition';
@@ -28,6 +29,9 @@ import {
   useActiveSession, useAdjustments, useAllSets, useBody, useFoodLog, useFoods, useKv, useLightWeeks, usePool, useSessions, useSettings, useSlots,
 } from '../hooks/useData';
 import { useToday } from '../hooks/useToday';
+import { Silhouette, useSilhouetteFactors } from '../components/body/Silhouette';
+import { fatText, leanText, sign } from './progress/BodyTab';
+import { CalendarCard } from './workout/CalendarCard';
 import { HistorySheet } from './workout/HistorySheet';
 
 export function TodayScreen() {
@@ -52,11 +56,13 @@ export function TodayScreen() {
         }
       />
       <div className="flex flex-col gap-3 px-4 pb-6">
+        {/* Порядок: календарь недели и тренировка → путь к цели → питание и вес → подсказки → тело внизу. */}
         <DayHero date={date} settings={settings} body={body} />
         <PathCard date={date} settings={settings} body={body} />
         <NutritionTiles date={date} settings={settings} />
         <WeightRow date={date} body={body} fallback={settings.startWeight} />
         <Hints date={date} settings={settings} body={body} />
+        <BodyCard date={date} settings={settings} body={body} />
       </div>
     </>
   );
@@ -87,6 +93,8 @@ function DayHero({ date, settings, body }: { date: string; settings: Settings; b
   const wp = workoutPlan(workout, date, slots, settings, { lightWeeks });
   const week = useMemo(() => weekStrip(date, sessions, pool, settings, lightWeeks), [date, sessions, pool, settings, lightWeeks]);
   const [summary, setSummary] = useState(false);
+  // null — календарь закрыт, '' — открыт на текущем месяце, дата — сразу на этом дне.
+  const [calendar, setCalendar] = useState<string | null>(null);
 
   const start = async (calibration: boolean) => {
     unlockAudio();
@@ -221,26 +229,61 @@ function DayHero({ date, settings, body }: { date: string; settings: Settings; b
 
   return (
     <>
-      <HeroCard className="flex flex-col gap-[18px] rounded-[30px]! px-5! pt-[22px]! pb-5!">
+      <HeroCard className="flex flex-col gap-[18px] rounded-[30px]! px-5! pt-4! pb-5!">
+        {/* Календарь — первым: неделя кружками, тап по дню открывает его в месячном календаре. */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-3">
+            <Caps className="text-muted-on-ink!">{weekRange(week)}</Caps>
+            <button type="button" onClick={() => setCalendar('')} className="-mr-1 flex min-h-11 items-center gap-0.5 px-1 text-[13px] font-bold text-white active:opacity-70">
+              Календарь <ChevronRight size={16} aria-hidden />
+            </button>
+          </div>
+          <WeekStrip days={week} onPick={setCalendar} />
+        </div>
+        <div className="h-px bg-[#2A2C30]" aria-hidden />
         <div className="flex items-center justify-between gap-3">
           <Badge>{badge}</Badge>
           <span className="text-[13px] font-semibold text-muted-on-ink">{phaseLine(date)}</span>
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="-mt-1 flex flex-col gap-1.5">
           <h2 className="font-display text-[34px] leading-10 font-bold">{title}</h2>
           <p className="text-[15px] text-muted-on-ink">{text}</p>
         </div>
-        <WeekStrip days={week} />
         {cta}
         {extra}
       </HeroCard>
       <HistorySheet item={summary && doneToday ? { gym: doneToday } : null} sets={sets} onClose={() => setSummary(false)} />
+      <Sheet open={calendar !== null} title="Календарь" kicker="Зал, бассейн и отдых по дням" onClose={() => setCalendar(null)}>
+        <CalendarCard initialDate={calendar || null} />
+      </Sheet>
     </>
   );
 }
 
-/** 7 кружков недели: лайм — сделано в зале, тёмный с синей волной — бассейн, лаймовая обводка — сегодня, тусклые — план. */
-function WeekStrip({ days }: { days: WeekDay[] }) {
+const STATE_TEXT: Record<WeekDay['state'], string> = {
+  gym_done: 'зал сделан',
+  pool_done: 'бассейн сделан',
+  gym_plan: 'зал по плану',
+  gym_missed: 'зал пропущен',
+  pool_plan: 'бассейн по плану',
+  pool_optional: 'бассейн по желанию',
+  rest: 'отдых',
+};
+
+/** «4–10 января», «28 декабря – 3 января». */
+function weekRange(days: WeekDay[]): string {
+  const a = days[0]?.date;
+  const b = days[days.length - 1]?.date;
+  if (!a || !b) return '';
+  const [da, ma] = formatDayMonth(a).split(' ');
+  return a.slice(5, 7) === b.slice(5, 7) ? `${da}–${formatDayMonth(b)}` : `${da} ${ma} – ${formatDayMonth(b)}`;
+}
+
+/**
+ * 7 кружков недели: лайм — сделано в зале, тёмный с синей волной — бассейн, лаймовая обводка — сегодня, тусклые — план.
+ * Под кружком — день недели и число. Каждый день — кнопка во всю колонку (≥ 44 × 56): открывает календарь на этом дне.
+ */
+function WeekStrip({ days, onPick }: { days: WeekDay[]; onPick: (date: string) => void }) {
   const style = (d: WeekDay): { cls: string; st?: React.CSSProperties } => {
     if (d.state === 'gym_done') return { cls: 'bg-primary text-on-primary' };
     if (d.state === 'pool_done') return { cls: 'bg-[#2A2C30]', st: { color: 'var(--protein)' } };
@@ -251,15 +294,26 @@ function WeekStrip({ days }: { days: WeekDay[] }) {
     return { cls: `bg-white/8 ${d.state === 'pool_optional' ? 'text-[#6E737A]' : 'text-[#8A8D93]'}` };
   };
   return (
-    <ol className="grid grid-cols-7" aria-label="Эта неделя">
+    <ol className="-mx-1.5 grid grid-cols-7" aria-label="Эта неделя">
       {days.map((d) => {
         const { cls, st } = style(d);
+        const letter = d.state === 'gym_done' || d.state === 'gym_plan' ? ` ${d.label}` : '';
         return (
-          <li key={d.date} className={`flex flex-col items-center gap-1.5 text-[11px] font-semibold ${d.today ? 'text-white' : 'text-muted-on-ink'}`}>
-            <span className={`flex h-[34px] w-[34px] items-center justify-center rounded-full text-[13px] font-extrabold ${cls}`} style={st} aria-hidden>
-              {d.label}
-            </span>
-            {d.name}
+          <li key={d.date}>
+            <button
+              type="button"
+              onClick={() => onPick(d.date)}
+              aria-label={`${d.name}, ${formatDayMonth(d.date)}${d.today ? ', сегодня' : ''}: ${STATE_TEXT[d.state]}${letter}`}
+              aria-current={d.today ? 'date' : undefined}
+              className={`flex min-h-14 w-full flex-col items-center gap-1 rounded-2xl py-1 text-[11px] leading-[13px] font-semibold active:bg-white/8 ${d.today ? 'text-white' : 'text-muted-on-ink'}`}
+            >
+              <span className={`flex h-[34px] w-[34px] items-center justify-center rounded-full text-[13px] font-extrabold ${cls}`} style={st} aria-hidden>
+                {d.label}
+              </span>
+              <span aria-hidden>
+                {d.name} <b className="tabular-nums">{Number(d.date.slice(8))}</b>
+              </span>
+            </button>
           </li>
         );
       })}
@@ -580,6 +634,44 @@ function Hints({ date, settings, body }: { date: string; settings: Settings; bod
         </Card>
       )}
     </>
+  );
+}
+
+// ---------- Тело ----------
+
+/** Силуэт и рядом % жира, мышцы, талия — то же, что «Прогресс · Тело». Тап — туда. */
+function BodyCard({ date, settings, body }: { date: string; settings: Settings; body: BodyEntry[] }) {
+  const factors = useSilhouetteFactors();
+  const c = bodyComposition(body, settings.heightCm, settings.startWeight, date);
+  const stat = (label: string, value: string | null, unit: string, delta: string | null, hint: string) => (
+    <div className="flex flex-col gap-0.5">
+      <Caps>{label}</Caps>
+      {value !== null ? (
+        <span className="font-display text-[24px] leading-[30px] font-bold tabular-nums">
+          {value}
+          <span className="ml-1 font-sans text-sm font-semibold text-muted">{unit}</span>
+        </span>
+      ) : (
+        <span className="text-[22px] leading-[30px] font-bold text-muted">—</span>
+      )}
+      <span className="text-[13px] leading-[18px] font-bold text-muted tabular-nums">{value !== null ? (delta ? `${delta} со старта` : NBSP) : hint}</span>
+    </div>
+  );
+  return (
+    <Card onClick={() => navigate('progress')} className="flex items-center gap-3 rounded-[28px]! py-4! pr-5! pl-3!">
+      <div className="shrink-0">
+        <Silhouette factors={factors} size={210} remember={false} />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-[17px] font-bold">Тело</h2>
+          <ChevronRight size={18} className="text-muted" aria-hidden />
+        </div>
+        {stat('% жира', c.fat !== null ? fatText(c.fat) : null, '%', c.fatDelta !== null ? `${sign(c.fatDelta)}${fatText(Math.abs(c.fatDelta))}` : null, 'нужны талия и шея')}
+        {stat('Мышцы', c.lean !== null ? formatScaled(c.lean, 100, 1) : null, 'кг', leanText(c.leanDelta), 'по весу и % жира')}
+        {stat('Талия', c.waist !== null ? formatScaled(c.waist, 10, 1) : null, 'см', c.waistDelta !== null ? `${sign(c.waistDelta)}${formatScaled(Math.abs(c.waistDelta), 10, 1)}` : null, 'запиши в шторке веса')}
+      </div>
+    </Card>
   );
 }
 

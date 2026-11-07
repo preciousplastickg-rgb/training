@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDayMonth, formatInt, formatKcal, formatKg, formatMacro, formatWeekdayDate, parseKg, pluralRu } from './format';
+import { formatDayMonth, formatDuration, formatHours, formatInt, formatKcal, formatKg, formatMacro, formatWeekdayDate, NBSP, parseDuration, parseKg, pluralRu } from './format';
 
 const sp = (s: string) => s.replace(/ /g, ' ');
 
@@ -54,5 +54,27 @@ describe('множественное число', () => {
   it('рекорды', () => {
     const f = (n: number) => pluralRu(n, 'рекорд', 'рекорда', 'рекордов');
     expect([1, 2, 5, 11, 21, 22, 25, 101].map(f)).toEqual(['рекорд', 'рекорда', 'рекордов', 'рекордов', 'рекорд', 'рекорда', 'рекордов', 'рекорд']);
+  });
+});
+
+describe('длительность', () => {
+  it('минуты → «7 ч 30 мин», «8 ч», «45 мин»', () => {
+    expect(formatDuration(450)).toBe(`7${NBSP}ч 30${NBSP}мин`);
+    expect(formatDuration(480)).toBe(`8${NBSP}ч`);
+    expect(formatDuration(45)).toBe(`45${NBSP}мин`);
+    expect(formatHours(450)).toBe('7,5');
+    expect(formatHours(420)).toBe('7');
+  });
+  it('ввод сна: часы с дробью, часы и минуты', () => {
+    expect(parseDuration('7,5')).toBe(450);
+    expect(parseDuration('7.5')).toBe(450);
+    expect(parseDuration('8')).toBe(480);
+    expect(parseDuration('7:30')).toBe(450);
+    expect(parseDuration('7 30')).toBe(450);
+    expect(parseDuration('7ч30')).toBe(450);
+    expect(parseDuration('7 ч 15 мин')).toBe(435);
+    expect(parseDuration('7:75')).toBeNull();
+    expect(parseDuration('25')).toBeNull();
+    expect(parseDuration('много')).toBeNull();
   });
 });

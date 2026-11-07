@@ -21,17 +21,21 @@ test('продукт за 3 тапа, итоги сходятся с ручны�
   await expect(page.getByRole('img', { name: 'Белок 30 из 155 г' })).toBeVisible();
   await expect(page.getByRole('img', { name: 'Калории 195 из 2050' })).toBeVisible();
 
-  // быстрая запись
+  // быстрая запись: напиток на 100 мл, порция в мл → продукт в базе. 500 мл × 40 ккал/100 мл = 200 ккал, белок 12,5 г
   await page.getByRole('button', { name: 'Обед: добавить' }).click();
   await page.getByRole('dialog').getByRole('button', { name: /^Быстро/ }).click();
-  await page.getByRole('textbox', { name: 'Что съел' }).fill('Плов в кафе');
-  await page.getByRole('textbox', { name: 'Калории' }).fill('700');
-  await page.getByRole('textbox', { name: 'Белок' }).fill('25');
-  await page.getByRole('button', { name: 'Добавить', exact: true }).click();
-  await expect(page.getByRole('img', { name: /Калории 895 из 2050/ })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Название' }).fill('Айран домашний');
+  await page.getByRole('radio', { name: /миллилитры/ }).click();
+  await expect(page.getByText('На 100 мл — как на этикетке')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Калории' }).fill('40');
+  await page.getByRole('textbox', { name: 'Белок' }).fill('2,5');
+  await page.getByRole('button', { name: '500 мл' }).click();
+  await page.getByRole('button', { name: 'Добавить в обед' }).click();
+  await expect(page.getByRole('img', { name: /Калории 395 из 2050/ })).toBeVisible();
+  await expect(page.getByText('500 мл')).toBeVisible();
 
   // удалить с возвратом
-  const row = page.getByText('Плов в кафе').locator('xpath=ancestor::div[1]');
+  const row = page.getByText('Айран домашний').locator('xpath=ancestor::div[1]');
   await row.dispatchEvent('pointerdown', { clientX: 300, clientY: 400, pointerId: 1, isPrimary: true });
   await row.dispatchEvent('pointermove', { clientX: 240, clientY: 400, pointerId: 1, isPrimary: true });
   await row.dispatchEvent('pointermove', { clientX: 180, clientY: 400, pointerId: 1, isPrimary: true });
@@ -39,5 +43,10 @@ test('продукт за 3 тапа, итоги сходятся с ручны�
   await page.getByRole('button', { name: 'Удалить запись' }).last().click();
   await expect(page.getByText('Запись удалена')).toBeVisible();
   await page.getByRole('button', { name: 'Вернуть' }).click();
-  await expect(page.getByRole('img', { name: /Калории 895 из 2050/ })).toBeVisible();
+  await expect(page.getByRole('img', { name: /Калории 395 из 2050/ })).toBeVisible();
+
+  // продукт из быстрой записи — в базе: находится поиском, на 100 мл
+  await page.getByRole('button', { name: 'Ужин: добавить' }).click();
+  await page.getByRole('textbox', { name: 'Поиск продукта' }).fill('айран дом');
+  await expect(page.getByRole('button', { name: /^Айран домашний/ })).toContainText('на 100 мл');
 });

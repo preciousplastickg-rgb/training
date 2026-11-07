@@ -15,6 +15,9 @@ test('на демо-данных за 8 недель все графики от�
   await page.getByRole('tab', { name: 'Сила' }).click();
   await expect(page.getByRole('img', { name: 'Карта мышц спереди' })).toBeVisible();
   await expect(page.getByRole('img', { name: /^e1RM: / }).first()).toBeVisible();
+  await page.getByRole('tab', { name: 'Разум' }).click();
+  await expect(page.getByRole('img', { name: /^Сон по дням/ })).toBeVisible();
+  await expect(page.getByRole('img', { name: /^Медитация по дням/ })).toBeVisible();
   await page.getByRole('tab', { name: 'Питание' }).click();
   await expect(page.getByRole('img', { name: /Средние калории по неделям/ })).toBeVisible();
   await page.getByRole('tab', { name: 'Режим' }).click();
@@ -29,8 +32,11 @@ test('календарь тренировок: A/B по дням, бассейн
   await expect(page.getByText(/Готово:/)).toBeVisible();
   await page.goto('./#/workout');
   await page.reload();
-  // «Эта неделя»: сегодня — пн 4 января, зал.
-  await expect(page.getByRole('list', { name: 'Эта неделя' }).getByText('сегодня')).toBeVisible();
+  // «Ближайшие 7 дней» — с сегодняшнего (пн 4 января, зал); тап по залу раскрывает упражнения.
+  const days = page.getByRole('list', { name: 'Ближайшие 7 дней' });
+  await expect(days.getByRole('listitem').first()).toContainText('сегодня');
+  await days.getByRole('button', { name: /Тренировка [ABC]/ }).nth(1).click();
+  await expect(days.getByText('Основной блок')).toBeVisible();
   await page.getByRole('button', { name: 'Календарь' }).click();
   await expect(page.getByRole('heading', { name: 'Январь 2027' })).toBeVisible();
   // «Сегодня» демо-данных — пн 4 января: зал по чередованию, дальше вт — бассейн.

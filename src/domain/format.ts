@@ -85,3 +85,34 @@ export function pluralRu(n: number, one: string, few: string, many: string): str
   if (b === 1) return one;
   return many;
 }
+
+/** Минуты → «7 ч 30 мин», «8 ч», «45 мин». */
+export function formatDuration(min: number): string {
+  const m = Math.max(0, Math.round(min));
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  if (!h) return `${rest}${NBSP}мин`;
+  return rest ? `${h}${NBSP}ч ${rest}${NBSP}мин` : `${h}${NBSP}ч`;
+}
+
+/** Короткая форма для подписей графика: 450 → «7,5», 420 → «7». */
+export function formatHours(min: number): string {
+  return formatScaled(Math.round(min / 6), 10, 1);
+}
+
+/**
+ * Длительность сна, набранная руками: «7,5» и «7.5» — часы, «7:30» и «7 30» — часы и минуты,
+ * «7ч30» — тоже. null — не похоже на время сна (0–16 ч).
+ */
+export function parseDuration(input: string): number | null {
+  const s = input.trim().toLowerCase().replace(',', '.');
+  let min: number | null = null;
+  const hm = /^(\d{1,2})\s*(?:[: ]|ч)\s*(\d{1,2})\s*(?:мин|м)?$/.exec(s);
+  if (hm) {
+    const m = Number(hm[2]);
+    if (m < 60) min = Number(hm[1]) * 60 + m;
+  } else if (/^\d{1,2}(\.\d+)?\s*(?:ч)?$/.test(s)) {
+    min = Math.round(parseFloat(s) * 60);
+  }
+  return min !== null && min >= 0 && min <= 16 * 60 ? min : null;
+}

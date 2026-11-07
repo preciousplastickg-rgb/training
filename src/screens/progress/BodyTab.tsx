@@ -11,7 +11,7 @@ import { CHECKPOINTS, PROGRAM_END, PROGRAM_START } from '../../data/program';
 import { DEFAULT_SETTINGS } from '../../db/db';
 import { addPhoto, deletePhoto } from '../../db/repo';
 import type { BodyEntry, ProgressPhoto, Settings } from '../../db/types';
-import { avg7, bodyFatAt, firstBodyFat, firstWith, forecastDate, latestWith, leanMass, weightSeries } from '../../domain/body';
+import { bodyComposition, firstWith, forecastDate, weightSeries } from '../../domain/body';
 import { addDays, diffDays } from '../../domain/dates';
 import { hrBaseline, hrSeries } from '../../domain/heart';
 import { formatDayMonth, formatScaled, NBSP } from '../../domain/format';
@@ -19,7 +19,11 @@ import { useBody, usePhotos, useSettings } from '../../hooks/useData';
 import { useToday } from '../../hooks/useToday';
 
 const kg = (v: number, d = 1) => formatScaled(v, 100, d);
-const sign = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '');
+export const sign = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '');
+/** 22,13 → «22,1». */
+export const fatText = (fat: number) => formatScaled(Math.round(fat * 10), 10, 1);
+/** Сухая масса относительно старта: меньше 0,5 кг — «держим». */
+export const leanText = (delta: number | null) => (delta === null ? null : Math.abs(delta) < 50 ? 'держим' : `${sign(delta)}${kg(Math.abs(delta))}`);
 
 export function BodyTab() {
   const today = useToday();
@@ -27,28 +31,21 @@ export function BodyTab() {
   const body = useBody();
   const factors = useSilhouetteFactors();
   const [compare, setCompare] = useState(false);
-  const avg = avg7(body, today) ?? latestWith(body, 'weight')?.weight ?? null;
-  const fat = bodyFatAt(body, settings.heightCm, today);
-  const fat0 = firstBodyFat(body, settings.heightCm);
-  const waist = latestWith(body, 'waist')?.waist ?? null;
-  const waist0 = firstWith(body, 'waist')?.waist ?? null;
-  const lean = avg !== null && fat !== null ? leanMass(avg, fat) : null;
-  const lean0 = fat0 !== null ? leanMass(firstWith(body, 'weight')?.weight ?? settings.startWeight, fat0) : null;
-  const leanDelta = lean !== null && lean0 !== null ? lean - lean0 : null;
+  const { weight: avg, fat, fatDelta, lean, leanDelta, waist, waistDelta } = bodyComposition(body, settings.heightCm, settings.startWeight, today);
 
   return (
     <div className="flex flex-col gap-3">
       <WeightHero body={body} settings={settings} today={today} avg={avg} />
 
       <div className="grid grid-cols-3 gap-2.5">
-        <Mini label="% жира" value={fat !== null ? formatScaled(Math.round(fat * 10), 10, 1) : '—'}>
-          {fat !== null && fat0 !== null ? `${sign(fat - fat0)}${formatScaled(Math.round(Math.abs(fat - fat0) * 10), 10, 1)}` : null}
+        <Mini label="% жира" value={fat !== null ? fatText(fat) : '—'}>
+          {fatDelta !== null ? `${sign(fatDelta)}${fatText(Math.abs(fatDelta))}` : null}
         </Mini>
         <Mini label="Талия" value={waist !== null ? formatScaled(waist, 10, 0) : '—'}>
-          {waist !== null && waist0 !== null ? `${sign(waist - waist0)}${formatScaled(Math.abs(waist - waist0), 10, 0)} см` : null}
+          {waistDelta !== null ? `${sign(waistDelta)}${formatScaled(Math.abs(waistDelta), 10, 0)} см` : null}
         </Mini>
         <Mini label="Мышцы" value={lean !== null ? kg(lean) : '—'} muted={leanDelta !== null && Math.abs(leanDelta) < 50}>
-          {leanDelta === null ? null : Math.abs(leanDelta) < 50 ? 'держим' : `${sign(leanDelta)}${kg(Math.abs(leanDelta))}`}
+          {leanText(leanDelta)}
         </Mini>
       </div>
 
@@ -79,7 +76,7 @@ export function BodyTab() {
   );
 }
 
-function Mini({ label, value, children, muted = false }: { label: string; value: string; children: string | null; muted?: boolean }) {
+export function Mini({ label, value, children, muted = false }: { label: string; value: string; children: string | null; muted?: boolean }) {
   return (
     <Card className="flex flex-col gap-1 rounded-3xl! p-3.5!">
       <Caps>{label}</Caps>

@@ -1,9 +1,9 @@
 import { Archive, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet } from '../../components/Sheet';
-import { Button, Card, Field } from '../../components/ui';
+import { Button, Card, Chip, Field } from '../../components/ui';
 import { saveFood } from '../../db/repo';
-import type { Food } from '../../db/types';
+import type { Food, FoodUnit } from '../../db/types';
 import { formatScaled } from '../../domain/format';
 import { searchFoods } from '../../domain/foodSearch';
 import { useFoods } from '../../hooks/useData';
@@ -65,12 +65,15 @@ function FoodEditSheet({ food, onClose }: { food: Omit<Food, 'id'> & { id?: stri
   const [c, setC] = useState(food.per100.c ? formatScaled(food.per100.c, 10, 1) : '');
   const [unitName, setUnitName] = useState(food.unitName ?? '');
   const [unitGrams, setUnitGrams] = useState(food.unitGrams ? String(food.unitGrams) : '');
+  const [unit, setUnit] = useState<FoodUnit>(food.unit ?? 'g');
+  const u = unit === 'ml' ? 'мл' : 'г';
   const save = async (archived = food.archived) => {
     await saveFood({
       ...food,
       name: name.trim(),
       aliases: aliases.split(',').map((a) => a.trim().toLowerCase()).filter(Boolean),
       per100: { kcal: Math.round(num(kcal)), p: Math.round(num(p) * 10), f: Math.round(num(f) * 10), c: Math.round(num(c) * 10) },
+      unit,
       unitName: unitName.trim() || undefined,
       unitGrams: Math.round(num(unitGrams)) || undefined,
       archived,
@@ -82,7 +85,14 @@ function FoodEditSheet({ food, onClose }: { food: Omit<Food, 'id'> & { id?: stri
       <div className="flex flex-col gap-3 px-2 pb-2">
         <Field label="Название" value={name} onChange={(e) => setName(e.target.value)} />
         <Field label="Синонимы для поиска (через запятую)" value={aliases} onChange={(e) => setAliases(e.target.value)} />
-        <p className="text-sm text-muted">На 100 г{food.approx ? ' (приблизительно)' : ''}</p>
+        <div className="flex items-center gap-2">
+          <p className="flex-1 text-sm text-muted">На 100 {u}{food.approx ? ' (приблизительно)' : ''}</p>
+          {(['g', 'ml'] as const).map((x) => (
+            <Chip key={x} active={unit === x} onClick={() => setUnit(x)} aria-label={x === 'g' ? 'В граммах' : 'В миллилитрах'}>
+              {x === 'g' ? 'г' : 'мл'}
+            </Chip>
+          ))}
+        </div>
         <div className="grid grid-cols-4 gap-2">
           <Field label="Ккал" inputMode="numeric" value={kcal} onChange={(e) => setKcal(e.target.value)} />
           <Field label="Б" inputMode="decimal" value={p} onChange={(e) => setP(e.target.value)} />
@@ -91,7 +101,7 @@ function FoodEditSheet({ food, onClose }: { food: Omit<Food, 'id'> & { id?: stri
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Штука (название)" placeholder="1 шт" value={unitName} onChange={(e) => setUnitName(e.target.value)} />
-          <Field label="Штука, г" inputMode="numeric" value={unitGrams} onChange={(e) => setUnitGrams(e.target.value)} />
+          <Field label={`Штука, ${u}`} inputMode="numeric" value={unitGrams} onChange={(e) => setUnitGrams(e.target.value)} />
         </div>
         <Button size="lg" disabled={!name.trim()} onClick={() => void save()}>
           Сохранить

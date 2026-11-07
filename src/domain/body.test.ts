@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BodyEntry } from '../db/types';
 import { addDays } from './dates';
-import { avg7, bodyFatPercent, forecastDate, leanMass, pathProgress, roundTargetKg, targetRefinement, targetWeightFor } from './body';
+import { avg7, bodyComposition, bodyFatPercent, forecastDate, leanMass, pathProgress, roundTargetKg, targetRefinement, targetWeightFor } from './body';
 
 const days = (from: string, weights: number[]): BodyEntry[] => weights.map((w, i) => ({ date: addDays(from, i), weight: w }));
 
@@ -85,5 +85,30 @@ describe('уточнение цели на контрольной точке', (
   it('замер позже 14 дней после точки не считается; стартовый замер — тоже', () => {
     expect(targetRefinement([...weights('2026-12-15', 7, 7800), { date: '2026-12-25', waist: 880, neck: 380 }], CP, S, '2026-12-26')).toBeNull();
     expect(targetRefinement([{ date: '2026-11-09', weight: 8100, waist: 920, neck: 380 }], [{ date: '2026-11-09' }], S, '2026-11-10')).toBeNull();
+  });
+});
+
+describe('состав тела', () => {
+  const entries: BodyEntry[] = [
+    { date: '2026-11-09', weight: 8100, waist: 920, neck: 380 },
+    { date: '2027-01-02', weight: 7700 },
+    { date: '2027-01-03', weight: 7680, waist: 860, neck: 380 },
+    { date: '2027-01-04', weight: 7660 },
+  ];
+  it('жир, мышцы и талия — сейчас и разница со стартом', () => {
+    const c = bodyComposition(entries, 175, 8100, '2027-01-04');
+    const fat0 = bodyFatPercent(920, 380, 175)!;
+    const fat = bodyFatPercent(860, 380, 175)!;
+    expect(c.weight).toBe(7680);
+    expect(c.fat).toBe(fat);
+    expect(c.fatDelta).toBe(Math.round((fat - fat0) * 10) / 10);
+    expect(c.lean).toBe(leanMass(7680, fat));
+    expect(c.leanDelta).toBe(leanMass(7680, fat) - leanMass(8100, fat0));
+    expect(c.waist).toBe(860);
+    expect(c.waistDelta).toBe(-60);
+  });
+  it('без замеров — только вес', () => {
+    const c = bodyComposition([{ date: '2027-01-04', weight: 7660 }], 175, 8100, '2027-01-04');
+    expect(c).toMatchObject({ weight: 7660, fat: null, lean: null, leanDelta: null, waist: null });
   });
 });

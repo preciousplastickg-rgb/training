@@ -18,6 +18,8 @@ describe('демо-данные', () => {
     expect(real.every((s) => s.block === 1 && s.cardio && s.saunaRounds)).toBe(true);
     expect(seed.pool.every((p) => p.type)).toBe(true);
     expect(seed.body.filter((b) => b.restingHr).length).toBeGreaterThan(30);
+    expect(seed.body.filter((b) => b.sleepMin).length).toBeGreaterThan(30);
+    expect(seed.body.filter((b) => b.meditationMin).length).toBeGreaterThan(15);
     const bench = seed.sets.filter((s) => s.exerciseId === 'bench_press').map((s) => s.weight);
     expect(Math.max(...bench)).toBeGreaterThan(Math.min(...bench));
   });

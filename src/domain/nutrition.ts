@@ -29,6 +29,38 @@ export function portion(food: Pick<Food, 'per100'>, grams: number): Macros {
   return { kcal: k(food.per100.kcal), p: k(food.per100.p), f: k(food.per100.f), c: k(food.per100.c) };
 }
 
+/** «г» или «мл» — в чём меряется продукт и его порции. */
+export function unitLabel(food: Pick<Food, 'unit'> | undefined): string {
+  return food?.unit === 'ml' ? 'мл' : 'г';
+}
+
+/** Больше — это уже не «на 100 г»: чистый жир даёт 900 ккал. Скорее всего, введены калории всей порции. */
+export const MAX_KCAL_PER_100 = 900;
+
+export interface QuickFoodInput {
+  name: string;
+  unit: 'g' | 'ml';
+  /** На 100 г или 100 мл: ккал — целые, БЖУ — × 10. */
+  per100: Macros;
+}
+
+/**
+ * Быстрая запись → свой продукт в базе: следующий раз найдётся поиском.
+ * Напитки в миллилитрах попадают в раздел «Напитки».
+ */
+export function quickFoodDraft(input: QuickFoodInput): Omit<Food, 'id'> {
+  return {
+    name: input.name.trim().replace(/\s+/g, ' '),
+    aliases: [],
+    per100: { ...input.per100 },
+    unit: input.unit,
+    source: 'user',
+    approx: false,
+    archived: false,
+    ...(input.unit === 'ml' ? { category: 'drink' as const } : {}),
+  };
+}
+
 export function logMacros(log: FoodLog, foods: ReadonlyMap<string, Food>): Macros {
   if (log.quick) return { kcal: log.quick.kcal, p: log.quick.p, f: 0, c: 0 };
   const food = log.foodId ? foods.get(log.foodId) : undefined;
