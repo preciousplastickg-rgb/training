@@ -146,6 +146,10 @@ export interface BodyEntry {
   weight?: Kg100;
   waist?: number;
   neck?: number;
+  /** Обхват плеч по самым широким точкам дельт, см × 10. */
+  shoulders?: number;
+  /** Обхват запястья над косточкой, см × 10. */
+  wrist?: number;
   steps?: number;
   /** Пульс в покое, удары в минуту, утром лёжа (SPEC 5.9). */
   restingHr?: number;

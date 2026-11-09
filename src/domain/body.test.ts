@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { BodyEntry } from '../db/types';
 import { addDays } from './dates';
-import { avg7, bodyComposition, bodyFatPercent, forecastDate, leanMass, pathProgress, roundTargetKg, targetRefinement, targetWeightFor } from './body';
+import {
+  avg7, bodyComposition, bodyFatPercent, forecastDate, latestGirths, leanMass, parseGirth, pathProgress, roundTargetKg, targetRefinement, targetWeightFor,
+} from './body';
 
 const days = (from: string, weights: number[]): BodyEntry[] => weights.map((w, i) => ({ date: addDays(from, i), weight: w }));
 
@@ -110,5 +112,39 @@ describe('состав тела', () => {
   it('без замеров — только вес', () => {
     const c = bodyComposition([{ date: '2027-01-04', weight: 7660 }], 175, 8100, '2027-01-04');
     expect(c).toMatchObject({ weight: 7660, fat: null, lean: null, leanDelta: null, waist: null });
+  });
+});
+
+describe('обхваты в профиле', () => {
+  const entries: BodyEntry[] = [
+    { date: '2026-11-09', weight: 8100, waist: 920, neck: 380, shoulders: 1150, wrist: 175 },
+    { date: '2026-12-07', waist: 890 },
+    { date: '2027-01-04', waist: 860, shoulders: 1165 },
+  ];
+  it('последний замер каждого обхвата на дату и день замера', () => {
+    expect(latestGirths(entries, '2027-01-10')).toEqual({
+      waist: { value: 860, date: '2027-01-04' },
+      neck: { value: 380, date: '2026-11-09' },
+      shoulders: { value: 1165, date: '2027-01-04' },
+      wrist: { value: 175, date: '2026-11-09' },
+    });
+  });
+  it('замеры после даты не берутся; нет замера — null', () => {
+    expect(latestGirths(entries, '2026-12-10').waist).toEqual({ value: 890, date: '2026-12-07' });
+    expect(latestGirths([{ date: '2026-11-09', weight: 8100 }], '2026-11-09')).toEqual({ waist: null, neck: null, shoulders: null, wrist: null });
+  });
+  it('ввод: запятая, точка, «см», до 0,1 см', () => {
+    expect(parseGirth('92,5', 'waist')).toBe(925);
+    expect(parseGirth('92.5', 'waist')).toBe(925);
+    expect(parseGirth(' 115 см', 'shoulders')).toBe(1150);
+    expect(parseGirth('17,25', 'wrist')).toBe(173);
+  });
+  it('вне диапазона и не число — не принимается', () => {
+    expect(parseGirth('9,25', 'waist')).toBeNull();
+    expect(parseGirth('38', 'wrist')).toBeNull();
+    expect(parseGirth('17', 'neck')).toBeNull();
+    expect(parseGirth('', 'neck')).toBeNull();
+    expect(parseGirth('abc', 'shoulders')).toBeNull();
+    expect(parseGirth('-90', 'waist')).toBeNull();
   });
 });

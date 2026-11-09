@@ -117,6 +117,44 @@ export function firstBodyFat(entries: readonly BodyEntry[], heightCm: number): n
   return best ? bodyFatPercent(best.waist!, best.neck!, heightCm) : null;
 }
 
+// ---------- обхваты в профиле (SPEC 6.5) ----------
+
+export type GirthKey = 'waist' | 'neck' | 'shoulders' | 'wrist';
+export const GIRTH_KEYS: readonly GirthKey[] = ['waist', 'neck', 'shoulders', 'wrist'];
+
+/** Допустимые обхваты, см: вне диапазона — опечатка, значение не принимается. */
+export const GIRTH_RANGE: Record<GirthKey, readonly [number, number]> = {
+  waist: [50, 160],
+  neck: [25, 60],
+  shoulders: [70, 170],
+  wrist: [12, 26],
+};
+
+export interface Girth {
+  /** См × 10. */
+  value: number;
+  date: LocalDate;
+}
+
+/** Последний замер каждого обхвата на дату (не позже `date`). */
+export function latestGirths(entries: readonly BodyEntry[], date: LocalDate): Record<GirthKey, Girth | null> {
+  const out = {} as Record<GirthKey, Girth | null>;
+  for (const k of GIRTH_KEYS) {
+    const e = latestWith(entries, k, date);
+    out[k] = e ? { value: e[k]!, date: e.date } : null;
+  }
+  return out;
+}
+
+/** «92,5» / «92.5» / «92 см» → 925 (см × 10, до 0,1 см) в диапазоне обхвата; иначе null. */
+export function parseGirth(input: string, key: GirthKey): number | null {
+  const s = input.replace(/см/i, '').replace(/\s/g, '').replace(',', '.');
+  if (!/^\d+(\.\d+)?$/.test(s)) return null;
+  const v = Math.round(Number(s) * 10);
+  const [min, max] = GIRTH_RANGE[key];
+  return v >= min * 10 && v <= max * 10 ? v : null;
+}
+
 export interface BodyComposition {
   /** Средний вес за 7 дней, иначе последний записанный. */
   weight: Kg100 | null;

@@ -38,16 +38,19 @@ test('подход 1 тапом, таймер от endsAt, восстановл�
   await expect(page.getByRole('dialog', { name: 'Упражнения' }).getByText('Дополнительный блок')).toBeVisible();
 });
 
-test('«Как делать»: фигура, режимы «Движение / Верх / Низ», углы постоянно списком', async ({ page }) => {
+test('«Как делать» без 3D: фигура, режимы «Движение / Верх / Низ», углы постоянно списком', async ({ page }) => {
   await skipOnboarding(page);
+  // 9 ноября 2026: у упражнений с 3D «Как делать» — двойник; манекен — когда 3D выключен или его нет
+  await page.goto('./#/settings');
+  await page.getByRole('switch', { name: 'Показывать в 3D' }).click();
+  await expect(page.getByRole('switch', { name: 'Показывать в 3D' })).toHaveAttribute('aria-checked', 'false');
+  await page.getByRole('button', { name: 'Назад' }).click();
   await page.getByRole('navigation', { name: 'Основное меню' }).getByRole('button', { name: 'Тренировка' }).click();
   // Сначала — «Начать», состав раскрывается по нажатию.
   await expect(page.getByRole('button', { name: /^Гоблет-присед/ })).toHaveCount(0);
   await page.getByRole('button', { name: /^Состав/ }).click();
   await page.getByRole('button', { name: /^Гоблет-присед/ }).first().click();
   const sheet = page.getByRole('dialog');
-  // этап 5b: у упражнений с 3D манекен и углы — во вкладке «Техника»
-  await sheet.getByRole('tab', { name: 'Техника' }).click();
   await expect(sheet.getByRole('img', { name: 'Техника упражнения' })).toBeVisible();
   await expect(sheet.getByRole('tab', { name: 'Движение' })).toHaveAttribute('aria-selected', 'true');
   // Список углов виден всегда, а не только в крайней точке анимации.
@@ -56,6 +59,5 @@ test('«Как делать»: фигура, режимы «Движение / �
   await sheet.getByRole('tab', { name: 'Низ' }).click();
   // Стоп-кадр: на фигуре номера подсказок.
   await expect(sheet.getByRole('img', { name: 'Техника упражнения' }).getByText('1', { exact: true })).toBeVisible();
-  await sheet.getByRole('tab', { name: 'Мышцы' }).click();
-  await expect(sheet.getByText('Основные')).toBeVisible();
+  await expect(sheet.getByText(/^Мышцы · /)).toBeAttached();
 });

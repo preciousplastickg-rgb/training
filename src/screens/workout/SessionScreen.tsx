@@ -6,8 +6,6 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { navigate } from '../../app/router';
 import { beep, unlockAudio } from '../../app/sound';
 import { ExerciseSheet } from '../../components/ExerciseSheet';
-import type { HowToTab } from '../../components/twin/TwinCards';
-import { useManifest, useTwin3d } from '../../components/twin/useTwin';
 import { Sheet } from '../../components/Sheet';
 import { Button, Caps } from '../../components/ui';
 import { db, updateSettings } from '../../db/db';
@@ -124,7 +122,6 @@ function ActiveWorkoutView({
   const totalPlanned = plan.reduce((a, x) => a + x.sets, 0);
   const totalDone = plan.reduce((a, x) => a + Math.min(x.sets, workDone(x.exercise.id).length), 0);
   const [info, setInfo] = useState<string | null>(null);
-  const [infoTab, setInfoTab] = useState<HowToTab | undefined>(undefined);
   const [confirm, setConfirm] = useState(false);
   const [list, setList] = useState(false);
 
@@ -272,12 +269,12 @@ function ActiveWorkoutView({
             logged={sessionSets.filter((s) => s.exerciseId === p.exercise.id)}
             last={lastSessionSets(p.exercise.id, allSets, sessions, session.id)}
             withWarmup={withWarmupSets(exIndex) && !session.isCalibration}
-            onInfo={(tab) => (setInfoTab(tab), setInfo(p.exercise.id))}
+            onInfo={() => setInfo(p.exercise.id)}
             onLogged={() => afterSet(exIndex)}
           />
         ))}
 
-      <ExerciseSheet exerciseId={info} tab={infoTab} onClose={() => setInfo(null)} />
+      <ExerciseSheet exerciseId={info} onClose={() => setInfo(null)} />
 
       <Sheet open={list} title="Упражнения" kicker={`Тренировка ${session.workout} · ${totalDone} из ${totalPlanned} подходов`} onClose={() => setList(false)}>
         <ol className="theme-dark flex flex-col rounded-3xl bg-surface px-[18px] py-1">
@@ -466,14 +463,12 @@ function SetScreen({
   logged: SetLog[];
   last: ReturnType<typeof lastSessionSets>;
   withWarmup: boolean;
-  /** «Как делать»; tab = '3d' — сразу на вкладке «3D» (docs/TWIN-3D.md, 1). */
-  onInfo: (tab?: HowToTab) => void;
+  /** «Как делать»: у упражнения с 3D — сразу двойник (docs/TWIN-3D.md, 1). */
+  onInfo: () => void;
   onLogged: () => void;
 }) {
   const ex = p.exercise;
   const eq = ex;
-  const twin = useTwin3d();
-  const has3d = !!useManifest()?.exercises[ex.id] && twin.on;
   const work = logged.filter((s) => s.kind === 'work').sort((a, b) => a.setIndex - b.setIndex);
   const warm = logged.filter((s) => s.kind === 'warmup');
   const isAssist = ex.unit === 'assist_kg';
@@ -650,16 +645,6 @@ function SetScreen({
           <button type="button" onClick={() => onInfo()} className="h-14 flex-1 rounded-full bg-surface text-[15px] font-bold active:scale-[0.98]">
             Как делать
           </button>
-          {has3d && (
-            <button
-              type="button"
-              onClick={() => onInfo('3d')}
-              aria-label={`3D: ${p.exercise.name.toLowerCase()}`}
-              className="h-14 w-14 shrink-0 rounded-full bg-surface text-[15px] font-extrabold active:scale-[0.98]"
-            >
-              3D
-            </button>
-          )}
           <button
             type="button"
             disabled={!swapLabel}

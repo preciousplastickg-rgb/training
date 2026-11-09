@@ -8,10 +8,12 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Sheet } from '../components/Sheet';
 import { Button, Caps, Field } from '../components/ui';
 import { DEFAULT_SETTINGS, twin3dOf, updateSettings } from '../db/db';
+import { putBody } from '../db/repo';
 import type { Settings, Theme } from '../db/types';
-import { roundTargetKg } from '../domain/body';
+import { GIRTH_KEYS, latestGirths, parseGirth, roundTargetKg, type Girth, type GirthKey } from '../domain/body';
 import { formatDayMonth, formatKg, formatScaled, parseKg } from '../domain/format';
-import { useAdjustments, useFoods, useSlots } from '../hooks/useData';
+import { useAdjustments, useBody, useFoods, useSlots } from '../hooks/useData';
+import { useToday } from '../hooks/useToday';
 import { BackupRows } from './settings/BackupSection';
 import { FoodsSheet } from './settings/FoodsSection';
 import { CaloriesSheet, Group, PlatesSheet, ProgramSheet, ScheduleSheet, scheduleText } from './settings/ProgramSheets';
@@ -184,7 +186,18 @@ export function Toggle({ value, onChange, label }: { value: boolean; onChange: (
   );
 }
 
+const GIRTH_LABEL: Record<GirthKey, string> = { waist: 'Талия', neck: 'Шея', shoulders: 'Плечи', wrist: 'Запястье' };
+const girthText = (g: Girth | null) => (g ? formatScaled(g.value, 10, 1) : '');
+
+/** Последние обхваты на сегодня — для карточки профиля и шторки. */
+function useGirths(): { today: string; girths: Record<GirthKey, Girth | null> } {
+  const today = useToday();
+  const body = useBody();
+  return { today, girths: latestGirths(body, today) };
+}
+
 function ProfileHero({ settings, onEdit }: { settings: Settings; onEdit: () => void }) {
+  const { girths } = useGirths();
   const cell = (label: string, value: ReactNode, note: string, lime = false) => (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs text-muted-on-ink">{label}</span>
@@ -205,7 +218,55 @@ function ProfileHero({ settings, onEdit }: { settings: Settings; onEdit: () => v
         {cell('Старт', formatScaled(settings.startWeight, 100, 1), formatDayMonth(settings.startDate))}
         {cell('Цель', `≈ ${formatScaled(roundTargetKg(settings.targetWeight), 100, 0)}`, `при ${settings.targetBodyFat}% жира`, true)}
       </div>
+      <div className="grid grid-cols-4 gap-2 border-t border-hero-line pt-3.5" aria-label="Замеры, см">
+        {GIRTH_KEYS.map((k) => (
+          <div key={k} className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate text-xs text-muted-on-ink">{GIRTH_LABEL[k]}</span>
+            <span className={`font-display text-[17px] font-bold tabular-nums ${girths[k] ? '' : 'text-muted-on-ink'}`}>{girthText(girths[k]) || '—'}</span>
+          </div>
+        ))}
+      </div>
     </section>
+  );
+}
+
+/**
+ * Замеры в профиле: талия, шея, плечи, запястье. Показан последний замер; новое значение — замер сегодняшнего дня
+ * (BodyEntry даты), поэтому история и % жира по талии и шее не теряются.
+ */
+function GirthsCard() {
+  const { today, girths } = useGirths();
+  return (
+    <div className="mt-3 flex flex-col gap-3 rounded-[26px] bg-surface p-4">
+      <Caps as="h3">Замеры</Caps>
+      <div className="grid grid-cols-2 gap-3">
+        {GIRTH_KEYS.map((k) => {
+          const g = girths[k];
+          const shown = girthText(g);
+          return (
+            <Field
+              // key со значением: замер записан или пришёл из базы позже — поле показывает его
+              key={`${k}:${shown}`}
+              label={g && g.date !== today ? `${GIRTH_LABEL[k]} · ${formatDayMonth(g.date)}` : GIRTH_LABEL[k]}
+              suffix="см"
+              inputMode="decimal"
+              placeholder="—"
+              defaultValue={shown}
+              onBlur={(e) => {
+                const raw = e.target.value.trim();
+                if (raw === shown) return;
+                const v = raw ? parseGirth(raw, k) : null;
+                if (v === null) e.target.value = shown;
+                else if (v !== g?.value) void putBody(today, { [k]: v } as Partial<Record<GirthKey, number>>);
+              }}
+            />
+          );
+        })}
+      </div>
+      <p className="text-xs text-muted">
+        Сантиметровой лентой утром: талия — на уровне пупка, шея — под кадыком, плечи — по самым широким точкам дельт, запястье — над косточкой. Новое значение записывается замером за сегодня; по талии и шее считается % жира.
+      </p>
+    </div>
   );
 }
 
@@ -262,6 +323,7 @@ function ProfileSheet({ open, onClose, settings }: { open: boolean; onClose: () 
         </div>
         <p className="text-xs text-muted">Цель по весу — ориентир от сухой массы; на контрольных точках приложение предложит уточнить её по новым замерам.</p>
       </div>
+      <GirthsCard />
       <Button size="lg" className="mt-3 w-full" onClick={onClose}>
         Готово
       </Button>

@@ -19,7 +19,10 @@ const kgText = (kg100: number) => formatScaled(kg100, 100, 1);
 
 // ---------- «Сегодня» ----------
 
-/** Карточка тела на «Сегодня»: двойник в покое (≤ 30 FPS, вращение), строка «% жира → цель», шкала пути. Тап — «Прогресс». */
+/**
+ * Карточка тела на «Сегодня»: двойник в покое (≤ 30 FPS, медленное вращение, пальцем — поворот на 360°), строка
+ * «% жира → цель», шкала пути. Тап — «Прогресс».
+ */
 export function TwinTodayCard({ date, settings, body, fallback }: { date: string; settings: Settings; body: BodyEntry[]; fallback: ReactNode }) {
   const { rotate } = useTwin3d();
   const t = useTwinBodies(date);
@@ -27,7 +30,8 @@ export function TwinTodayCard({ date, settings, body, fallback }: { date: string
   const path = c.weight !== null ? pathProgress(settings.startWeight, settings.targetWeight, c.weight) : 0;
   const goal = fatText(settings.targetBodyFat);
   return (
-    <Card onClick={() => navigate('progress')} className="flex flex-col gap-3 rounded-[28px]! pb-5!">
+    // Пока палец крутит фигуру, карточка не тускнеет (тап по остальной карточке — как обычно)
+    <Card onClick={() => navigate('progress')} className="flex flex-col gap-3 rounded-[28px]! pb-5! active:opacity-100! [&:active:not(:has(canvas:active))]:opacity-80!">
       <div className="flex items-center justify-between px-1">
         <h2 className="font-display text-[17px] font-bold">Тело</h2>
         <ChevronRight size={18} className="text-muted" aria-hidden />
@@ -136,13 +140,15 @@ const NEUTRAL: TwinBody = { bf: 24.5, lean: 0, definition: 0.15, muscle: 0 };
 
 // ---------- «Как делать» ----------
 
-export type HowToTab = '3d' | 'muscles' | 'technique';
-
-/** Вкладки «3D» и «Мышцы»: двойник выполняет упражнение (или стоит в нижней точке) с подсветкой. */
-export function ExerciseTwin({ exerciseId, entry, still, date }: { exerciseId: string; entry: ManifestExercise; still: boolean; date: string }) {
+/**
+ * «Как делать»: двойник выполняет упражнение по кругу с подсветкой мышц; вращение пальцем, щипок, пауза и 0,5×.
+ * «Уменьшение движения» в iOS — сначала на паузе (TWIN-3D 6).
+ */
+export function ExerciseTwin({ exerciseId, entry, date }: { exerciseId: string; entry: ManifestExercise; date: string }) {
   const ex = EXERCISE_BY_ID[exerciseId]!;
   const t = useTwinBodies(date);
-  const [paused, setPaused] = useState(false);
+  const { reduced } = useTwin3d();
+  const [paused, setPaused] = useState(reduced);
   const [slow, setSlow] = useState(false);
   const zones = exerciseZones(ex);
   const side = useExerciseSide(exerciseId);
@@ -157,15 +163,14 @@ export function ExerciseTwin({ exerciseId, entry, still, date }: { exerciseId: s
     <div className="flex flex-col gap-2">
       <TwinView
         className="h-[min(56dvh,440px)] w-full rounded-3xl bg-surface"
-        label={still ? `${ex.name}: нижняя точка, работающие мышцы подсвечены` : `${ex.name}: 3D-анимация, работающие мышцы подсвечены`}
+        label={`${ex.name}: 3D-анимация, работающие мышцы подсвечены`}
         config={{
-          kind: 'exercise', id: exerciseId, body: t.now, still, paused, speed: slow ? 0.5 : 1,
+          kind: 'exercise', id: exerciseId, body: t.now, still: false, paused, speed: slow ? 0.5 : 1,
           primary: zones.primary, secondary: zones.secondary, side, maxFps: 60,
         }}
         fallback={stills}
       />
-      {!still && (
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setPaused((p) => !p)}
@@ -184,8 +189,7 @@ export function ExerciseTwin({ exerciseId, entry, still, date }: { exerciseId: s
             0,5×
           </button>
           <span className="ml-auto text-right text-[12px] leading-4 text-muted">вращайте пальцем,<br />двойной тап — ракурс</span>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

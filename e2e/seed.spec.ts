@@ -10,10 +10,11 @@ test('на демо-данных за 8 недель все графики от�
   await expect(page.getByText(/^\d+ [а-я]+$/).first()).toBeVisible();
 
   await page.goto('./#/progress');
-  await expect(page.getByRole('img', { name: 'Силуэт прогресса' })).toBeVisible();
+  // этап 5b: есть WebGL — вместо силуэта двойник «Старт · Сейчас · Цель», вместо карты мышц — нагрузка на модели
+  await expect(page.getByRole('img', { name: /^(Силуэт прогресса|Двойник: старт, сейчас и цель)$/ })).toBeVisible();
   await expect(page.getByRole('img', { name: /График веса/ })).toBeVisible();
   await page.getByRole('tab', { name: 'Сила' }).click();
-  await expect(page.getByRole('img', { name: 'Карта мышц спереди' })).toBeVisible();
+  await expect(page.getByRole('img', { name: /^(Карта мышц спереди|Нагрузка за неделю на модели: спереди и сзади)$/ })).toBeVisible();
   await expect(page.getByRole('img', { name: /^e1RM: / }).first()).toBeVisible();
   await page.getByRole('tab', { name: 'Разум' }).click();
   await expect(page.getByRole('img', { name: /^Сон по дням/ })).toBeVisible();

@@ -15,6 +15,10 @@ import { sideSign, type Zone } from './zones';
 
 const FOV = 35;          // вертикальный угол, как у кадров exercise-anim
 const FILL = 0.85;       // fit_points занимают 85 % ограничивающей стороны холста
+const TAU = Math.PI * 2;
+const AUTO_SPIN = 0.35;  // рад/с, ~20°/с — медленное вращение на «Сегодня»
+const SPIN_TAU = 0.8;    // с: за сколько инерция после пальца сходит к медленному вращению
+const MAX_SPIN = 12;     // рад/с: предел скорости после броска пальцем
 
 export interface Figure {
   body: TwinBody;
@@ -25,7 +29,7 @@ export interface Figure {
 }
 
 export type ViewConfig =
-  /** «Сегодня»: фигура в покое (клип idle), медленное вращение. */
+  /** «Сегодня»: фигура в покое (клип idle), медленное вращение; пальцем — поворот вокруг вертикали. */
   | { kind: 'idle'; body: TwinBody; rotate: boolean; maxFps: number }
   /** Несколько неподвижных фигур рядом («Старт · Сейчас · Цель», нагрузка спереди и сзади): рендер по требованию. */
   | { kind: 'figures'; figures: Figure[] }
@@ -56,6 +60,7 @@ interface Host {
 }
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
+const wrap = (a: number) => ((a % TAU) + TAU) % TAU;
 
 // ---------- кадр по fit_points (TWIN-3D 2; эталон — fitView() в viewer/main.js) ----------
 
@@ -140,6 +145,11 @@ class Engine {
   private lastRender = 0;
   private dirty = true;
   private yaw = 0;
+  /** Скорость вращения фигуры на «Сегодня», рад/с: после пальца — инерция, затем снова AUTO_SPIN (или 0, если выключено). */
+  private spin = AUTO_SPIN;
+  /** Палец на фигуре «Сегодня»: on — жест признан горизонтальным и крутит фигуру; v — скорость, рад/с. */
+  private grab: { id: number; x: number; y: number; t: number; on: boolean; v: number } | null = null;
+  private grabEnd = 0;
   private io: IntersectionObserver;
   private ro: ResizeObserver;
   private fpsFrames = 0;
@@ -195,6 +205,7 @@ class Engine {
       if (now - this.lastTap < 320) { this.resetView(); this.lastTap = 0; } else this.lastTap = now;
     });
     this.canvas.addEventListener('dblclick', () => this.resetView());
+    this.listenSpin();
     this.io = new IntersectionObserver((entries) => {
       for (const en of entries) {
         const h = this.hosts.find((x) => x.el === en.target);
@@ -380,8 +391,10 @@ int zoneId(float c) {
     if (!h) return;
     const c = h.cfg;
     this.controls.enabled = c.kind === 'exercise';
-    // вращение пальцем только в «Как делать»; на «Сегодня» и в «Прогрессе» жест по фигуре прокручивает страницу
+    // «Как делать» — орбита во все стороны; «Сегодня» — горизонтальный жест крутит фигуру (listenSpin), вертикальный
+    // прокручивает страницу; в «Прогрессе» жест по фигурам только прокручивает
     this.canvas.style.touchAction = c.kind === 'exercise' ? 'none' : 'pan-y';
+    if (c.kind !== 'idle') this.grab = null;
     if (c.kind === 'exercise') {
       if (this.ex?.id !== c.id && this.exLoading !== c.id) void this.loadExercise(c.id, h);
       else if (this.ex?.id === c.id) this.applyExercise(c, prev?.kind !== 'exercise' || (prev.kind === 'exercise' && prev.still !== c.still));
@@ -547,7 +560,9 @@ int zoneId(float c) {
     const h = this.top();
     if (!h) return this.stop();
     const c = h.cfg;
-    const maxFps = c.kind === 'figures' ? 0 : c.maxFps;
+    // «Сегодня» ≤ 30 FPS; пока палец крутит фигуру и пока она докручивается по инерции — до 60, чтобы шла за пальцем
+    const spinning = c.kind === 'idle' && (!!this.grab?.on || Math.abs(this.spin - (c.rotate ? AUTO_SPIN : 0)) > 0.05);
+    const maxFps = c.kind === 'figures' ? 0 : spinning ? 60 : c.maxFps;
     if (c.kind === 'figures' && !this.dirty) { this.lastFrame = now; return; }
     if (maxFps > 0 && now - this.lastRender < 1000 / maxFps - 2) return;
     const dt = Math.min((now - this.lastFrame) / 1000, 0.1);
@@ -555,7 +570,11 @@ int zoneId(float c) {
     this.lastRender = now;
     if (c.kind === 'idle') {
       this.mixer.update(dt);
-      if (c.rotate) this.yaw = (this.yaw + dt * 0.35) % (Math.PI * 2);   // ~20°/с
+      if (!this.grab?.on) {
+        // инерция после пальца сходит к медленному вращению, а если оно выключено — к остановке
+        this.spin += ((c.rotate ? AUTO_SPIN : 0) - this.spin) * (1 - Math.exp(-dt / SPIN_TAU));
+        this.yaw = wrap(this.yaw + this.spin * dt);
+      }
       this.stage.rotation.y = this.yaw;
       this.renderOne();
     } else if (c.kind === 'exercise') {
@@ -584,7 +603,7 @@ int zoneId(float c) {
       this.fpsTime = 0;
       for (const l of this.fpsListeners) l(this.fps);
     }
-    (window as unknown as { __twin?: object }).__twin = { fps: this.fps, kind: c.kind, exercise: this.ex?.id ?? null, ready: true };
+    (window as unknown as { __twin?: object }).__twin = { fps: this.fps, kind: c.kind, exercise: this.ex?.id ?? null, ready: true, yaw: this.yaw };
   }
 
   private renderOne() {
@@ -611,6 +630,56 @@ int zoneId(float c) {
       this.renderer.render(this.scene, this.camera);
     });
     this.renderer.setScissorTest(false);
+  }
+
+  /**
+   * «Сегодня»: фигура крутится пальцем вокруг вертикали на 360°, свайп на ширину карточки — полный оборот. Жест признаётся,
+   * когда палец ушёл по горизонтали дальше 6 px и больше, чем по вертикали; вертикальный жест браузер отдаёт прокрутке
+   * (touch-action: pan-y) и присылает pointercancel. После отпускания — инерция, тап по карточке не срабатывает.
+   */
+  private listenSpin() {
+    const c = this.canvas;
+    c.addEventListener('pointerdown', (e) => {
+      if (this.top()?.cfg.kind !== 'idle' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      this.grab = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), on: false, v: 0 };
+    });
+    c.addEventListener('pointermove', (e) => {
+      const g = this.grab;
+      if (!g || e.pointerId !== g.id) return;
+      const dx = e.clientX - g.x;
+      if (!g.on) {
+        if (Math.abs(dx) < 6 || Math.abs(dx) < Math.abs(e.clientY - g.y)) return;
+        g.on = true;
+        c.setPointerCapture(e.pointerId);
+      }
+      const now = performance.now();
+      const da = (dx * TAU) / Math.max(200, c.clientWidth);
+      this.yaw = wrap(this.yaw + da);
+      g.v = 0.5 * g.v + 0.5 * (da / (Math.max(8, now - g.t) / 1000));
+      g.x = e.clientX;
+      g.y = e.clientY;
+      g.t = now;
+      this.dirty = true;
+    });
+    const release = (e: PointerEvent) => {
+      const g = this.grab;
+      if (!g || e.pointerId !== g.id) return;
+      this.grab = null;
+      if (!g.on) return;
+      const now = performance.now();
+      this.grabEnd = now;
+      // палец остановился перед отпусканием — без броска
+      this.spin = now - g.t > 80 ? 0 : clamp(g.v, -MAX_SPIN, MAX_SPIN);
+    };
+    c.addEventListener('pointerup', release);
+    c.addEventListener('pointercancel', release);
+    // отпускание после поворота — не тап: «Сегодня» не уходит в «Прогресс»
+    c.addEventListener('click', (e) => {
+      if (performance.now() - this.grabEnd < 400) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    });
   }
 
   onFps(cb: (fps: number) => void): () => void {

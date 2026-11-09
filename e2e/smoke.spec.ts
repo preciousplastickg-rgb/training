@@ -73,3 +73,27 @@ test('PWA: манифест standalone и офлайн-запуск из кэш�
   await expect(page.getByRole('heading', { level: 1, name: 'Питание' })).toBeVisible();
   await context.setOffline(false);
 });
+
+test('профиль: замеры талии, шеи, плеч и запястья — на карточке и в «Изменить»', async ({ page }) => {
+  await page.goto('./#/settings');
+  const girths = page.getByLabel('Замеры, см');
+  for (const name of ['Талия', 'Шея', 'Плечи', 'Запястье']) await expect(girths.getByText(name, { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Изменить' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Профиль' });
+  const shoulders = sheet.getByRole('textbox', { name: /^Плечи/ });
+  await shoulders.fill('115,5');
+  await shoulders.blur();
+  const wrist = sheet.getByRole('textbox', { name: /^Запястье/ });
+  // опечатка не принимается — поле возвращается к прежнему значению
+  await wrist.fill('175');
+  await wrist.blur();
+  await expect(wrist).toHaveValue('');
+  await wrist.fill('17,5');
+  await wrist.blur();
+  await sheet.getByRole('button', { name: 'Готово' }).click();
+  await expect(girths.getByText('115,5')).toBeVisible();
+  await expect(girths.getByText('17,5')).toBeVisible();
+  // записано замером за сегодня и переживает перезагрузку
+  await page.reload();
+  await expect(page.getByLabel('Замеры, см').getByText('115,5')).toBeVisible();
+});

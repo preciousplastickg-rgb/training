@@ -45,33 +45,30 @@ test('упражнение без 3D показывает подсказки б�
   expect(errors).toEqual([]);
 });
 
-test('жим лёжа: вкладки «3D · Мышцы · Техника», подсветка груди, дельты и трицепса', async ({ page }) => {
+test('жим лёжа: «Как делать» — один экран: 3D с подсветкой, мышцы и техника без вкладок', async ({ page }) => {
   const errors = collectErrors(page);
   await page.clock.install({ time: new Date('2026-11-09T09:00:00+06:00') });
   await skipOnboarding(page);
   const sheet = await openPlanExercise(page, /^Жим штанги лёжа/);
-  await expect(sheet.getByRole('tab', { name: '3D' })).toHaveAttribute('aria-selected', 'true');
+  await expect(sheet.getByRole('tab')).toHaveCount(0);
   const gl = await twinOrStills(page, sheet);
   if (gl) {
     // клип загружен и играет на двойнике
     await expect.poll(() => page.evaluate(() => (window as unknown as { __twin?: { exercise: string | null } }).__twin?.exercise), { timeout: 20_000 }).toBe('bench_press');
     await expect(sheet.getByRole('button', { name: 'Пауза' })).toBeVisible();
     await expect(sheet.getByRole('button', { name: '0,5×' })).toBeVisible();
+    // 3D — сверху, мышцы и техника — под ним в той же прокрутке
+    await expect(sheet.getByRole('img', { name: /3D-анимация/ })).toBeVisible();
+    await expect(sheet.getByRole('img', { name: 'Техника упражнения' })).toHaveCount(0);
   }
-  await sheet.getByRole('tab', { name: 'Мышцы' }).click();
   const list = sheet.locator('section').filter({ hasText: 'Основные' });
   await expect(list.getByText('Грудные')).toBeVisible();
   await expect(list.getByText('Передняя дельта')).toBeVisible();
   await expect(list.getByText('Трицепс')).toBeVisible();
-  await sheet.getByRole('tab', { name: 'Техника' }).click();
+  await sheet.getByText('Ключевые моменты').scrollIntoViewIfNeeded();
   await expect(sheet.getByText('Ключевые моменты')).toBeVisible();
-  // манекен подсвечивает мышцы цветами двойника
-  const fig = sheet.getByRole('img', { name: 'Техника упражнения' });
-  const palette = await fig.evaluate((el) => {
-    const cs = getComputedStyle(el);
-    return [cs.getPropertyValue('--m-primary').trim(), cs.getPropertyValue('--m-secondary').trim()];
-  });
-  expect(palette.map((c) => c.toLowerCase())).toEqual(['#d85a30', '#f0997b']);
+  await expect(sheet.getByText('Частые ошибки')).toBeVisible();
+  await expect(sheet.getByRole('link', { name: /Видео/ })).toBeVisible();
   await sheet.getByRole('button', { name: 'Закрыть' }).last().click();
   expect(errors).toEqual([]);
 });
@@ -95,22 +92,59 @@ test('«Сегодня»: карточка двойника, не больше 3
   expect(errors).toEqual([]);
 });
 
-test('режим тренировки: «3D» открывает «Как делать» на вкладке «3D»', async ({ page }) => {
+test('режим тренировки: «Как делать» сразу показывает 3D, отдельной кнопки «3D» нет', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-06T09:00:00+06:00') });
   await skipOnboarding(page);
   await page.goto('./#/workout');
   await page.getByRole('button', { name: /Пробная тренировка/ }).click();
   await expect(page.getByRole('heading', { name: 'Гоблет-присед' })).toBeVisible();
-  const btn = page.getByRole('button', { name: '3D: гоблет-присед' });
-  if ((await btn.count()) === 0) test.skip(true, 'нет WebGL — кнопки «3D» нет');
+  await expect(page.getByRole('button', { name: '3D: гоблет-присед' })).toHaveCount(0);
+  const btn = page.getByRole('button', { name: 'Как делать' });
   const box = await btn.boundingBox();
-  expect(box!.width).toBeGreaterThanOrEqual(56);
+  expect(box!.height).toBeGreaterThanOrEqual(56);
   await btn.click();
   const sheet = page.getByRole('dialog', { name: 'Гоблет-присед' });
-  await expect(sheet.getByRole('tab', { name: '3D' })).toHaveAttribute('aria-selected', 'true');
+  await expect(sheet.getByRole('tab')).toHaveCount(0);
+  await twinOrStills(page, sheet);
+  await expect(sheet.getByText('Ключевые моменты')).toBeAttached();
 });
 
-test('без WebGL: силуэт на «Сегодня», статичные кадры в «Как делать», без ошибок', async ({ page }) => {
+test('«Сегодня»: фигуру крутит палец, отпускание не открывает «Прогресс»', async ({ page }) => {
+  const errors = collectErrors(page);
+  await skipOnboarding(page);
+  const card = page.getByRole('button').filter({ has: page.getByRole('heading', { name: 'Тело' }) });
+  await card.scrollIntoViewIfNeeded();
+  if ((await card.locator('[data-twin]').count()) === 0) test.skip(true, 'нет WebGL — силуэт без вращения');
+  const view = card.locator('[data-twin="ready"]');
+  await expect(view).toBeVisible({ timeout: 20_000 });
+  type Twin = { yaw: number; fps: number };
+  const twin = () => page.evaluate(() => (window as unknown as { __twin?: Twin }).__twin!);
+  await expect.poll(async () => (await twin())?.fps ?? 0, { timeout: 20_000 }).toBeGreaterThan(0);
+  const box = (await view.boundingBox())!;
+  const y = box.y + box.height / 2;
+  const x0 = box.x + box.width * 0.3;
+  const quarter = box.width / 4;
+  const before = (await twin()).yaw;
+  await page.mouse.move(x0, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) await page.mouse.move(x0 + (quarter * i) / 10, y);
+  // палец остановился — без броска
+  await page.waitForTimeout(150);
+  const after = (await twin()).yaw;
+  await page.mouse.up();
+  // четверть ширины — четверть оборота (плюс медленное вращение за время жеста)
+  const turned = (((after - before) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  expect(turned).toBeGreaterThan(Math.PI / 2 - 0.2);
+  expect(turned).toBeLessThan(Math.PI / 2 + 0.8);
+  await page.waitForTimeout(300);
+  await expect(page.getByRole('heading', { level: 1, name: 'Прогресс' })).toHaveCount(0);
+  // а тап по карточке — как раньше
+  await card.getByText(/цель 15 % жира/i).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Прогресс' })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('без WebGL: силуэт на «Сегодня», в «Как делать» — манекен и подсказки, без ошибок', async ({ page }) => {
   const errors = collectErrors(page);
   await page.addInitScript(() => {
     const orig = HTMLCanvasElement.prototype.getContext;
@@ -125,14 +159,9 @@ test('без WebGL: силуэт на «Сегодня», статичные к�
   await expect(page.getByRole('img', { name: 'Силуэт прогресса' })).toBeVisible();
   await expect(page.locator('[data-twin]')).toHaveCount(0);
   const sheet = await openPlanExercise(page, /^Жим штанги лёжа/);
-  await expect(sheet.getByRole('tab', { name: '3D' })).toBeVisible();
-  const imgs = sheet.getByTestId('twin-stills').getByRole('img');
-  await expect(imgs).toHaveCount(2);
-  for (const img of await imgs.all()) {
-    await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)).toBe(640);
-  }
-  await sheet.getByRole('tab', { name: 'Техника' }).click();
-  await expect(sheet.getByText('Ключевые моменты')).toBeVisible();
+  await expect(sheet.getByRole('img', { name: 'Техника упражнения' })).toBeVisible();
+  await expect(sheet.locator('[data-twin]')).toHaveCount(0);
+  await expect(sheet.getByText('Ключевые моменты')).toBeAttached();
   expect(errors).toEqual([]);
 });
 
