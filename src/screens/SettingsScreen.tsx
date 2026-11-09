@@ -7,7 +7,7 @@ import { beep, unlockAudio } from '../app/sound';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Sheet } from '../components/Sheet';
 import { Button, Caps, Field } from '../components/ui';
-import { DEFAULT_SETTINGS, updateSettings } from '../db/db';
+import { DEFAULT_SETTINGS, twin3dOf, updateSettings } from '../db/db';
 import type { Settings, Theme } from '../db/types';
 import { roundTargetKg } from '../domain/body';
 import { formatDayMonth, formatKg, formatScaled, parseKg } from '../domain/format';
@@ -47,6 +47,7 @@ function GroupTitle({ children }: { children: ReactNode }) {
 
 export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenProps) {
   const settings = maybe ?? DEFAULT_SETTINGS;
+  const twin = twin3dOf(settings);
   const [open, setOpen] = useState<Open>(null);
   const slots = useSlots();
   const foods = useFoods();
@@ -121,6 +122,23 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
         </section>
 
         <section>
+          <GroupTitle>3D-двойник</GroupTitle>
+          <Group className="px-0!">
+            <div className="flex min-h-[58px] items-center gap-3 px-[22px]">
+              <span className="flex-1 text-[16px] font-semibold">Показывать в 3D</span>
+              <Toggle label="Показывать в 3D" value={twin.enabled} onChange={(v) => void updateSettings({ twin3d: { ...twin, enabled: v } })} />
+            </div>
+            <div className="flex min-h-[58px] items-center gap-3 border-t border-line px-[22px]">
+              <span className={`flex-1 text-[16px] font-semibold ${twin.enabled ? '' : 'text-muted'}`}>Вращение на «Сегодня»</span>
+              <Toggle label="Вращение на «Сегодня»" value={twin.todayRotation} onChange={(v) => void updateSettings({ twin3d: { ...twin, todayRotation: v } })} />
+            </div>
+            <p className="px-[22px] pb-3.5 text-[13px] leading-[18px] text-muted">
+              Двойник по вашим замерам: на «Сегодня», в «Прогрессе» и в «Как делать». Выключено — силуэт и статичные кадры, меньше расход батареи.
+            </p>
+          </Group>
+        </section>
+
+        <section>
           <GroupTitle>О приложении</GroupTitle>
           <Group className="px-0!">
             <div className="px-[22px] py-4">
@@ -128,6 +146,7 @@ export function SettingsScreen({ settings: maybe, persisted }: SettingsScreenPro
               <p className="text-sm text-muted">Сборка {__APP_BUILD__}</p>
               <ViewportDiagnostics />
               <p className="mt-1 text-sm text-muted">Карта мышц: body-highlighter, MIT</p>
+              <p className="text-sm text-muted">Анатомия мышц: Z-Anatomy, CC BY-SA 4.0</p>
               <p className="text-sm text-muted">Шрифты: Unbounded и Manrope, SIL Open Font License 1.1</p>
             </div>
             <SettingsRow label="Позы упражнений" value="манекен" onClick={() => navigate('dev/animations')} />

@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 import { skipOnboarding } from './helpers';
 
 test('продукт за 3 тапа, итоги сходятся с ручным расчётом, свайп удаляет', async ({ page }) => {
+  // воскресенье — день отдыха, норма 2050 ккал (в день зала 2300)
+  await page.clock.install({ time: new Date('2026-11-08T09:00:00+06:00') });
   await skipOnboarding(page, './#/nutrition');
   await page.goto('./#/nutrition');
 

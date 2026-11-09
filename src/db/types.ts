@@ -19,7 +19,9 @@ export type SaunaRounds = 0 | 1 | 2 | 3;
 
 export type Muscle =
   | 'chest' | 'front_delt' | 'side_delt' | 'rear_delt' | 'lats' | 'upper_back' | 'biceps'
-  | 'triceps' | 'abs' | 'lower_back' | 'glutes' | 'quads' | 'hamstrings' | 'calves';
+  | 'triceps' | 'abs' | 'lower_back' | 'glutes' | 'quads' | 'hamstrings' | 'calves'
+  // Этап 5b (docs/TWIN-3D.md, 7): зоны 3D-двойника.
+  | 'traps' | 'forearms' | 'obliques' | 'adductors';
 
 export interface Exercise {
   id: string;
@@ -248,6 +250,13 @@ export interface Settings {
   schedule?: WeekSchedule;
   /** Правки плана на отдельные даты из календаря. */
   dayOverrides?: Record<LocalDate, DayOverride>;
+  /** 3D-двойник (docs/TWIN-3D.md, 7); не задано — включён, вращение на «Сегодня» включено. */
+  twin3d?: Twin3dSettings;
+}
+
+export interface Twin3dSettings {
+  enabled: boolean;
+  todayRotation: boolean;
 }
 
 /** Дни недели ISO: 1 — понедельник … 7 — воскресенье. Остальные дни — отдых. */

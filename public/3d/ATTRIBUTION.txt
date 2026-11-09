@@ -1,0 +1,43 @@
+ATTRIBUTION — exercise-anim muscle textures
+===========================================
+
+The muscle relief, zone and fibre maps of the twin are derived from Z-Anatomy.
+
+Source
+------
+"Z-Anatomy - The libre 3D atlas of anatomy" — CC BY-SA 4.0
+  https://github.com/Z-Anatomy/Models-of-human-anatomy
+  Authors: Gauthier Kervyn (design, 3D, anatomy), Marcin Zielinski (Blender add-on),
+  Lluis Vinent (Unity development) and the Z-Anatomy translators.
+  License: https://creativecommons.org/licenses/by-sa/4.0/
+
+Z-Anatomy models are based on:
+"BodyParts3D - The Database Center for Life Science" — CC BY-SA 2.1 Japan
+  Original model: Kousaku Okubo
+  https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html
+
+What was used and how it was changed
+------------------------------------
+- 128 superficial skeletal muscle meshes (64 per side) and 24 bone meshes used only as
+  landmarks, from Z-Anatomy Startup.blend (downloaded 2026-11-08).
+- The muscles were scaled to the twin's stature, warped per body segment to the twin's
+  joint landmarks, shrink-wrapped to the twin's skin and baked into 2048x2048 UV maps.
+- Derived files (licensed CC BY-SA 4.0, ShareAlike), app assets in dist/:
+    dist/twin.glb           — normal map embedded in material Twin_App_glTF
+    dist/twin_id.webp       — muscle zone ID map
+    dist/twin_idsoft.webp   — soft zone-edge mask
+    dist/twin_fibre.webp    — muscle fibre texture (from the fibre direction map)
+    dist/muscles.json       — zone table and muscle lists
+    dist/ex/*_start.webp, *_end.webp — stills with the muscle highlight
+  Working copies: renders/twin_normal.png, twin_id.png, twin_idsoft.png, twin_fibre.png, twin_flow.png,
+  bench.blend (scene "Anatomy").
+
+Attribution line for the app (e.g. an About screen):
+  Muscle anatomy: Z-Anatomy (CC BY-SA 4.0), based on BodyParts3D, The Database Center
+  for Life Science (CC BY-SA 2.1 JP).
+
+Other assets
+------------
+- Body mesh: MPFB 2 / MakeHuman base mesh and targets (MakeHuman assets are CC0).
+- Studio HDRI "White Studio 04" by Grzegorz Wronkowski, Poly Haven (CC0) — used only in renders,
+  not included in exported files.

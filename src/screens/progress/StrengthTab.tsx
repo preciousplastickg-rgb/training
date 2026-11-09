@@ -4,6 +4,8 @@
 import { Dumbbell } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { MuscleMapPair, type MuscleColors } from '../../components/body/MuscleMap';
+import { TwinLoadView } from '../../components/twin/TwinCards';
+import { useTwin3d } from '../../components/twin/useTwin';
 import { LineChart, Sparkline } from '../../components/charts/Charts';
 import { EmptyState } from '../../components/EmptyState';
 import { Sheet } from '../../components/Sheet';
@@ -29,6 +31,7 @@ export function StrengthTab() {
   const dates = useMemo(() => sessionDates(sessions.filter((s) => !s.isCalibration && !s.isDeload)), [sessions]);
   const records = useMemo(() => recordCount(sets, sessions), [sets, sessions]);
   const load = useMemo(() => weeklyLoad(sets, sessions, today), [sets, sessions, today]);
+  const { on: twin3d } = useTwin3d();
   const colors: MuscleColors = Object.fromEntries(ALL_MUSCLES.map((m) => [m, LOAD_COLORS[loadLevel(load[m])]]));
   const weak = underloaded(load);
   const over = ALL_MUSCLES.filter((m) => loadLevel(load[m]) === 4);
@@ -102,15 +105,22 @@ export function StrengthTab() {
           <h2 className="font-display text-[17px] font-bold">Нагрузка</h2>
           <span className="text-[13px] text-muted">рабочие подходы за 7 дней</span>
         </div>
-        <MuscleMapPair colors={colors} legend={false} width={120} />
-        <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] font-semibold text-muted">
+        {twin3d ? (
+          <>
+            <TwinLoadView load={load} fallback={<MuscleMapPair colors={colors} legend={false} width={120} />} />
+            <p className="mt-2 text-center text-[11px] font-semibold text-muted">Чем ярче зона, тем больше подходов; полный цвет — 15 и больше</p>
+          </>
+        ) : (
+          <MuscleMapPair colors={colors} legend={false} width={120} />
+        )}
+        {!twin3d && <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] font-semibold text-muted">
           {LOAD_COLORS.map((c, i) => (
             <span key={i} className="flex items-center gap-1">
               <i className="h-3 w-3 rounded" style={{ background: c }} /> {LEVEL_LABEL[i]}
               {i === 4 ? ' перебор' : ''}
             </span>
           ))}
-        </div>
+        </div>}
         {anyLoad ? (
           <>
             <p className="mt-3 text-sm">

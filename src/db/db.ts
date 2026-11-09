@@ -5,7 +5,7 @@ import Dexie, { type EntityTable, type Table } from 'dexie';
 import { migratePoolV1, migrateSessionsV1, migrateSetsV1, migrateSettingsV1, migrateSlotsV1, type SlotV1 } from './migrate';
 import type {
   Adjustment, BodyEntry, Exercise, ExerciseNote, Food, FoodLog, KvRow, LightWeek, PoolSession, ProgramSlot,
-  ProgressPhoto, Recipe, SetLog, Settings, SettingsRow, WorkoutSession,
+  ProgressPhoto, Recipe, SetLog, Settings, SettingsRow, Twin3dSettings, WorkoutSession,
 } from './types';
 
 export const DB_NAME = 'training-pwa';
@@ -95,6 +95,13 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'light',
   substitutions: {},
 };
+
+/** 3D-двойник по умолчанию (docs/TWIN-3D.md, 7): включён, на «Сегодня» вращается. */
+export const DEFAULT_TWIN3D: Twin3dSettings = { enabled: true, todayRotation: true };
+
+export function twin3dOf(s: Pick<Settings, 'twin3d'>): Twin3dSettings {
+  return { ...DEFAULT_TWIN3D, ...s.twin3d };
+}
 
 /** Возвращает настройки, при первом запуске записывает значения по умолчанию. */
 export async function ensureSettings(database: AppDB = db): Promise<Settings> {

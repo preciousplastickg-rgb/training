@@ -4,6 +4,8 @@
 import { Camera, ChevronsLeftRight, HeartPulse, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Silhouette, useSilhouetteFactors } from '../../components/body/Silhouette';
+import { TwinCompareCard } from '../../components/twin/TwinCards';
+import { useTwin3d } from '../../components/twin/useTwin';
 import { LineChart, type Marker } from '../../components/charts/Charts';
 import { EmptyState } from '../../components/EmptyState';
 import { Caps, Card, Chip, HeroCard } from '../../components/ui';
@@ -31,6 +33,7 @@ export function BodyTab() {
   const body = useBody();
   const factors = useSilhouetteFactors();
   const [compare, setCompare] = useState(false);
+  const { on: twin3d } = useTwin3d();
   const { weight: avg, fat, fatDelta, lean, leanDelta, waist, waistDelta } = bodyComposition(body, settings.heightCm, settings.startWeight, today);
 
   return (
@@ -51,7 +54,9 @@ export function BodyTab() {
 
       <HrCard body={body} today={today} />
 
-      <Card className="flex flex-col items-center gap-2 rounded-[28px]!">
+      {twin3d && <TwinCompareCard date={today} />}
+
+      {!twin3d && <Card className="flex flex-col items-center gap-2 rounded-[28px]!">
         <div className="flex w-full items-baseline justify-between px-1">
           <h2 className="font-display text-[17px] font-bold">Силуэт</h2>
           <span className="text-[13px] text-muted">по замерам и силе</span>
@@ -69,7 +74,7 @@ export function BodyTab() {
         <Chip active={compare} onClick={() => setCompare((c) => !c)}>
           Сравнить со стартом
         </Chip>
-      </Card>
+      </Card>}
 
       <Photos />
     </div>

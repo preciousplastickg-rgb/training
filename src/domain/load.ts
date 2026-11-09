@@ -6,7 +6,11 @@ import { addDays } from './dates';
 
 export const ALL_MUSCLES: Muscle[] = [
   'chest', 'front_delt', 'side_delt', 'rear_delt', 'lats', 'upper_back', 'biceps', 'triceps', 'abs', 'lower_back', 'glutes', 'quads', 'hamstrings', 'calves',
+  'traps', 'forearms', 'obliques', 'adductors',
 ];
+
+/** Помогающие зоны, которые план не тренирует отдельно, — не в счёт «недогруженных» (как икры). */
+const NOT_TARGETED: readonly Muscle[] = ['calves', 'traps', 'forearms', 'obliques', 'adductors'];
 
 export function weeklyLoad(sets: readonly SetLog[], sessions: readonly WorkoutSession[], today: LocalDate): Record<Muscle, number> {
   const from = addDays(today, -6);
@@ -35,7 +39,7 @@ export const LOAD_COLORS = ['var(--m-idle)', 'var(--load-1)', 'var(--load-2)', '
 
 /** 3 самые недогруженные мышцы (икры не тренируются отдельно по плану — не в счёт). */
 export function underloaded(load: Record<Muscle, number>, n = 3): Muscle[] {
-  return ALL_MUSCLES.filter((m) => m !== 'calves')
+  return ALL_MUSCLES.filter((m) => !NOT_TARGETED.includes(m))
     .sort((a, b) => load[a] - load[b])
     .slice(0, n);
 }

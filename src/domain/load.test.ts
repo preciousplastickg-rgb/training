@@ -11,7 +11,8 @@ describe('нагрузка за неделю', () => {
     const sets = [set('a', 'bench_press'), set('a', 'bench_press'), set('old', 'bench_press')];
     const l = weeklyLoad(sets, sessions, '2026-11-18');
     expect(l.chest).toBe(2);
-    expect(l.triceps).toBe(2);
+    // с этапа 5b трицепс в жиме лёжа — помогающая мышца (muscles.json)
+    expect(l.triceps).toBe(1);
     expect(l.front_delt).toBe(1);
   });
   it('уровни 0 · 1–5 · 6–9 · 10–20 · > 20', () => {

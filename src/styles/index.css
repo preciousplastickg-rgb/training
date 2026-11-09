@@ -36,6 +36,9 @@
   --m-outline: #c3c8cf;
   --m-glow: rgb(47 179 106 / 0.5);
   --m-text: #1f7f48; /* подписи основных мышц у карты: --m-primary слишком светлый для текста */
+  /* Подсветка 3D-двойника (docs/TWIN-3D.md, 5; renders/muscles.json) — одна для обеих тем, как в шейдере */
+  --twin-primary: #d85a30;
+  --twin-secondary: #f0997b;
   --body-a: #afb7c1;
   --body-b: #d6dbe1;
   --body-line: #8c96a2;

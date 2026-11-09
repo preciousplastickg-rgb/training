@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "icons": "node scripts/make-icons.mjs",
-    "seed": "vite --open '/#/dev/seed'"
+    "seed": "vite --open '/#/dev/seed'",
+    "sync-3d": "node scripts/sync-3d.mjs"
   },
   "dependencies": {
     "@fontsource/manrope": "^5.3.0",
@@ -20,6 +21,7 @@
     "lucide-react": "^1.68.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "three": "0.187.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -28,6 +30,7 @@
     "@types/node": "^26.6.6",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
+    "@types/three": "0.187.0",
     "@vitejs/plugin-react": "^6.2.1",
     "fake-indexeddb": "^6.2.7",
     "jsdom": "^29.1.1",

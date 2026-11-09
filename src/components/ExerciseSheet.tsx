@@ -6,6 +6,10 @@ import type { Exercise } from '../db/types';
 import { mapViewFor } from '../domain/muscleCallouts';
 import type { Phase } from '../domain/pose';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useToday } from '../hooks/useToday';
+import { assetUrl, type ManifestExercise } from '../three/assets';
+import { ExerciseTwin, MuscleList, type HowToTab } from './twin/TwinCards';
+import { useManifest, useTwin3d } from './twin/useTwin';
 import { Mannequin, type MannequinFrame } from './body/Mannequin';
 import { MuscleCallouts } from './body/MuscleMap';
 import { ExerciseNoteRow } from './ExerciseNote';
@@ -14,19 +18,56 @@ import { Caps, Tabs } from './ui';
 
 type Mode = 'play' | MannequinFrame;
 
-/** «Как делать» — SPEC 6.6, макет BHowTo (REDESIGN 3). */
-export function ExerciseSheet({ exerciseId, onClose }: { exerciseId: string | null; onClose: () => void }) {
+/**
+ * «Как делать» — SPEC 6.6, макет BHowTo (REDESIGN 3). Упражнение с 3D в public/3d/manifest.json — вкладки
+ * «3D · Мышцы · Техника» (docs/TWIN-3D.md, 1); без 3D — прежние подсказки и схема мышц.
+ */
+export function ExerciseSheet({ exerciseId, onClose, tab }: { exerciseId: string | null; onClose: () => void; tab?: HowToTab }) {
   const ex = exerciseId ? EXERCISE_BY_ID[exerciseId] : undefined;
+  const manifest = useManifest();
   if (!ex) return null;
+  const entry = manifest?.exercises[ex.id];
   return (
     <Sheet open kicker="Как делать" title={ex.name} onClose={onClose}>
       {/* key: при смене упражнения режим и фаза начинаются заново */}
-      <ExerciseBody key={ex.id} ex={ex} />
+      {entry ? <ExerciseTabs key={ex.id} ex={ex} entry={entry} tab={tab} /> : <ExerciseBody key={ex.id} ex={ex} />}
     </Sheet>
   );
 }
 
-function ExerciseBody({ ex }: { ex: Exercise }) {
+function ExerciseTabs({ ex, entry, tab: initial }: { ex: Exercise; entry: ManifestExercise; tab?: HowToTab }) {
+  const { on, reduced } = useTwin3d();
+  const today = useToday();
+  // «Уменьшение движения» в iOS — по умолчанию «Мышцы» вместо «3D» (TWIN-3D 6)
+  const [tab, setTab] = useState<HowToTab>(initial ?? (reduced ? 'muscles' : '3d'));
+  const stills = (
+    <div className="grid grid-cols-2 gap-2" data-testid="twin-stills">
+      {entry.stills.map((src, k) => (
+        <img key={src} src={assetUrl(src)} alt={k === 0 ? 'Начало движения' : 'Конец движения'} className="w-full rounded-2xl bg-white" />
+      ))}
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-4 pb-2">
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[{ value: '3d', label: '3D' }, { value: 'muscles', label: 'Мышцы' }, { value: 'technique', label: 'Техника' }]}
+      />
+      {tab === '3d' && (on ? <ExerciseTwin exerciseId={ex.id} entry={entry} still={false} date={today} /> : stills)}
+      {tab === 'muscles' && (
+        <>
+          {on ? <ExerciseTwin exerciseId={ex.id} entry={entry} still date={today} /> : stills}
+          <MuscleList exerciseId={ex.id} />
+        </>
+      )}
+      {/* «Техника» — прежние подсказки целиком: манекен с углами, моменты, ошибки, настройка, заметка, видео */}
+      {tab === 'technique' && <ExerciseBody ex={ex} muscleMap={false} />}
+    </div>
+  );
+}
+
+function ExerciseBody({ ex, muscleMap = true }: { ex: Exercise; muscleMap?: boolean }) {
   const anim = ANIMATION_BY_ID[ex.id];
   const reduced = useReducedMotion();
   const [mode, setMode] = useState<Mode>(reduced ? 'end' : 'play');
@@ -36,7 +77,7 @@ function ExerciseBody({ ex }: { ex: Exercise }) {
       {anim && <FigureCard anim={anim} mode={mode} onMode={setMode} phase={phase} onPhase={setPhase} />}
       {anim && anim.angles.length > 0 && <AngleBlocks anim={anim} mode={mode} phase={phase} />}
 
-      <section className="rounded-3xl bg-surface px-4 pt-4 pb-[18px]">
+      {muscleMap && <section className="rounded-3xl bg-surface px-4 pt-4 pb-[18px]">
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <Caps as="h3" className="whitespace-nowrap">Мышцы · {mapViewFor(ex.muscles.primary, ex.muscles.secondary) === 'back' ? 'сзади' : 'спереди'}</Caps>
           <span className="flex shrink-0 gap-3 text-xs text-muted">
@@ -49,7 +90,7 @@ function ExerciseBody({ ex }: { ex: Exercise }) {
           </span>
         </div>
         <MuscleCallouts ex={ex} />
-      </section>
+      </section>}
 
       <NumberedList title="Ключевые моменты" items={ex.cues} badge="bg-primary text-on-primary" />
       <NumberedList title="Частые ошибки" items={ex.mistakes} badge="bg-[color-mix(in_srgb,var(--energy)_18%,transparent)] text-[color:var(--energy)]" mark="!" />

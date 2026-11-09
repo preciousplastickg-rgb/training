@@ -46,6 +46,8 @@ test('«Как делать»: фигура, режимы «Движение / �
   await page.getByRole('button', { name: /^Состав/ }).click();
   await page.getByRole('button', { name: /^Гоблет-присед/ }).first().click();
   const sheet = page.getByRole('dialog');
+  // этап 5b: у упражнений с 3D манекен и углы — во вкладке «Техника»
+  await sheet.getByRole('tab', { name: 'Техника' }).click();
   await expect(sheet.getByRole('img', { name: 'Техника упражнения' })).toBeVisible();
   await expect(sheet.getByRole('tab', { name: 'Движение' })).toHaveAttribute('aria-selected', 'true');
   // Список углов виден всегда, а не только в крайней точке анимации.
@@ -54,5 +56,6 @@ test('«Как делать»: фигура, режимы «Движение / �
   await sheet.getByRole('tab', { name: 'Низ' }).click();
   // Стоп-кадр: на фигуре номера подсказок.
   await expect(sheet.getByRole('img', { name: 'Техника упражнения' }).getByText('1', { exact: true })).toBeVisible();
+  await sheet.getByRole('tab', { name: 'Мышцы' }).click();
   await expect(sheet.getByText('Основные')).toBeVisible();
 });

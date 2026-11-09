@@ -30,6 +30,8 @@ import {
 } from '../hooks/useData';
 import { useToday } from '../hooks/useToday';
 import { Silhouette, useSilhouetteFactors } from '../components/body/Silhouette';
+import { TwinTodayCard } from '../components/twin/TwinCards';
+import { useTwin3d } from '../components/twin/useTwin';
 import { fatText, leanText, sign } from './progress/BodyTab';
 import { CalendarCard } from './workout/CalendarCard';
 import { HistorySheet } from './workout/HistorySheet';
@@ -642,6 +644,18 @@ function Hints({ date, settings, body }: { date: string; settings: Settings; bod
 /** Силуэт и рядом % жира, мышцы, талия — то же, что «Прогресс · Тело». Тап — туда. */
 function BodyCard({ date, settings, body }: { date: string; settings: Settings; body: BodyEntry[] }) {
   const factors = useSilhouetteFactors();
+  const { on } = useTwin3d();
+  // 3D-двойник (docs/TWIN-3D.md, 1): нет WebGL или выключен в настройках — прежний силуэт
+  if (on) {
+    return (
+      <TwinTodayCard
+        date={date}
+        settings={settings}
+        body={body}
+        fallback={<div className="flex h-[280px] items-center justify-center"><Silhouette factors={factors} size={260} remember={false} /></div>}
+      />
+    );
+  }
   const c = bodyComposition(body, settings.heightCm, settings.startWeight, date);
   const stat = (label: string, value: string | null, unit: string, delta: string | null, hint: string) => (
     <div className="flex flex-col gap-0.5">

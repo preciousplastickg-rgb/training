@@ -1,0 +1,709 @@
+{
+ "version": 12,
+ "date": "2026-11-09",
+ "uv": "TEXCOORD_0 of the twin mesh in twin.glb (MakeHuman UV). Load the maps with texture.flipY = false, like GLTFLoader does.",
+ "textures": {
+  "normal": {
+   "location": "embedded in twin.glb, material Twin_App_glTF -> normalTexture (EXT_texture_webp, quality 95)",
+   "resolution": 2048,
+   "space": "tangent space, MikkTSpace tangents (exported as TANGENT), +Y up (glTF/OpenGL)",
+   "definition": "see body_fat.definition; exported default normalTexture.scale = 0.2",
+   "encoding": "WebP quality 95 inside the glb; render vs PNG: PSNR 58.8 dB, 0.003 % of pixels differ by more than 4/255",
+   "seams": "relief weakened to 35 % at zone borders (full strength ~12 mm inside), flat at UV seams and joints"
+  },
+  "id": {
+   "file": "twin_id.webp",
+   "resolution": 2048,
+   "lossless": true,
+   "decode": "id = round((R*255 - 20) / 12); R == 0 -> 0 (no zone)",
+   "sampling": "NearestFilter, generateMipmaps = false, colorSpace = NoColorSpace (do not sRGB-decode)",
+   "cleanup": "islands < 50 texels removed, enclosed holes filled, open r=2 / close r=4 per zone; pec restricted to >= 12 mm below the clavicle line and medial to the deltopectoral groove; deltoid by rule (iteration 11, tools/delt_zones.py): lower border at the deltoid tuberosity, 45 % of the humerus length (upperarm01 -> lowerarm01) below the shoulder joint, V-shaped towards the anterior/posterior edges; front/side/rear = sectors around the humerus axis by origin (clavicle / acromion / spine of the scapula), area shares 32.5 / 40 / 27.5 %; the deltoid wins over biceps, triceps and pectoralis beneath it"
+  },
+  "flow": {
+   "file": "twin_flow.webp",
+   "resolution": 2048,
+   "lossless": false,
+   "decode": "dir = RG*2 - 1: unit fibre direction in tangent space (x along +U, y along +V); B = 1 where a muscle was baked, 0 elsewhere",
+   "sampling": "LinearFilter, colorSpace = NoColorSpace",
+   "fibres": "not used at runtime any more; source data for twin_fibre (procedural stripes from the flow map alias because 8-bit directions shift the phase by up to 1.6 rad per texel)",
+   "smoothing": "per-muscle structure-tensor average (doubled angle, sigma ~3 cm) of the projected long axis; neighbour angle change max 5.5 deg"
+  },
+  "idsoft": {
+   "file": "twin_idsoft.webp",
+   "resolution": 2048,
+   "lossless": true,
+   "decode": "R = soft edge 0..1 (distance to the nearest other zone / 12 mm, 16 levels); G = id of that neighbouring zone, encoded like the ID map (id = round((G*255 - 20) / 12), 0 = none)",
+   "sampling": "NearestFilter, generateMipmaps = false, NoColorSpace",
+   "blend": "t = 0.5 + 0.5 * R; colour = mix(zoneColour(neighbourId), zoneColour(ownId), t) -> highlight fades over 1.2 cm and stays continuous between two highlighted zones"
+  },
+  "fibre": {
+   "file": "twin_fibre.webp",
+   "resolution": 2048,
+   "lossless": false,
+   "quality": 55,
+   "decode": "s = R (0..1); 0.5 = neutral (outside muscles and on UV padding)",
+   "sampling": "LinearFilter with mipmaps, colorSpace = NoColorSpace",
+   "how": "line integral convolution of noise along the smoothed flow, clipped at muscle borders (streak length ~3 cm, width ~2 mm), high-passed and normalised",
+   "use": "colour *= 0.85 + 0.15 * s inside highlighted zones"
+  }
+ },
+ "highlight": {
+  "primary": {
+   "color": "#D85A30",
+   "intensity": 1.0
+  },
+  "secondary": {
+   "color": "#F0997B",
+   "intensity": 0.6,
+   "formula": "mix(skin, #F0997B, 0.6)"
+  },
+  "skin": "light grey (0.5 linear)",
+  "fibre_contrast": "color *= 0.85 + 0.15 * twin_fibre.r",
+  "phase": {
+   "source": "manifest.json -> exercises.<id>.phases",
+   "multipliers": {
+    "con": 1.0,
+    "hold": 0.8,
+    "ecc": 0.65,
+    "top": 0.5
+   },
+   "applies_to": "primary zones; secondary stay at 0.6",
+   "smoothing_ms": 120
+  },
+  "side": {
+   "field": "exercises.<id>.side = \"L\" | \"R\" — only for one-sided exercises (the working side of the athlete); absent = both sides",
+   "other_side_factor": 0.35,
+   "blend_half_width_m": 0.02,
+   "rule": "k = mix(1, mix(other_side_factor, 1, smoothstep(-blend, blend, s * x)), |s|), s = +1 for L, -1 for R, 0 without side; k multiplies the primary and secondary zone weights and the fibre contrast",
+   "coordinate": "x = lateral coordinate of the vertex in the bind pose, before skinning (POSITION attribute of twin.glb, metres; +x = athlete's left)",
+   "blend": "+-2 cm around the midline x = 0, smooth, no seam"
+  }
+ },
+ "exercises": {
+  "bench_press": {
+   "primary": [
+    "pec"
+   ],
+   "secondary": [
+    "front_delt",
+    "triceps"
+   ]
+  },
+  "goblet_squat": {
+   "primary": [
+    "quads",
+    "glutes"
+   ],
+   "secondary": [
+    "abs"
+   ]
+  },
+  "barbell_squat": {
+   "primary": [
+    "quads",
+    "glutes"
+   ],
+   "secondary": [
+    "hamstrings",
+    "lower_back"
+   ]
+  },
+  "db_rdl": {
+   "primary": [
+    "hamstrings",
+    "glutes"
+   ],
+   "secondary": [
+    "lower_back"
+   ]
+  },
+  "barbell_rdl": {
+   "primary": [
+    "hamstrings",
+    "glutes"
+   ],
+   "secondary": [
+    "lower_back"
+   ]
+  },
+  "db_row": {
+   "primary": [
+    "lats",
+    "upper_back"
+   ],
+   "secondary": [
+    "rear_delt",
+    "biceps"
+   ],
+   "side": "R"
+  },
+  "bulgarian_split_squat": {
+   "primary": [
+    "quads",
+    "glutes"
+   ],
+   "secondary": [
+    "adductors",
+    "hamstrings"
+   ],
+   "side": "L"
+  },
+  "incline_db_press": {
+   "primary": [
+    "pec"
+   ],
+   "secondary": [
+    "front_delt",
+    "triceps"
+   ]
+  },
+  "db_shoulder_press": {
+   "primary": [
+    "front_delt",
+    "side_delt"
+   ],
+   "secondary": [
+    "triceps",
+    "traps"
+   ]
+  },
+  "lat_pulldown": {
+   "primary": [
+    "lats",
+    "upper_back"
+   ],
+   "secondary": [
+    "biceps",
+    "rear_delt"
+   ]
+  },
+  "pullup_assisted": {
+   "primary": [
+    "lats",
+    "upper_back"
+   ],
+   "secondary": [
+    "biceps",
+    "rear_delt"
+   ]
+  },
+  "leg_press": {
+   "primary": [
+    "quads",
+    "glutes"
+   ],
+   "secondary": [
+    "adductors",
+    "hamstrings"
+   ]
+  },
+  "machine_chest_press": {
+   "primary": [
+    "pec"
+   ],
+   "secondary": [
+    "front_delt",
+    "triceps"
+   ]
+  },
+  "lying_leg_curl": {
+   "primary": [
+    "hamstrings"
+   ],
+   "secondary": [
+    "calves"
+   ]
+  },
+  "lateral_raise": {
+   "primary": [
+    "side_delt"
+   ],
+   "secondary": [
+    "front_delt",
+    "traps"
+   ]
+  },
+  "hammer_curl": {
+   "primary": [
+    "biceps"
+   ],
+   "secondary": [
+    "forearms"
+   ]
+  },
+  "bent_over_rear_delt_raise": {
+   "primary": [
+    "rear_delt"
+   ],
+   "secondary": [
+    "upper_back"
+   ]
+  },
+  "plank": {
+   "primary": [
+    "abs"
+   ],
+   "secondary": [
+    "obliques"
+   ]
+  },
+  "hanging_leg_raise": {
+   "primary": [
+    "abs"
+   ],
+   "secondary": [
+    "obliques"
+   ]
+  },
+  "db_bench_press": {
+   "primary": [
+    "pec"
+   ],
+   "secondary": [
+    "front_delt",
+    "triceps"
+   ]
+  },
+  "face_pull": {
+   "primary": [
+    "rear_delt",
+    "upper_back"
+   ],
+   "secondary": [
+    "side_delt"
+   ]
+  },
+  "overhead_cable_extension": {
+   "primary": [
+    "triceps"
+   ],
+   "secondary": []
+  },
+  "seated_cable_row": {
+   "primary": [
+    "upper_back",
+    "lats"
+   ],
+   "secondary": [
+    "biceps",
+    "rear_delt"
+   ]
+  },
+  "cable_lateral_raise": {
+   "primary": [
+    "side_delt"
+   ],
+   "secondary": [
+    "upper_back"
+   ],
+   "side": "R"
+  },
+  "biceps_curl": {
+   "primary": [
+    "biceps"
+   ],
+   "secondary": [
+    "forearms"
+   ]
+  },
+  "triceps_pushdown": {
+   "primary": [
+    "triceps"
+   ],
+   "secondary": []
+  },
+  "cable_crunch": {
+   "primary": [
+    "abs"
+   ],
+   "secondary": [
+    "obliques"
+   ]
+  },
+  "standing_calf_raise": {
+   "primary": [
+    "calves"
+   ],
+   "secondary": []
+  },
+  "leg_extension": {
+   "primary": [
+    "quads"
+   ],
+   "secondary": []
+  },
+  "machine_lateral_raise": {
+   "primary": [
+    "side_delt"
+   ],
+   "secondary": []
+  },
+  "reverse_pec_deck": {
+   "primary": [
+    "rear_delt"
+   ],
+   "secondary": [
+    "upper_back"
+   ]
+  },
+  "preacher_curl": {
+   "primary": [
+    "biceps"
+   ],
+   "secondary": [
+    "forearms"
+   ]
+  },
+  "ez_skullcrusher": {
+   "primary": [
+    "triceps"
+   ],
+   "secondary": []
+  },
+  "seated_calf_raise": {
+   "primary": [
+    "calves"
+   ],
+   "secondary": []
+  }
+ },
+ "zones": [
+  {
+   "id": 1,
+   "name": "pec",
+   "color": "#2027D0",
+   "rgb": [
+    32,
+    39,
+    208
+   ],
+   "texels": 119387,
+   "zanatomy_muscles": [
+    "Clavicular head of pectoralis major muscle",
+    "Sternocostal head of pectoralis major muscle",
+    "(Abdominal part of pectoralis major muscle)"
+   ]
+  },
+  {
+   "id": 2,
+   "name": "front_delt",
+   "color": "#2C8907",
+   "rgb": [
+    44,
+    137,
+    7
+   ],
+   "texels": 27187,
+   "zanatomy_muscles": [
+    "Clavicular part of deltoid muscle"
+   ]
+  },
+  {
+   "id": 3,
+   "name": "side_delt",
+   "color": "#38C8DE",
+   "rgb": [
+    56,
+    200,
+    222
+   ],
+   "texels": 19819,
+   "zanatomy_muscles": [
+    "Acromial part of deltoid muscle"
+   ]
+  },
+  {
+   "id": 4,
+   "name": "rear_delt",
+   "color": "#44096A",
+   "rgb": [
+    68,
+    9,
+    106
+   ],
+   "texels": 9216,
+   "zanatomy_muscles": [
+    "Scapular spinal part of deltoid muscle"
+   ]
+  },
+  {
+   "id": 5,
+   "name": "traps",
+   "color": "#50E43F",
+   "rgb": [
+    80,
+    228,
+    63
+   ],
+   "texels": 104566,
+   "zanatomy_muscles": [
+    "Descending part of trapezius muscle",
+    "Transverse part of trapezius muscle",
+    "Ascending part of trapezius muscle"
+   ]
+  },
+  {
+   "id": 6,
+   "name": "lats",
+   "color": "#5C60F3",
+   "rgb": [
+    92,
+    96,
+    243
+   ],
+   "texels": 60000,
+   "zanatomy_muscles": [
+    "Latissimus dorsi muscle"
+   ]
+  },
+  {
+   "id": 7,
+   "name": "upper_back",
+   "color": "#684815",
+   "rgb": [
+    104,
+    72,
+    21
+   ],
+   "texels": 7961,
+   "zanatomy_muscles": [
+    "Infraspinatus muscle",
+    "Teres major muscle",
+    "Teres minor muscle"
+   ]
+  },
+  {
+   "id": 8,
+   "name": "biceps",
+   "color": "#74F0A8",
+   "rgb": [
+    116,
+    240,
+    168
+   ],
+   "texels": 54060,
+   "zanatomy_muscles": [
+    "Long head of biceps brachii",
+    "Short head of biceps brachii",
+    "Brachialis muscle"
+   ]
+  },
+  {
+   "id": 9,
+   "name": "triceps",
+   "color": "#8010AD",
+   "rgb": [
+    128,
+    16,
+    173
+   ],
+   "texels": 33612,
+   "zanatomy_muscles": [
+    "Long head of triceps brachii",
+    "Lateral head of triceps brachii",
+    "Medial head of triceps brachii",
+    "Anconeus muscle"
+   ]
+  },
+  {
+   "id": 10,
+   "name": "forearms",
+   "color": "#8CB212",
+   "rgb": [
+    140,
+    178,
+    18
+   ],
+   "texels": 79371,
+   "zanatomy_muscles": [
+    "Brachioradialis muscle",
+    "Flexor carpi radialis",
+    "Palmaris longus muscle",
+    "Humeral head of flexor carpi ulnaris",
+    "Ulnar head of flexor carpi ulnaris",
+    "Superficial head of pronator teres",
+    "Extensor carpi radialis longus",
+    "Extensor carpi radialis brevis",
+    "Extensor digitorum",
+    "Extensor digiti minimi",
+    "Humeral head of extensor carpi ulnaris",
+    "Ulnar head of extensor carpi ulnaris",
+    "Abductor pollicis longus",
+    "Extensor pollicis brevis",
+    "Humero-ulnar head of flexor digitorum superficialis",
+    "Radial head of flexor digitorum superficialis"
+   ]
+  },
+  {
+   "id": 11,
+   "name": "abs",
+   "color": "#98A3F1",
+   "rgb": [
+    152,
+    163,
+    241
+   ],
+   "texels": 122556,
+   "zanatomy_muscles": [
+    "Rectus abdominis muscle"
+   ]
+  },
+  {
+   "id": 12,
+   "name": "obliques",
+   "color": "#A41743",
+   "rgb": [
+    164,
+    23,
+    67
+   ],
+   "texels": 188186,
+   "zanatomy_muscles": [
+    "External abdominal oblique muscle",
+    "Serratus anterior muscle"
+   ]
+  },
+  {
+   "id": 13,
+   "name": "lower_back",
+   "color": "#B0F465",
+   "rgb": [
+    176,
+    244,
+    101
+   ],
+   "texels": 41225,
+   "zanatomy_muscles": [
+    "Iliocostalis lumborum muscle",
+    "Longissimus thoracis muscle"
+   ]
+  },
+  {
+   "id": 14,
+   "name": "glutes",
+   "color": "#BC3AE1",
+   "rgb": [
+    188,
+    58,
+    225
+   ],
+   "texels": 79558,
+   "zanatomy_muscles": [
+    "Gluteus maximus muscle",
+    "Gluteus medius muscle",
+    "Tensor fasciae latae"
+   ]
+  },
+  {
+   "id": 15,
+   "name": "quads",
+   "color": "#C87008",
+   "rgb": [
+    200,
+    112,
+    8
+   ],
+   "texels": 163305,
+   "zanatomy_muscles": [
+    "Rectus femoris muscle",
+    "Vastus lateralis muscle",
+    "Vastus medialis muscle",
+    "Sartorius muscle"
+   ]
+  },
+  {
+   "id": 16,
+   "name": "adductors",
+   "color": "#D4DBCC",
+   "rgb": [
+    212,
+    219,
+    204
+   ],
+   "texels": 84574,
+   "zanatomy_muscles": [
+    "Adductor longus",
+    "Gracilis muscle",
+    "Pectineus muscle",
+    "Adductor magnus"
+   ]
+  },
+  {
+   "id": 17,
+   "name": "hamstrings",
+   "color": "#E00784",
+   "rgb": [
+    224,
+    7,
+    132
+   ],
+   "texels": 89829,
+   "zanatomy_muscles": [
+    "Long head of biceps femoris",
+    "Short head of biceps femoris",
+    "Semitendinosus muscle",
+    "Semimembranosus muscle"
+   ]
+  },
+  {
+   "id": 18,
+   "name": "calves",
+   "color": "#ECD42A",
+   "rgb": [
+    236,
+    212,
+    42
+   ],
+   "texels": 98655,
+   "zanatomy_muscles": [
+    "Medial head of gastrocnemius",
+    "Lateral head of gastrocnemius",
+    "Soleus muscle"
+   ]
+  }
+ ],
+ "relief_only_muscles": [
+  "Sternocleidomastoid muscle",
+  "Tibialis anterior muscle",
+  "Fibularis longus muscle",
+  "Fibularis brevis muscle",
+  "Extensor digitorum longus"
+ ],
+ "source": "Z-Anatomy (CC BY-SA 4.0), derived from BodyParts3D (CC BY-SA 2.1 JP). See ATTRIBUTION.txt. These maps are a derivative work and are licensed CC BY-SA 4.0.",
+ "body_fat": {
+  "definition": "definition = clamp((24.5 - body_fat_percent) / 12, 0.15, 0.9) -> material.normalScale.set(definition, definition)",
+  "lean_morph": "lean = clamp((24.5 - body_fat_percent) / (24.5 - 15), 0, 1) (CLAUDE.md)",
+  "examples": {
+   "24.5": {
+    "definition": 0.15,
+    "lean": 0.0
+   },
+   "20": {
+    "definition": 0.375,
+    "lean": 0.47
+   },
+   "15": {
+    "definition": 0.79,
+    "lean": 1.0
+   }
+  },
+  "glb_default_definition": 0.2
+ },
+ "fibre_texture": "Z-Anatomy has no fibre textures, so twin_fibre is synthesised from the smoothed flow map (LIC).",
+ "runtime_files": [
+  "twin.glb",
+  "twin_id.webp",
+  "twin_idsoft.webp",
+  "twin_fibre.webp",
+  "muscles.json",
+  "manifest.json",
+  "ex/<exerciseId>.glb",
+  "ex/<exerciseId>_start.webp",
+  "ex/<exerciseId>_end.webp"
+ ],
+ "skeleton": {
+  "file": "twin.glb",
+  "joints": 36,
+  "note": "exercise clips in ex/*.glb target the same bone names; strip the skeleton nodes of the exercise scene and play the clip on the twin (see viewer/main.js)"
+ }
+}

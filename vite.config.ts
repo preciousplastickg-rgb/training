@@ -48,7 +48,13 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
+        // 3D-двойник (docs/TWIN-3D.md, 3; решение владельца 9 ноября 2026): весь public/3d/ (~4,3 МБ) и декодер Draco
+        // в precache — после первой загрузки все упражнения открываются в авиарежиме.
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}', '3d/**/*.{glb,webp,json,txt}', 'draco/*.{js,wasm}'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        // DRACOLoader из three r187 сам ссылается на декодер в node_modules (new URL(..., import.meta.url)) — Vite кладёт
+        // копии в assets/. Приложение берёт декодер из public/draco/ (setDecoderPath), копии в precache не нужны.
+        globIgnores: ['assets/draco_*'],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
       },

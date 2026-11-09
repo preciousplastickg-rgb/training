@@ -56,6 +56,7 @@ const settings = z.object({
   phase3Mode: z.enum(['maintenance', 'deficit']).optional(), onboarded: z.boolean().optional(),
   schedule: z.object({ gym: z.array(int), pool: z.array(int), poolOptional: z.array(int) }).optional(),
   dayOverrides: z.record(z.string(), z.enum(['gym', 'pool', 'rest'])).optional(),
+  twin3d: z.object({ enabled: z.boolean(), todayRotation: z.boolean() }).optional(),
 });
 const kv = z.object({ key: z.string(), value: z.unknown() });
 const exerciseNote = z.object({ exerciseId: z.string(), text: z.string(), updatedAt: z.number() });

@@ -142,6 +142,11 @@ export const MUSCLE_SLUGS: Record<Muscle, MapSlug[]> = {
   quads: ['quadriceps'],
   hamstrings: ['hamstring'],
   calves: ['calves', 'left-soleus', 'right-soleus'],
+  // Этап 5b: зоны 3D-двойника; на плоской карте — свои полигоны.
+  traps: ['trapezius', 'neck'],
+  forearms: ['forearm'],
+  obliques: ['obliques'],
+  adductors: ['adductor'],
 };
 
 export interface MapPt {

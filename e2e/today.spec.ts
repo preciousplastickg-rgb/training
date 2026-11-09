@@ -17,12 +17,12 @@ test('первый запуск: % жира и цель, затем «Сегод
   // понедельник — зал, тренировка A
   await expect(page.getByRole('heading', { name: 'Тренировка A' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Начать тренировку' })).toBeVisible();
-  // календарь недели — в карточке дня, открывается месячный; внизу — тело: силуэт, % жира, мышцы
+  // календарь недели — в карточке дня, открывается месячный; внизу — тело: двойник (без WebGL — силуэт), % жира, мышцы
   await expect(page.getByRole('list', { name: 'Эта неделя' }).getByRole('button', { name: /^Пн, 9 ноября, сегодня: зал по плану A$/ })).toBeVisible();
   await page.getByRole('button', { name: 'Календарь' }).click();
   await expect(page.getByRole('dialog', { name: 'Календарь' })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('img', { name: 'Силуэт прогресса' })).toBeVisible();
+  await expect(page.getByRole('img', { name: '3D-двойник по вашим замерам' }).or(page.getByRole('img', { name: 'Силуэт прогресса' }))).toBeVisible();
   await expect(page.getByText('% жира', { exact: true })).toBeVisible();
   await expect(page.getByText('Мышцы', { exact: true })).toBeVisible();
   // бассейн через «+»
