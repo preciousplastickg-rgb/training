@@ -3,10 +3,11 @@
 //
 // 1. Бюджеты раздела 2 проверяются в источнике до копирования: превышение — ошибка, public/3d/ не трогается.
 // 2. dist/ копируется в public/3d/ целиком (старые файлы удаляются).
-// 3. Декодер Draco — копия three/examples/jsm/libs/draco/gltf/ в public/draco/ (без CDN, раздел 3).
+// 3. Декодер Draco — draco_wasm_wrapper.js и draco_decoder.wasm из three/examples/jsm/libs/draco/gltf/ в public/draco/
+//    (без CDN и без JS-фолбэка, раздел 3).
 // 4. Сверка id: у каждого упражнения блока 1 из программы есть запись в manifest.json, иначе — список недостающих.
 //
-// Источник: ../exercise-anim/dist рядом с проектом или путь из EXERCISE_ANIM_DIST.
+// Источник: EXERCISE_ANIM_DIST из окружения, иначе из .env.local (не в git), иначе ../exercise-anim/dist рядом с проектом.
 // Единицы бюджетов десятичные (1 КБ = 1000 Б), как в exercise-anim.
 
 import fs from 'node:fs';
@@ -14,10 +15,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// переменная окружения важнее файла: process.loadEnvFile не перезаписывает заданные значения
+const ENV_LOCAL = path.join(ROOT, '.env.local');
+if (fs.existsSync(ENV_LOCAL)) process.loadEnvFile(ENV_LOCAL);
 const SRC = path.resolve(process.env.EXERCISE_ANIM_DIST ?? path.join(ROOT, '..', 'exercise-anim', 'dist'));
 const DEST = path.join(ROOT, 'public', '3d');
 const DRACO_SRC = path.join(ROOT, 'node_modules', 'three', 'examples', 'jsm', 'libs', 'draco', 'gltf');
 const DRACO_DEST = path.join(ROOT, 'public', 'draco');
+const DRACO_FILES = ['draco_wasm_wrapper.js', 'draco_decoder.wasm'];
 
 const KB = 1000;
 const BUDGETS = [
@@ -51,7 +56,7 @@ function fail(msg) {
 }
 
 if (!fs.existsSync(path.join(SRC, 'manifest.json'))) {
-  fail(`нет ${path.join(SRC, 'manifest.json')}. Укажите папку dist проекта exercise-anim: EXERCISE_ANIM_DIST=/путь/к/exercise-anim/dist npm run sync-3d`);
+  fail(`нет ${path.join(SRC, 'manifest.json')}. Укажите папку dist проекта exercise-anim в .env.local (EXERCISE_ANIM_DIST=/путь/к/exercise-anim/dist) или в окружении`);
 }
 
 // ---------- 1. Бюджеты и целостность манифеста (в источнике) ----------
@@ -88,7 +93,8 @@ if (!fs.existsSync(DRACO_SRC)) fail(`нет ${DRACO_SRC}: сначала npm ins
 fs.rmSync(DRACO_DEST, { recursive: true, force: true });
 fs.mkdirSync(DRACO_DEST, { recursive: true });
 let dracoBytes = 0;
-for (const f of fs.readdirSync(DRACO_SRC)) {
+for (const f of DRACO_FILES) {
+  if (!fs.existsSync(path.join(DRACO_SRC, f))) fail(`нет ${path.join(DRACO_SRC, f)}: проверить версию three`);
   fs.copyFileSync(path.join(DRACO_SRC, f), path.join(DRACO_DEST, f));
   dracoBytes += fs.statSync(path.join(DRACO_DEST, f)).size;
 }

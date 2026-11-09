@@ -81,8 +81,10 @@
 ## 3. Офлайн и загрузка
 
 - three.js ставится через npm, никакого CDN. Импорт — динамический (`import('./three/twinView')`), чтобы не замедлять старт приложения.
-- Декодер Draco — копия `three/examples/jsm/libs/draco/gltf/` в `public/draco/`.
-- Workbox: precache всего `public/3d/**` (тело, карты, `muscles.json`, `manifest.json`, клипы `ex/*.glb` и кадры, ~4,3 МБ) и декодера Draco из `public/draco/`. Решение этапа 5b (9 ноября 2026, по просьбе пользователя): все упражнения открываются в авиарежиме сразу после первой загрузки, без runtime cache и докачки по блокам. Предел файла для precache — 3 МБ (`maximumFileSizeToCacheInBytes`); копии декодера, которые Vite кладёт в `assets/`, из precache исключены.
+- Декодер Draco — в `public/draco/`, копирует `npm run sync-3d` (состав — ниже).
+- Workbox: precache всего `public/3d/**` (тело, карты, `muscles.json`, `manifest.json`, клипы `ex/*.glb` и кадры) и декодера Draco. Решение этапа 5b (9 ноября 2026, по просьбе пользователя): все упражнения открываются в авиарежиме сразу после первой загрузки, без runtime cache и докачки по блокам.
+- Draco в precache — только `public/draco/draco_wasm_wrapper.js` и `draco_decoder.wasm` из `three/examples/jsm/libs/draco/gltf/` (250,9 КБ), декодер задаётся явными путями, тип `wasm`. JS-фолбэк (`draco_decoder.js`) и энкодер не копируются; копии декодера из корня `libs/draco/`, на которые ссылается `DRACOLoader` через `import.meta.url`, в сборку не попадают (плагин `noBundledDraco` в `vite.config.ts`).
+- Итог precache (этап 5b, 34 упражнения): 144 файла, 6,28 МБ (6110 КиБ) — `public/3d/` 109 файлов, 4,24 МБ; Draco 2 файла, 0,25 МБ; приложение 33 файла, 1,78 МБ (из них чанк three.js `engine` 0,67 МБ). Файлов больше 2 МиБ нет, предел Workbox по умолчанию.
 - Одна сцена и один `WebGLRenderer` на всё приложение (`src/three/engine.ts`): канвас переносится между экранами. Двойник загружается один раз. Клипы упражнений и снаряды подгружаются и выгружаются по требованию.
 - При закрытии sheet: остановить цикл, выгрузить снаряды и клип (`dispose`), тело оставить в памяти.
 

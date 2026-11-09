@@ -173,7 +173,10 @@ class Engine {
     this.controls.dampingFactor = 0.08;
     this.controls.enabled = false;
     this.controls.addEventListener('change', () => (this.dirty = true));
-    const draco = new DRACOLoader().setDecoderPath(DRACO_BASE);
+    // только wasm и обёртка из public/draco/ (TWIN-3D 3): без JS-фолбэка; нет WebAssembly — ошибка загрузки → статичные кадры
+    const draco = new DRACOLoader()
+      .setDecoderPath({ js: `${DRACO_BASE}draco_wasm_wrapper.js`, wasm: `${DRACO_BASE}draco_decoder.wasm` })
+      .setDecoderConfig({ type: 'wasm' });
     this.loader = new GLTFLoader().setDRACOLoader(draco);
     this.canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();

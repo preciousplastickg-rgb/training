@@ -19,12 +19,18 @@ async function openPlanExercise(page: Page, name: RegExp) {
   return page.getByRole('dialog');
 }
 
-/** 3D в этом браузере есть (канвас готов) или показан запасной вариант — статичные кадры. */
+/**
+ * Есть WebGL — двойник обязан загрузиться (тело и клип через Draco), запасной вариант не засчитывается.
+ * Нет WebGL — статичные кадры.
+ */
 async function twinOrStills(page: Page, sheet: ReturnType<Page['getByRole']>) {
-  const ready = sheet.locator('[data-twin="ready"]');
-  const stills = sheet.getByTestId('twin-stills');
-  await expect(ready.or(stills).first()).toBeVisible({ timeout: 20_000 });
-  return (await ready.count()) > 0;
+  const gl = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    return !!(c.getContext('webgl2') || c.getContext('webgl'));
+  });
+  if (gl) await expect(sheet.locator('[data-twin="ready"]')).toBeVisible({ timeout: 20_000 });
+  else await expect(sheet.getByTestId('twin-stills')).toBeVisible({ timeout: 20_000 });
+  return gl;
 }
 
 test('упражнение без 3D показывает подсказки без ошибок', async ({ page }) => {
@@ -59,6 +65,13 @@ test('жим лёжа: вкладки «3D · Мышцы · Техника», п
   await expect(list.getByText('Трицепс')).toBeVisible();
   await sheet.getByRole('tab', { name: 'Техника' }).click();
   await expect(sheet.getByText('Ключевые моменты')).toBeVisible();
+  // манекен подсвечивает мышцы цветами двойника
+  const fig = sheet.getByRole('img', { name: 'Техника упражнения' });
+  const palette = await fig.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return [cs.getPropertyValue('--m-primary').trim(), cs.getPropertyValue('--m-secondary').trim()];
+  });
+  expect(palette.map((c) => c.toLowerCase())).toEqual(['#d85a30', '#f0997b']);
   await sheet.getByRole('button', { name: 'Закрыть' }).last().click();
   expect(errors).toEqual([]);
 });
@@ -132,6 +145,13 @@ test('офлайн: все файлы 3D и декодер Draco — из кэш
   });
   await page.reload();
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  // Draco в precache — только wasm и обёртка; JS-фолбэка и копий из assets/ нет (TWIN-3D 3)
+  const cached = await page.evaluate(async () => {
+    const urls: string[] = [];
+    for (const k of await caches.keys()) for (const r of await (await caches.open(k)).keys()) urls.push(new URL(r.url).pathname);
+    return urls;
+  });
+  expect(cached.filter((u) => /draco/i.test(u)).map((u) => u.slice(u.lastIndexOf('/') + 1)).sort()).toEqual(['draco_decoder.wasm', 'draco_wasm_wrapper.js']);
   const manifest = await page.evaluate(() => fetch('3d/manifest.json').then((r) => r.json()));
   const ids = Object.keys(manifest.exercises);
   expect(ids.length).toBeGreaterThanOrEqual(34);

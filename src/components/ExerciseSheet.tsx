@@ -62,7 +62,11 @@ function ExerciseTabs({ ex, entry, tab: initial }: { ex: Exercise; entry: Manife
         </>
       )}
       {/* «Техника» — прежние подсказки целиком: манекен с углами, моменты, ошибки, настройка, заметка, видео */}
-      {tab === 'technique' && <ExerciseBody ex={ex} muscleMap={false} />}
+      {tab === 'technique' && (
+        <div className="twin-palette">
+          <ExerciseBody ex={ex} muscleMap={false} />
+        </div>
+      )}
     </div>
   );
 }

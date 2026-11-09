@@ -51,6 +51,13 @@
   color-scheme: light;
 }
 
+/* «Как делать» → «Техника» у упражнений с 3D: манекен подсвечивает мышцы цветами двойника (обе темы) */
+.twin-palette {
+  --m-primary: var(--twin-primary);
+  --m-secondary: var(--twin-secondary);
+  --m-glow: rgb(216 90 48 / 0.5);
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --bg: #0b0b0c;

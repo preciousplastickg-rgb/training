@@ -1,10 +1,28 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'node:child_process';
 import pkg from './package.json' with { type: 'json' };
+
+/**
+ * DRACOLoader из three r187 при загрузке модуля ссылается на декодеры в node_modules (`new URL('../libs/draco/…',
+ * import.meta.url)`), и Vite копирует их в assets/ (JS-фолбэк 719 КБ, wasm 286 КБ, обёртки). Приложение берёт декодер
+ * из public/draco/ (docs/TWIN-3D.md, 3), поэтому ссылки заменяются пустой строкой — копий в сборке нет.
+ */
+function noBundledDraco(): Plugin {
+  return {
+    name: 'no-bundled-draco',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!/[\\/]DRACOLoader\.js$/.test(id)) return null;
+      const out = code.replace(/new URL\(\s*'\.\.\/libs\/draco\/[^']+',\s*import\.meta\.url\s*\)\.toString\(\)/g, "''");
+      if (out === code) this.error('no-bundled-draco: ссылки на декодер в DRACOLoader не найдены — проверить версию three');
+      return { code: out, map: null };
+    },
+  };
+}
 
 // GitHub Pages отдаёт приложение из /<repo>/, локально — из /.
 const base = process.env.BASE_PATH ?? '/';
@@ -25,6 +43,7 @@ export default defineConfig({
   base,
   define: { __APP_VERSION__: JSON.stringify(pkg.version), __APP_BUILD__: JSON.stringify(build) },
   plugins: [
+    noBundledDraco(),
     react(),
     tailwindcss(),
     VitePWA({
@@ -49,12 +68,14 @@ export default defineConfig({
       },
       workbox: {
         // 3D-двойник (docs/TWIN-3D.md, 3; решение владельца 9 ноября 2026): весь public/3d/ (~4,3 МБ) и декодер Draco
-        // в precache — после первой загрузки все упражнения открываются в авиарежиме.
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}', '3d/**/*.{glb,webp,json,txt}', 'draco/*.{js,wasm}'],
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        // DRACOLoader из three r187 сам ссылается на декодер в node_modules (new URL(..., import.meta.url)) — Vite кладёт
-        // копии в assets/. Приложение берёт декодер из public/draco/ (setDecoderPath), копии в precache не нужны.
-        globIgnores: ['assets/draco_*'],
+        // в precache — после первой загрузки все упражнения открываются в авиарежиме. Draco — только wasm и его обёртка
+        // (~0,25 МБ): JS-фолбэк не нужен, WebAssembly есть во всех поддерживаемых Safari.
+        globPatterns: [
+          '**/*.{js,css,html,svg,png,woff2,webmanifest}',
+          '3d/**/*.{glb,webp,json,txt}',
+          'draco/draco_wasm_wrapper.js',
+          'draco/draco_decoder.wasm',
+        ],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
       },
