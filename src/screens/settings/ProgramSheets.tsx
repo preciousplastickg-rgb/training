@@ -1,7 +1,8 @@
 // Шторки настроек программы (REDESIGN 4, BSettings): тренировки A, B, C по блокам, гриф и блины, расписание, калории.
 
-import { ChevronRight, Trash2 } from 'lucide-react';
+import { ChevronRight, CirclePlay, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { ExerciseSheet } from '../../components/ExerciseSheet';
 import { Sheet } from '../../components/Sheet';
 import { Button, Caps, Chip, Stepper, Tabs } from '../../components/ui';
 import { getExercise } from '../../data/exercises';
@@ -59,6 +60,8 @@ export function ProgramSheet({ open, onClose }: SheetProps) {
   const [block, setBlock] = useState<BlockN>(() => blockFor(today));
   const [tab, setTab] = useState<Workout>('A');
   const [edit, setEdit] = useState<ProgramSlot | null>(null);
+  // «Как делать» прямо из программы (10 ноября 2026, по просьбе пользователя): значок в строке и кнопка в правке слота
+  const [howTo, setHowTo] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const list = slots.filter((s) => s.workout === tab && s.block === block).sort((a, b) => a.order - b.order || (a.fromPhase ?? 1) - (b.fromPhase ?? 1));
   return (
@@ -83,17 +86,25 @@ export function ProgramSheet({ open, onClose }: SheetProps) {
             const ex = getExercise(s.exerciseId);
             const phase = s.toPhase === 1 ? ' · фаза 1' : s.fromPhase === 2 ? ' · с фазы 2' : '';
             return (
-              <li key={s.id} className="border-t border-line first:border-t-0">
-                <button type="button" onClick={() => setEdit(s)} className="flex min-h-[58px] w-full items-center gap-3 py-2 text-left">
-                  <span className={`font-display w-9 text-sm font-bold tabular-nums ${s.section === 'main' ? 'text-ink' : 'text-muted'}`}>{s.code}</span>
-                  <span className="flex-1">
+              <li key={s.id} className="flex items-center border-t border-line first:border-t-0">
+                <button type="button" onClick={() => setEdit(s)} className="flex min-h-[58px] min-w-0 flex-1 items-center gap-3 py-2 text-left">
+                  <span className={`font-display w-9 shrink-0 text-sm font-bold tabular-nums ${s.section === 'main' ? 'text-ink' : 'text-muted'}`}>{s.code}</span>
+                  <span className="min-w-0 flex-1">
                     <span className="block text-[16px] font-semibold">{ex.name}</span>
                     <span className="block text-sm text-muted">
                       {s.sets} × {s.repMin}–{s.repMax}
                       {ex.unit === 'seconds' ? ' с' : ''} · шаг {stepText(s)} · отдых {s.restSec} с{phase}
                     </span>
                   </span>
-                  <ChevronRight size={16} strokeWidth={2.4} className="text-muted" aria-hidden />
+                  <ChevronRight size={16} strokeWidth={2.4} className="shrink-0 text-muted" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHowTo(s.exerciseId)}
+                  aria-label={`Как делать: ${ex.name.toLowerCase()}`}
+                  className="-mr-2.5 ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink active:bg-track"
+                >
+                  <CirclePlay size={24} strokeWidth={1.9} aria-hidden />
                 </button>
               </li>
             );
@@ -103,7 +114,8 @@ export function ProgramSheet({ open, onClose }: SheetProps) {
       <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={() => setConfirmReset(true)}>
         Вернуть программу из плана
       </Button>
-      {edit && <SlotSheet slot={slots.find((s) => s.id === edit.id) ?? edit} onClose={() => setEdit(null)} />}
+      {edit && <SlotSheet slot={slots.find((s) => s.id === edit.id) ?? edit} onClose={() => setEdit(null)} onHowTo={() => setHowTo(edit.exerciseId)} />}
+      <ExerciseSheet exerciseId={howTo} onClose={() => setHowTo(null)} />
       <Sheet open={confirmReset} title="Вернуть исходную программу?" onClose={() => setConfirmReset(false)}>
         <div className="flex flex-col gap-2 pb-2">
           <p className="px-1 pb-2 text-muted">Подходы, повторы, шаги и отдых во всех блоках станут как в плане от 7 ноября. История тренировок не изменится.</p>
@@ -119,7 +131,7 @@ export function ProgramSheet({ open, onClose }: SheetProps) {
   );
 }
 
-function SlotSheet({ slot, onClose }: { slot: ProgramSlot; onClose: () => void }) {
+function SlotSheet({ slot, onClose, onHowTo }: { slot: ProgramSlot; onClose: () => void; onHowTo: () => void }) {
   const ex = getExercise(slot.exerciseId);
   const up = (patch: Partial<ProgramSlot>) => void updateSlot(slot.id, patch);
   const stepDelta = ex.unit === 'kg' || ex.unit === 'assist_kg' ? 50 : ex.unit === 'seconds' ? 5 : 1;
@@ -149,6 +161,9 @@ function SlotSheet({ slot, onClose }: { slot: ProgramSlot; onClose: () => void }
           </Chip>
         ))}
       </div>
+      <Button size="lg" variant="secondary" className="mt-3 w-full" onClick={onHowTo}>
+        <CirclePlay size={20} aria-hidden /> Как делать
+      </Button>
     </Sheet>
   );
 }

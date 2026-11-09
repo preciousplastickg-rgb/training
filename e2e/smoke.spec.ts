@@ -97,3 +97,26 @@ test('профиль: замеры талии, шеи, плеч и запяст�
   await page.reload();
   await expect(page.getByLabel('Замеры, см').getByText('115,5')).toBeVisible();
 });
+
+test('программа в настройках: «Как делать» у каждого упражнения — значком в строке и из правки слота', async ({ page }) => {
+  await page.goto('./#/settings');
+  await page.getByRole('button', { name: /^Тренировки A, B, C/ }).click();
+  const program = page.getByRole('dialog', { name: 'Тренировки A, B и C' });
+  await program.getByRole('radio', { name: /^Блок 2/ }).click();
+  await program.getByRole('tab', { name: 'Тренировка B' }).click();
+  const icons = program.getByRole('button', { name: /^Как делать: / });
+  expect(await icons.count()).toBeGreaterThan(5);
+  const box = (await icons.first().boundingBox())!;
+  expect(box.width).toBeGreaterThanOrEqual(44);
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  await icons.first().click();
+  const how = page.getByRole('dialog').filter({ hasText: 'Как делать' }).last();
+  await expect(how.getByText('Ключевые моменты')).toBeAttached();
+  await page.keyboard.press('Escape');
+  await expect(program).toBeVisible();
+  // из правки слота
+  await program.getByRole('button', { name: /^B1 / }).click();
+  const slot = page.getByRole('dialog').last();
+  await slot.getByRole('button', { name: 'Как делать' }).click();
+  await expect(page.getByRole('dialog').last().getByText('Частые ошибки')).toBeAttached();
+});
