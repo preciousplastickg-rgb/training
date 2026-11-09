@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { PHASE_GAIN, phaseAt, type TwinBody } from '../domain/twin';
+import { PHASE_GAIN, phaseAt, SHAPE_NEUTRAL, type TwinBody, type TwinShape } from '../domain/twin';
 import { assetUrl, bottomTime, DRACO_BASE, loadManifest, loadMuscles, type ManifestExercise, type MusclesMeta, type TwinManifest, type Vec3 } from './assets';
 import { webglAvailable } from './support';
 import { sideSign, type Zone } from './zones';
@@ -19,6 +19,31 @@ const TAU = Math.PI * 2;
 const AUTO_SPIN = 0.35;  // рад/с, ~20°/с — медленное вращение на «Сегодня»
 const SPIN_TAU = 0.8;    // с: за сколько инерция после пальца сходит к медленному вращению
 const MAX_SPIN = 12;     // рад/с: предел скорости после броска пальцем
+
+/**
+ * Пропорции двойника по обхватам (TWIN-3D 4): кости, кожу вокруг которых утолщает множитель части тела, и доля
+ * множителя. Утолщение — поперёк кости (локальные x и z, кость идёт по y) и только в матрицах скиннинга: суставы
+ * на месте, руки остаются на снарядах, клипы не меняются.
+ */
+const SHAPE_BONES: Record<keyof TwinShape, readonly (readonly [string, number])[]> = {
+  neck: [['neck01', 1], ['neck02', 1], ['neck03', 0.6]],
+  shoulders: [
+    ['shoulder01.L', 1], ['shoulder01.R', 1], ['upperarm01.L', 0.6], ['upperarm01.R', 0.6],
+    ['clavicle.L', 0.5], ['clavicle.R', 0.5], ['spine01', 0.6],
+  ],
+  wrist: [['lowerarm02.L', 1], ['lowerarm02.R', 1], ['lowerarm01.L', 0.6], ['lowerarm01.R', 0.6], ['wrist.L', 0.6], ['wrist.R', 0.6]],
+  waist: [['spine04', 1], ['spine03', 0.8], ['spine05', 0.6], ['spine02', 0.35]],
+};
+
+/**
+ * Ширина плеч: ключица длиннее — плечевой сустав (дочерняя кость) дальше от грудины, кожа ключицы тянется вдоль
+ * кости. Ключица (10 см) — меньше половины полуширины плеч (~23 см), поэтому её длина меняется вдвое сильнее
+ * обхвата: плечи +10 % — ключица +20 %, сустав на ~2 см дальше с каждой стороны, вместе с толщиной дельт ширина
+ * растёт примерно как обхват. Только в покое («Сегодня», «Прогресс», профиль): в «Как делать» руки должны оставаться
+ * на снарядах, там плечи только толще. Клипы положение плечевого сустава не задают.
+ */
+const SHAPE_CLAVICLES = [['clavicle.L', 'shoulder01.L'], ['clavicle.R', 'shoulder01.R']] as const;
+const CLAVICLE_GAIN = 2;
 
 export interface Figure {
   body: TwinBody;
@@ -128,6 +153,11 @@ class Engine {
   private material!: THREE.MeshStandardMaterial;
   private normalSign = 1;
   private boneNames = new Set<string>();
+  /** Масштаб кожи кости по пропорциям: индекс кости в скелете двойника → (поперёк, вдоль, поперёк). */
+  private boneScale = new Map<number, THREE.Vector3>();
+  /** Ключица → плечевой сустав и его положение в позе связывания (ширина плеч). */
+  private clavicles: { clavicle: number; joint: THREE.Bone; rest: THREE.Vector3 }[] = [];
+  private shape: TwinShape = SHAPE_NEUTRAL;
   private iLean = 0;
   private iMuscle = 1;
   private mixer: THREE.AnimationMixer;
@@ -242,6 +272,7 @@ class Engine {
     this.twin = twin;
     this.stage.add(gltf.scene);
     this.boneNames = new Set(this.twin.skeleton.bones.map((b) => b.name));
+    this.installShape();
     this.twin.geometry.computeBoundingBox();
     this.twinBox.copy(this.twin.geometry.boundingBox!);
     this.material = this.twin.material as THREE.MeshStandardMaterial;
@@ -336,6 +367,64 @@ int zoneId(float c) {
     inf[this.iLean] = b.lean;
     inf[this.iMuscle] = b.muscle;
     this.material.normalScale.set(b.definition, b.definition * this.normalSign);
+    this.applyShape(b.shape ?? SHAPE_NEUTRAL, this.top()?.cfg.kind !== 'exercise');
+  }
+
+  /**
+   * Пропорции — поправкой матриц скиннинга после обычного расчёта скелета: матрица кости × масштаб поперёк кости ×
+   * обратная матрица связывания. Иерархию не трогаем, поэтому дочерние кости и снаряды не сдвигаются. Рендерер
+   * пересчитывает скелет на каждый render(), так что у фигур «Старт · Сейчас · Цель» пропорции свои.
+   */
+  private installShape() {
+    const sk = this.twin.skeleton;
+    const base = sk.update.bind(sk);
+    const S = new THREE.Matrix4();
+    const M = new THREE.Matrix4();
+    sk.update = () => {
+      base();
+      if (!sk.boneMatrices) return;
+      for (const [i, k] of this.boneScale) {
+        M.multiplyMatrices(sk.bones[i]!.matrixWorld, S.makeScale(k.x, k.y, k.z)).multiply(sk.boneInverses[i]!);
+        M.toArray(sk.boneMatrices, i * 16);
+      }
+    };
+    for (const [c, j] of SHAPE_CLAVICLES) {
+      const clavicle = this.boneIndex(c);
+      const joint = sk.bones[this.boneIndex(j)];
+      if (clavicle >= 0 && joint) this.clavicles.push({ clavicle, joint, rest: joint.position.clone() });
+    }
+  }
+
+  /** Индекс кости по имени из файла: GLTFLoader убирает из имён точки («shoulder01.L» → «shoulder01L»); нет — −1. */
+  private boneIndex(name: string): number {
+    const n = THREE.PropertyBinding.sanitizeNodeName(name);
+    return this.twin.skeleton.bones.findIndex((b) => b.name === n);
+  }
+
+  /** `widen` — ключицы длиннее по плечам (в покое); в «Как делать» — нет, суставы как в клипе. */
+  private applyShape(shape: TwinShape, widen: boolean) {
+    this.shape = shape;
+    this.boneScale.clear();
+    const at = (i: number) => {
+      let v = this.boneScale.get(i);
+      if (!v) this.boneScale.set(i, (v = new THREE.Vector3(1, 1, 1)));
+      return v;
+    };
+    for (const part of Object.keys(SHAPE_BONES) as (keyof TwinShape)[]) {
+      const f = shape[part];
+      if (f === 1) continue;
+      for (const [name, gain] of SHAPE_BONES[part]) {
+        const i = this.boneIndex(name);
+        if (i < 0) continue;
+        const k = 1 + gain * (f - 1);
+        at(i).multiply(new THREE.Vector3(k, 1, k));
+      }
+    }
+    const len = widen ? 1 + CLAVICLE_GAIN * (shape.shoulders - 1) : 1;
+    for (const c of this.clavicles) {
+      c.joint.position.copy(c.rest).multiplyScalar(len);
+      if (len !== 1) at(c.clavicle).y *= len;
+    }
   }
 
   // ---------- хосты ----------
@@ -405,7 +494,13 @@ int zoneId(float c) {
       this.idleAction.paused = c.kind === 'figures';
       if (c.kind === 'figures') { this.idleAction.time = 0; this.mixer.update(0); }
       this.uniforms.uSide.value = 0;
-      if (c.kind === 'idle') { this.applyBody(c.body); this.uniforms.uHighlight.value = 0; this.stage.rotation.y = this.yaw; }
+      if (c.kind === 'idle') {
+        this.applyBody(c.body);
+        this.uniforms.uHighlight.value = 0;
+        this.stage.rotation.y = this.yaw;
+        // вращение выключено — фигура стоит с первого кадра, а не докручивается
+        if (prev?.kind !== 'idle') this.spin = c.rotate ? AUTO_SPIN : 0;
+      }
       if (!prev || prev.kind !== c.kind) this.resetView();
     }
     this.dirty = true;
@@ -463,6 +558,9 @@ int zoneId(float c) {
       this.mixer.update(0);
       a.paused = true;
     } else {
+      // поза текущего момента клипа сразу, даже если открыли на паузе («Уменьшение движения»): иначе стоит idle
+      a.paused = false;
+      this.mixer.update(0);
       a.paused = c.paused;
       a.timeScale = c.speed;
     }
@@ -603,7 +701,7 @@ int zoneId(float c) {
       this.fpsTime = 0;
       for (const l of this.fpsListeners) l(this.fps);
     }
-    (window as unknown as { __twin?: object }).__twin = { fps: this.fps, kind: c.kind, exercise: this.ex?.id ?? null, ready: true, yaw: this.yaw };
+    (window as unknown as { __twin?: object }).__twin = { fps: this.fps, kind: c.kind, exercise: this.ex?.id ?? null, ready: true, yaw: this.yaw, shape: this.shape };
   }
 
   private renderOne() {

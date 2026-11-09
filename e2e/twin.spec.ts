@@ -210,3 +210,31 @@ test('офлайн: все файлы 3D и декодер Draco — из кэш
   }
   await context.setOffline(false);
 });
+
+test('замеры в профиле сразу меняют двойника: плечи шире, по талии — % жира', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.clock.install({ time: new Date('2026-11-09T09:00:00+06:00') });
+  await skipOnboarding(page);
+  await page.goto('./#/settings');
+  await page.getByRole('button', { name: 'Изменить' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Профиль' });
+  if ((await sheet.locator('[data-twin]').count()) === 0) test.skip(true, 'нет WebGL — двойника в профиле нет');
+  await expect(sheet.locator('[data-twin="ready"]')).toBeVisible({ timeout: 20_000 });
+  type Twin = { shape: { shoulders: number; neck: number; waist: number } };
+  const shape = () => page.evaluate(() => (window as unknown as { __twin?: Twin }).__twin?.shape);
+  await expect.poll(async () => (await shape())?.shoulders).toBe(1);
+  const field = (name: string) => sheet.getByRole('textbox', { name: new RegExp(`^${name}`) });
+  await field('Плечи').fill('140');
+  await field('Плечи').blur();
+  await expect.poll(async () => (await shape())?.shoulders).toBeGreaterThan(1.15);
+  await field('Шея').fill('45');
+  await field('Шея').blur();
+  await expect.poll(async () => (await shape())?.neck).toBeGreaterThan(1.1);
+  // по талии и шее из профиля на «Сегодня» есть % жира
+  await field('Талия').fill('100');
+  await field('Талия').blur();
+  await sheet.getByRole('button', { name: 'Готово' }).click();
+  await page.getByRole('button', { name: 'Назад' }).click();
+  await expect(page.getByText(/% жира → цель 15 %/)).toBeAttached();
+  expect(errors).toEqual([]);
+});

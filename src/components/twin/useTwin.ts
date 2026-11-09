@@ -51,10 +51,11 @@ export function useTwinBodies(date: string): TwinBodies {
   const meta = metaOf(manifest);
   return useMemo(() => {
     const p = { heightCm: settings.heightCm, startDate: settings.startDate, startWeight: settings.startWeight };
+    const now = twinNow(body, p, meta, date);
     return {
       start: twinStart(body, p, meta),
-      now: twinNow(body, p, meta, date),
-      goal: twinGoal(meta),
+      now,
+      goal: twinGoal(meta, now.shape),
       history: twinHistory(body, p, meta, date),
     };
   }, [body, settings.heightCm, settings.startDate, settings.startWeight, meta.bfStart, meta.bfGoal, date]);

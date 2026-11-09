@@ -93,28 +93,21 @@ export function firstWith<K extends keyof BodyEntry>(entries: readonly BodyEntry
   return best;
 }
 
-/** % жира на дату по последним талии и шее. */
+/**
+ * % жира на дату по последней талии и последней шее. Они могут быть записаны в разные дни: в профиле обхват
+ * меняется по одному, и новая талия должна сразу менять % жира (9 ноября 2026).
+ */
 export function bodyFatAt(entries: readonly BodyEntry[], heightCm: number, date?: LocalDate): number | null {
-  const e = latestWithBoth(entries, date);
-  return e ? bodyFatPercent(e.waist!, e.neck!, heightCm) : null;
+  const w = latestWith(entries, 'waist', date);
+  const n = latestWith(entries, 'neck', date);
+  return w && n ? bodyFatPercent(w.waist!, n.neck!, heightCm) : null;
 }
 
-function latestWithBoth(entries: readonly BodyEntry[], date?: LocalDate): BodyEntry | null {
-  let best: BodyEntry | null = null;
-  for (const e of entries) {
-    if (e.waist === undefined || e.neck === undefined || (date && e.date > date)) continue;
-    if (!best || e.date > best.date) best = e;
-  }
-  return best;
-}
-
+/** % жира по первым замерам талии и шеи. */
 export function firstBodyFat(entries: readonly BodyEntry[], heightCm: number): number | null {
-  let best: BodyEntry | null = null;
-  for (const e of entries) {
-    if (e.waist === undefined || e.neck === undefined) continue;
-    if (!best || e.date < best.date) best = e;
-  }
-  return best ? bodyFatPercent(best.waist!, best.neck!, heightCm) : null;
+  const w = firstWith(entries, 'waist');
+  const n = firstWith(entries, 'neck');
+  return w && n ? bodyFatPercent(w.waist!, n.neck!, heightCm) : null;
 }
 
 // ---------- обхваты в профиле (SPEC 6.5) ----------
@@ -231,14 +224,18 @@ export function targetRefinement(
   const cp = [...checkpoints].filter((c) => c.date <= date).sort((a, b) => (a.date < b.date ? 1 : -1))[0];
   if (!cp) return null;
   const windowEnd = addDays(cp.date, 14);
-  const e = latestWithBoth(entries, date < windowEnd ? date : windowEnd);
-  if (!e || e.date < cp.date || e.date <= settings.startDate) return null;
-  if (dismissedAt === e.date) return null;
-  const fat = bodyFatPercent(e.waist!, e.neck!, settings.heightCm);
+  const until = date < windowEnd ? date : windowEnd;
+  // талия и шея — обе записаны после контрольной точки, можно в разные дни (профиль); замер — по более позднему
+  const w = latestWith(entries, 'waist', until);
+  const n = latestWith(entries, 'neck', until);
+  if (!w || !n || w.date < cp.date || n.date < cp.date) return null;
+  const measuredAt = w.date > n.date ? w.date : n.date;
+  if (measuredAt <= settings.startDate || dismissedAt === measuredAt) return null;
+  const fat = bodyFatPercent(w.waist!, n.neck!, settings.heightCm);
   if (fat === null) return null;
-  const weight = avg7(entries, e.date) ?? e.weight ?? latestWith(entries, 'weight', e.date)?.weight;
+  const weight = avg7(entries, measuredAt) ?? latestWith(entries, 'weight', measuredAt)?.weight;
   if (weight === undefined) return null;
   const newTarget = targetWeightFor(weight, fat, settings.targetBodyFat);
   if (Math.abs(newTarget - settings.targetWeight) < 50) return null;
-  return { measuredAt: e.date, bodyFat: fat, newTarget, oldTarget: settings.targetWeight };
+  return { measuredAt, bodyFat: fat, newTarget, oldTarget: settings.targetWeight };
 }

@@ -6,6 +6,8 @@ import { navigate } from '../app/router';
 import { beep, unlockAudio } from '../app/sound';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Sheet } from '../components/Sheet';
+import { TwinView } from '../components/twin/TwinView';
+import { useTwin3d, useTwinBodies } from '../components/twin/useTwin';
 import { Button, Caps, Field } from '../components/ui';
 import { DEFAULT_SETTINGS, twin3dOf, updateSettings } from '../db/db';
 import { putBody } from '../db/repo';
@@ -236,9 +238,20 @@ function ProfileHero({ settings, onEdit }: { settings: Settings; onEdit: () => v
  */
 function GirthsCard() {
   const { today, girths } = useGirths();
+  const { on, rotate } = useTwin3d();
+  const twin = useTwinBodies(today);
   return (
     <div className="mt-3 flex flex-col gap-3 rounded-[26px] bg-surface p-4">
       <Caps as="h3">Замеры</Caps>
+      {/* двойник сразу меняется по введённому замеру: % жира по талии и шее, толщина шеи, плеч, предплечий */}
+      {on && (
+        <TwinView
+          className="h-[240px] w-full"
+          label="3D-двойник по замерам"
+          config={{ kind: 'idle', body: twin.now, rotate, maxFps: 30 }}
+          fallback={null}
+        />
+      )}
       <div className="grid grid-cols-2 gap-3">
         {GIRTH_KEYS.map((k) => {
           const g = girths[k];
@@ -264,7 +277,7 @@ function GirthsCard() {
         })}
       </div>
       <p className="text-xs text-muted">
-        Сантиметровой лентой утром: талия — на уровне пупка, шея — под кадыком, плечи — по самым широким точкам дельт, запястье — над косточкой. Новое значение записывается замером за сегодня; по талии и шее считается % жира.
+        Сантиметровой лентой утром: талия — на уровне пупка, шея — под кадыком, плечи — по самым широким точкам дельт, запястье — над косточкой. Новое значение записывается замером за сегодня; по талии и шее считается % жира, по всем четырём меняется 3D-двойник.
       </p>
     </div>
   );

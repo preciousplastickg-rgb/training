@@ -109,6 +109,11 @@ describe('состав тела', () => {
     expect(c.waist).toBe(860);
     expect(c.waistDelta).toBe(-60);
   });
+  it('талия и шея в разные дни (профиль) — % жира по последним обеим', () => {
+    const c = bodyComposition([...entries, { date: '2027-01-05', waist: 850 }], 175, 8100, '2027-01-05');
+    expect(c.fat).toBe(bodyFatPercent(850, 380, 175));
+    expect(c.waist).toBe(850);
+  });
   it('без замеров — только вес', () => {
     const c = bodyComposition([{ date: '2027-01-04', weight: 7660 }], 175, 8100, '2027-01-04');
     expect(c).toMatchObject({ weight: 7660, fat: null, lean: null, leanDelta: null, waist: null });
