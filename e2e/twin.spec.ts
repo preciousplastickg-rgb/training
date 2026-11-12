@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { skipOnboarding } from './helpers';
 
@@ -236,5 +237,125 @@ test('замеры в профиле сразу меняют двойника: �
   await sheet.getByRole('button', { name: 'Готово' }).click();
   await page.getByRole('button', { name: 'Назад' }).click();
   await expect(page.getByText(/% жира → цель 15 %/)).toBeAttached();
+  expect(errors).toEqual([]);
+});
+
+// ---------- этап 5c: скиннинг DQS, корректирующие морфы, кисти (docs/TWIN-3D.md, 2 «Скиннинг и морфы») ----------
+
+type TwinHook = { exercise: string | null; kind: string; morphs: Record<string, number>; skin: string; ready: boolean };
+const twinHook = (page: Page) => page.evaluate(() => (window as unknown as { __twin?: TwinHook }).__twin ?? null);
+const hasGl = (page: Page) => page.evaluate(() => {
+  const c = document.createElement('canvas');
+  return !!(c.getContext('webgl2') || c.getContext('webgl'));
+});
+
+/** «Как делать» из «Настройки → Тренировки A, B, C», блок 1. */
+async function openHowTo(page: Page, workout: 'A' | 'B', name: string) {
+  if (!(await page.getByRole('dialog', { name: 'Тренировки A, B и C' }).isVisible().catch(() => false))) {
+    await page.goto('./#/settings');
+    await page.getByRole('button', { name: /^Тренировки A, B, C/ }).click();
+  }
+  const program = page.getByRole('dialog', { name: 'Тренировки A, B и C' });
+  await program.getByRole('radio', { name: /^Блок 1/ }).click();
+  await program.getByRole('tab', { name: `Тренировка ${workout}` }).click();
+  await program.getByRole('button', { name: `Как делать: ${name}` }).click();
+  return program;
+}
+
+async function waitExercise(page: Page, id: string) {
+  await expect.poll(async () => (await twinHook(page))?.exercise, { timeout: 20_000 }).toBe(id);
+}
+
+test('«Сегодня»: клип idle не возвращает тело к базовому, кисти полураскрыты', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.clock.install({ time: new Date('2026-11-09T09:00:00+06:00') });
+  await skipOnboarding(page);
+  if (!(await hasGl(page))) test.skip(true, 'нет WebGL');
+  // замеры, при которых % жира ниже старта: lean > 0
+  await page.goto('./#/settings');
+  await page.getByRole('button', { name: 'Изменить' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Профиль' });
+  const field = (name: string) => sheet.getByRole('textbox', { name: new RegExp(`^${name}`) });
+  await field('Шея').fill('40');
+  await field('Шея').blur();
+  await field('Талия').fill('85');
+  await field('Талия').blur();
+  await sheet.getByRole('button', { name: 'Готово' }).click();
+  await page.getByRole('button', { name: 'Назад' }).click();
+  const card = page.getByRole('button').filter({ has: page.getByRole('heading', { name: 'Тело' }) });
+  await card.scrollIntoViewIfNeeded();
+  await expect(card.locator('[data-twin="ready"]')).toBeVisible({ timeout: 20_000 });
+  await expect.poll(async () => { const t = await twinHook(page); return t?.kind === 'idle' ? t.morphs.lean : 0; }, { timeout: 20_000 }).toBeGreaterThan(0);
+  const before = (await twinHook(page))!;
+  expect(before.skin).toBe('dqs');
+  await page.waitForTimeout(1000);
+  const after = (await twinHook(page))!;
+  expect(after.morphs.lean).toBeCloseTo(before.morphs.lean!, 4);
+  expect(after.morphs.hand_open_L).toBeCloseTo(0.5, 3);
+  expect(after.morphs.hand_open_R).toBeCloseTo(0.5, 3);
+  expect(errors).toEqual([]);
+});
+
+test('кисти по клипам: db_row — левая раскрыта, bench_press — в хвате, после закрытия — снова 0,5', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.clock.install({ time: new Date('2026-11-09T09:00:00+06:00') });
+  await skipOnboarding(page);
+  if (!(await hasGl(page))) test.skip(true, 'нет WebGL');
+  await openHowTo(page, 'A', 'тяга гантели одной рукой в наклоне');
+  await waitExercise(page, 'db_row');
+  await expect.poll(async () => (await twinHook(page))?.morphs.hand_open_L).toBe(1);
+  await page.keyboard.press('Escape');
+  await openHowTo(page, 'A', 'жим штанги лёжа');
+  await waitExercise(page, 'bench_press');
+  await expect.poll(async () => (await twinHook(page))?.morphs.hand_open_L).toBe(0);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.getByRole('navigation', { name: 'Основное меню' }).getByRole('button', { name: 'Сегодня' }).click();
+  const card = page.getByRole('button').filter({ has: page.getByRole('heading', { name: 'Тело' }) });
+  await card.scrollIntoViewIfNeeded();
+  await expect(card.locator('[data-twin="ready"]')).toBeVisible({ timeout: 20_000 });
+  await expect.poll(async () => { const t = await twinHook(page); return t?.kind === 'idle' ? t.morphs.hand_open_L : -1; }, { timeout: 20_000 }).toBeCloseTo(0.5, 3);
+  expect(errors).toEqual([]);
+});
+
+test('вершины двойника против Blender (DQS + морфы): три позы, 300 вершин, ≤ 1 мм', async ({ page }) => {
+  test.setTimeout(90_000);
+  const errors = collectErrors(page);
+  await page.clock.install({ time: new Date('2026-11-09T09:00:00+06:00') });
+  await skipOnboarding(page);
+  if (!(await hasGl(page))) test.skip(true, 'нет WebGL');
+  const ref = JSON.parse(readFileSync(new URL('./fixtures/dqs_ref.json', import.meta.url), 'utf8')) as {
+    poses: { exercise: string; t: number; weights: Record<string, number>; rest: number[][]; posed: number[][] }[];
+  };
+  const where: Record<string, ['A' | 'B', string]> = {
+    db_shoulder_press: ['B', 'жим гантелей сидя вверх'],
+    goblet_squat: ['A', 'гоблет-присед'],
+    db_row: ['A', 'тяга гантели одной рукой в наклоне'],
+  };
+  for (const pose of ref.poses) {
+    const [workout, name] = where[pose.exercise]!;
+    await openHowTo(page, workout, name);
+    await waitExercise(page, pose.exercise);
+    type Verts = { rest: number[]; posed: number[]; morphs: Record<string, number>; skin: string };
+    const v = await page.evaluate((t) => (window as unknown as { __twinVerts: (t: number, neutral: boolean) => Verts }).__twinVerts(t, true), pose.t);
+    expect(v.skin).toBe('dqs');
+    for (const [k, w] of Object.entries(pose.weights)) expect(Math.abs((v.morphs[k] ?? 0) - w), `${pose.exercise} ${k}`).toBeLessThanOrEqual(0.002);
+    // сопоставление по позе покоя: ближайшая вершина (Draco сдвигает покой до 0,1 мм, у швов UV вершины повторяются)
+    const n = v.rest.length / 3;
+    let worst = 0;
+    pose.rest.forEach((p, k) => {
+      let best = -1, bd = Infinity;
+      for (let i = 0; i < n; i++) {
+        const d = Math.hypot(v.rest[3 * i]! - p[0]!, v.rest[3 * i + 1]! - p[1]!, v.rest[3 * i + 2]! - p[2]!);
+        if (d < bd) { bd = d; best = i; }
+      }
+      expect(bd, `${pose.exercise}: вершина ${k} без пары`).toBeLessThan(0.001);
+      const q = pose.posed[k]!;
+      worst = Math.max(worst, Math.hypot(v.posed[3 * best]! - q[0]!, v.posed[3 * best + 1]! - q[1]!, v.posed[3 * best + 2]! - q[2]!));
+    });
+    console.log(`DQS ${pose.exercise} t=${pose.t}: ${(worst * 1000).toFixed(3)} мм`);
+    expect(worst * 1000, `${pose.exercise} t=${pose.t}: отклонение, мм`).toBeLessThanOrEqual(1);
+    await page.keyboard.press('Escape');
+  }
   expect(errors).toEqual([]);
 });

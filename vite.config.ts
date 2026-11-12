@@ -41,6 +41,8 @@ const build = `${gitCommit().slice(0, 7)} · ${built}`;
 
 export default defineConfig({
   base,
+  // .glb — ассет: unit-тесты читают twin.glb и клипы через `?inline` (этап 5c); приложение берёт их из public/3d/
+  assetsInclude: ['**/*.glb'],
   define: { __APP_VERSION__: JSON.stringify(pkg.version), __APP_BUILD__: JSON.stringify(build) },
   plugins: [
     noBundledDraco(),

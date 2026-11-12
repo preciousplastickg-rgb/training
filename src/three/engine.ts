@@ -2,6 +2,8 @@
 // переносится между экранами (стек «хостов»: верхний показывает, при его закрытии канвас возвращается к предыдущему).
 // Двойник загружается один раз; клип и снаряды упражнения — по требованию, при закрытии выгружаются (dispose).
 // Шейдер подсветки, кадр по fit_points и сторона одностороннего упражнения — перенос exercise-anim/viewer/main.js.
+// Скиннинг в два шага (пропорции линейно, поза двойными кватернионами) и веса морфов из клипов — этап 5c
+// (docs/TWIN-3D.md, 4.1 и раздел 2 «Скиннинг и морфы»; src/three/skinning.ts, src/three/morphTracks.ts).
 // Импортируется только динамически (import('./engine')), чтобы three.js не замедлял старт приложения.
 
 import * as THREE from 'three';
@@ -12,6 +14,8 @@ import { PHASE_GAIN, phaseAt, SHAPE_NEUTRAL, type TwinBody, type TwinShape } fro
 import { assetUrl, bottomTime, DRACO_BASE, loadManifest, loadMuscles, type ManifestExercise, type MusclesMeta, type TwinManifest, type Vec3 } from './assets';
 import { webglAvailable } from './support';
 import { sideSign, type Zone } from './zones';
+import { animatedTargets, MORPH_CARRIER, splitWeights, targetNames, type TargetTrack, type WeightTrack } from './morphTracks';
+import { bindScale, clavicleLength, dqFromMatrix, dqsGlsl, SHAPE_CLAVICLES, shapeScales, skinVertex } from './skinning';
 
 const FOV = 35;          // вертикальный угол, как у кадров exercise-anim
 const FILL = 0.85;       // fit_points занимают 85 % ограничивающей стороны холста
@@ -21,29 +25,10 @@ const SPIN_TAU = 0.8;    // с: за сколько инерция после п
 const MAX_SPIN = 12;     // рад/с: предел скорости после броска пальцем
 
 /**
- * Пропорции двойника по обхватам (TWIN-3D 4): кости, кожу вокруг которых утолщает множитель части тела, и доля
- * множителя. Утолщение — поперёк кости (локальные x и z, кость идёт по y) и только в матрицах скиннинга: суставы
- * на месте, руки остаются на снарядах, клипы не меняются.
+ * Скиннинг: `dqs` — два шага (пропорции линейно, поза двойными кватернионами); `lbs` — прежний линейный, только для
+ * сравнения в dev-сборке (`?skin=lbs`).
  */
-const SHAPE_BONES: Record<keyof TwinShape, readonly (readonly [string, number])[]> = {
-  neck: [['neck01', 1], ['neck02', 1], ['neck03', 0.6]],
-  shoulders: [
-    ['shoulder01.L', 1], ['shoulder01.R', 1], ['upperarm01.L', 0.6], ['upperarm01.R', 0.6],
-    ['clavicle.L', 0.5], ['clavicle.R', 0.5], ['spine01', 0.6],
-  ],
-  wrist: [['lowerarm02.L', 1], ['lowerarm02.R', 1], ['lowerarm01.L', 0.6], ['lowerarm01.R', 0.6], ['wrist.L', 0.6], ['wrist.R', 0.6]],
-  waist: [['spine04', 1], ['spine03', 0.8], ['spine05', 0.6], ['spine02', 0.35]],
-};
-
-/**
- * Ширина плеч: ключица длиннее — плечевой сустав (дочерняя кость) дальше от грудины, кожа ключицы тянется вдоль
- * кости. Ключица (10 см) — меньше половины полуширины плеч (~23 см), поэтому её длина меняется вдвое сильнее
- * обхвата: плечи +10 % — ключица +20 %, сустав на ~2 см дальше с каждой стороны, вместе с толщиной дельт ширина
- * растёт примерно как обхват. Только в покое («Сегодня», «Прогресс», профиль): в «Как делать» руки должны оставаться
- * на снарядах, там плечи только толще. Клипы положение плечевого сустава не задают.
- */
-const SHAPE_CLAVICLES = [['clavicle.L', 'shoulder01.L'], ['clavicle.R', 'shoulder01.R']] as const;
-const CLAVICLE_GAIN = 2;
+const SKIN: 'dqs' | 'lbs' = import.meta.env.DEV && new URLSearchParams(location.search).get('skin') === 'lbs' ? 'lbs' : 'dqs';
 
 export interface Figure {
   body: TwinBody;
@@ -155,18 +140,29 @@ class Engine {
   private boneNames = new Set<string>();
   /** Масштаб кожи кости по пропорциям: индекс кости в скелете двойника → (поперёк, вдоль, поперёк). */
   private boneScale = new Map<number, THREE.Vector3>();
+  /** Шаг 1 скиннинга: Pᵢ = Bᵢ · Sᵢ · Bᵢ⁻¹ у костей с масштабом, у остальных null (единичная). */
+  private P: (THREE.Matrix4 | null)[] = [];
+  /** Bᵢ — мировые матрицы костей в позе связывания (обратные к boneInverses). */
+  private binds: THREE.Matrix4[] = [];
+  private bindInv = new THREE.Matrix4();
+  /** Шаг 2: пары кватернионов костей (поворот, двойная часть) — uniform-массивы uDqR, uDqD. */
+  private dqR: THREE.Vector4[] = [];
+  private dqD: THREE.Vector4[] = [];
+  private dqM = new THREE.Matrix4();
+  /** Цели морфов, которые задаёт клип (все, кроме lean и muscle). */
+  private animated: string[] = [];
   /** Ключица → плечевой сустав и его положение в позе связывания (ширина плеч). */
   private clavicles: { clavicle: number; joint: THREE.Bone; rest: THREE.Vector3 }[] = [];
   private shape: TwinShape = SHAPE_NEUTRAL;
   private iLean = 0;
-  private iMuscle = 1;
+  private iMuscle = 0;
   private mixer: THREE.AnimationMixer;
   private idleAction!: THREE.AnimationAction;
   private twinBox = new THREE.Box3();
   private zoneByName: Record<string, number> = {};
   private zoneW!: Float32Array;
   private zoneCol!: THREE.Color[];
-  private uniforms!: Record<'uIdMap' | 'uIdSoft' | 'uFibre' | 'uZoneW' | 'uZoneCol' | 'uHighlight' | 'uSide' | 'uSideK' | 'uSideBlend', THREE.IUniform>;
+  private uniforms!: Record<'uIdMap' | 'uIdSoft' | 'uFibre' | 'uZoneW' | 'uZoneCol' | 'uHighlight' | 'uSide' | 'uSideK' | 'uSideBlend' | 'uDqR' | 'uDqD', THREE.IUniform>;
   private primaryLevel = 1;
   private hosts: Host[] = [];
   private lost = false;
@@ -277,15 +273,60 @@ class Engine {
     this.twinBox.copy(this.twin.geometry.boundingBox!);
     this.material = this.twin.material as THREE.MeshStandardMaterial;
     this.normalSign = Math.sign(this.material.normalScale.y) || 1;
-    this.iLean = this.twin.morphTargetDictionary!.lean!;
-    this.iMuscle = this.twin.morphTargetDictionary!.muscle ?? 1;
+    // цели — только по именам: нет lean или muscle — ошибка загрузки (запасных индексов нет)
+    const dict = this.twin.morphTargetDictionary!;
+    if (dict.lean === undefined || dict.muscle === undefined) throw new Error('twin.glb: нет морфа lean или muscle');
+    this.iLean = dict.lean;
+    this.iMuscle = dict.muscle;
+    this.animated = animatedTargets(dict);
     fibre.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
     this.installShader(idMap, idSoft, fibre);
     const idle = THREE.AnimationClip.findByName(gltf.animations, 'idle') ?? gltf.animations[0];
+    // веса кистей и fix_* — дорожками по целям; lean/muscle клип не трогает (иначе обнулит тело пользователя)
+    this.morphClip(idle!, targetNames(dict));
     this.idleAction = this.mixer.clipAction(idle!, this.stage);
     this.idleAction.setLoop(THREE.LoopRepeat, Infinity).play();
     // первая компиляция шейдера — сразу, чтобы первый кадр на экране не ждал её
     this.renderer.compile(this.scene, this.camera);
+    (window as unknown as { __twinVerts?: unknown }).__twinVerts = (t?: number, neutral = true) => this.verts(t, neutral);
+  }
+
+  /**
+   * Хук для проверок (перенос __viewerVerts): вершины тела той же математикой, что шейдер — морфы, шаг 1, шаг 2 — на CPU.
+   * t — время клипа упражнения (поставить позу), neutral — тело без lean/muscle и пропорций (как в Blender).
+   * {rest, posed} — координаты вершин сетки в позе связывания и в позе, мировые; morphs — веса целей.
+   */
+  private verts(t: number | undefined, neutral: boolean) {
+    if (this.ex && t !== undefined) {
+      const a = this.ex.action, was = a.paused;
+      a.paused = false;
+      a.time = t;
+      this.mixer.update(0);
+      a.paused = was;
+      this.dirty = true;
+    }
+    this.scene.updateMatrixWorld();
+    this.updateDQ();
+    const g = this.twin.geometry;
+    const pos = g.attributes.position!, si = g.attributes.skinIndex!, sw = g.attributes.skinWeight!;
+    const morphs = g.morphAttributes.position ?? [];
+    const inf = [...this.twin.morphTargetInfluences!];
+    if (neutral) inf[this.iLean] = inf[this.iMuscle] = 0;
+    const bi = this.bindInv, bm = this.twin.bindMatrix;
+    const P = neutral ? this.P.map(() => null) : this.P.map((p) => (p ? p.clone().premultiply(bi).multiply(bm) : null));
+    const rest = new Float32Array(pos.count * 3), posed = new Float32Array(pos.count * 3);
+    const v = new THREE.Vector3(), m = new THREE.Vector3(), out = new THREE.Vector3();
+    const idx = [0, 0, 0, 0], w = [0, 0, 0, 0];
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      rest.set([v.x, v.y, v.z], i * 3);
+      for (let k = 0; k < morphs.length; k++) if (inf[k]) v.addScaledVector(m.fromBufferAttribute(morphs[k]!, i), inf[k]!);
+      idx[0] = si.getX(i); idx[1] = si.getY(i); idx[2] = si.getZ(i); idx[3] = si.getW(i);
+      w[0] = sw.getX(i); w[1] = sw.getY(i); w[2] = sw.getZ(i); w[3] = sw.getW(i);
+      skinVertex(v, idx, w, P, this.dqR, this.dqD, out).applyMatrix4(this.twin.matrixWorld);
+      posed.set([out.x, out.y, out.z], i * 3);
+    }
+    return { rest: Array.from(rest), posed: Array.from(posed), morphs: this.morphs(), skin: SKIN };
   }
 
   // ---------- подсветка (viewer/main.js: onBeforeCompile, декодирование карт из muscles.json) ----------
@@ -300,13 +341,22 @@ class Engine {
       uZoneW: { value: this.zoneW }, uZoneCol: { value: this.zoneCol }, uHighlight: { value: 0.0 },
       uSide: { value: 0.0 }, uSideK: { value: meta.highlight.side?.other_side_factor ?? 0.35 },
       uSideBlend: { value: meta.highlight.side?.blend_half_width_m ?? 0.02 },
+      uDqR: { value: this.dqR }, uDqD: { value: this.dqD },
     };
     const uniforms = this.uniforms;
+    const dqs = dqsGlsl(this.twin.skeleton.bones.length);
     this.material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uniforms);
       // vSideX: латеральная координата до морфов и скиннинга (POSITION = поза связывания, +x — левая сторона спортсмена)
       shader.vertexShader = 'varying vec2 vZoneUv;\nvarying float vSideX;\n' + shader.vertexShader.replace(
         '#include <uv_vertex>', '#include <uv_vertex>\n\tvZoneUv = uv;\n\tvSideX = position.x;');
+      if (SKIN === 'dqs') {
+        // шаг 1 — стандартные чанки (в boneMatrices — Pᵢ, installShape), шаг 2 — двойные кватернионы после них
+        shader.vertexShader = dqs.head + shader.vertexShader
+          .replace('#include <skinbase_vertex>', `#include <skinbase_vertex>\n${dqs.base}`)
+          .replace('#include <skinnormal_vertex>', `#include <skinnormal_vertex>\n${dqs.normal}`)
+          .replace('#include <skinning_vertex>', `#include <skinning_vertex>\n${dqs.position}`);
+      }
       shader.fragmentShader = `
 uniform sampler2D uIdMap;
 uniform sampler2D uIdSoft;
@@ -339,7 +389,7 @@ int zoneId(float c) {
     diffuseColor.rgb = col;
   }`);
     };
-    this.material.customProgramCacheKey = () => 'twin-zones-app-v1';
+    this.material.customProgramCacheKey = () => `twin-zones-app-v2-${SKIN}`;
     this.material.needsUpdate = true;
   }
 
@@ -371,21 +421,39 @@ int zoneId(float c) {
   }
 
   /**
-   * Пропорции — поправкой матриц скиннинга после обычного расчёта скелета: матрица кости × масштаб поперёк кости ×
-   * обратная матрица связывания. Иерархию не трогаем, поэтому дочерние кости и снаряды не сдвигаются. Рендерер
-   * пересчитывает скелет на каждый render(), так что у фигур «Старт · Сейчас · Цель» пропорции свои.
+   * Скиннинг в два шага (TWIN-3D 4.1, этап 5c). Шаг 1 — пропорции в позе связывания стандартными чанками three.js:
+   * вместо matrixWorld × boneInverse в boneMatrices пишется matrixWorld тела × bindMatrix⁻¹ × Pᵢ (штатный чанк умножает
+   * на bindMatrixInverse — обратную к matrixWorld тела, — и в итоге выходит Σ wⱼ · Pⱼ · v в пространстве сетки).
+   * Шаг 2 — поза двойными кватернионами (updateDQ перед каждым render). Иерархию не трогаем: дочерние кости и снаряды
+   * не сдвигаются; рендерер пересчитывает скелет на каждый render(), так что у фигур «Старт · Сейчас · Цель» пропорции
+   * свои. `?skin=lbs` (dev) — прежний линейный скиннинг с масштабом в матрицах костей.
    */
   private installShape() {
     const sk = this.twin.skeleton;
     const base = sk.update.bind(sk);
     const S = new THREE.Matrix4();
     const M = new THREE.Matrix4();
+    const W = new THREE.Matrix4();
+    this.binds = sk.boneInverses.map((m) => m.clone().invert());
+    this.bindInv.copy(this.twin.bindMatrix).invert();
+    this.P = sk.bones.map(() => null);
+    this.dqR = sk.bones.map(() => new THREE.Vector4(0, 0, 0, 1));
+    this.dqD = sk.bones.map(() => new THREE.Vector4());
     sk.update = () => {
       base();
-      if (!sk.boneMatrices) return;
-      for (const [i, k] of this.boneScale) {
-        M.multiplyMatrices(sk.bones[i]!.matrixWorld, S.makeScale(k.x, k.y, k.z)).multiply(sk.boneInverses[i]!);
-        M.toArray(sk.boneMatrices, i * 16);
+      const bm = sk.boneMatrices;
+      if (!bm) return;
+      if (SKIN === 'lbs') {
+        for (const [i, k] of this.boneScale) {
+          M.multiplyMatrices(sk.bones[i]!.matrixWorld, S.makeScale(k.x, k.y, k.z)).multiply(sk.boneInverses[i]!);
+          M.toArray(bm, i * 16);
+        }
+        return;
+      }
+      W.multiplyMatrices(this.twin.matrixWorld, this.bindInv);
+      for (let i = 0; i < sk.bones.length; i++) {
+        const p = this.P[i];
+        (p ? M.multiplyMatrices(W, p) : M.copy(W)).toArray(bm, i * 16);
       }
     };
     for (const [c, j] of SHAPE_CLAVICLES) {
@@ -393,6 +461,23 @@ int zoneId(float c) {
       const joint = sk.bones[this.boneIndex(j)];
       if (clavicle >= 0 && joint) this.clavicles.push({ clavicle, joint, rest: joint.position.clone() });
     }
+  }
+
+  /** Шаг 2: пары кватернионов костей из bindMatrixInverse · matrixWorld кости · boneInverse · bindMatrix (масштаб — нет). */
+  private updateDQ() {
+    const sk = this.twin.skeleton;
+    const M = this.dqM;
+    for (let i = 0; i < sk.bones.length; i++) {
+      M.multiplyMatrices(sk.bones[i]!.matrixWorld, sk.boneInverses[i]!).premultiply(this.twin.bindMatrixInverse).multiply(this.twin.bindMatrix);
+      dqFromMatrix(M, this.dqR[i]!, this.dqD[i]!);
+    }
+  }
+
+  /** Кадр: матрицы, пары кватернионов этой позы, рендер. Каждый renderer.render двойника — только через него. */
+  private draw() {
+    this.scene.updateMatrixWorld();
+    this.updateDQ();
+    this.renderer.render(this.scene, this.camera);
   }
 
   /** Индекс кости по имени из файла: GLTFLoader убирает из имён точки («shoulder01.L» → «shoulder01L»); нет — −1. */
@@ -404,27 +489,49 @@ int zoneId(float c) {
   /** `widen` — ключицы длиннее по плечам (в покое); в «Как делать» — нет, суставы как в клипе. */
   private applyShape(shape: TwinShape, widen: boolean) {
     this.shape = shape;
-    this.boneScale.clear();
-    const at = (i: number) => {
-      let v = this.boneScale.get(i);
-      if (!v) this.boneScale.set(i, (v = new THREE.Vector3(1, 1, 1)));
-      return v;
-    };
-    for (const part of Object.keys(SHAPE_BONES) as (keyof TwinShape)[]) {
-      const f = shape[part];
-      if (f === 1) continue;
-      for (const [name, gain] of SHAPE_BONES[part]) {
-        const i = this.boneIndex(name);
-        if (i < 0) continue;
-        const k = 1 + gain * (f - 1);
-        at(i).multiply(new THREE.Vector3(k, 1, k));
-      }
+    this.boneScale = shapeScales(shape, (n) => this.boneIndex(n), widen);
+    const sk = this.twin.skeleton;
+    this.P = sk.bones.map((_, i) => {
+      const k = this.boneScale.get(i);
+      return k ? bindScale(this.binds[i]!, sk.boneInverses[i]!, k) : null;
+    });
+    const len = clavicleLength(shape, widen);
+    for (const c of this.clavicles) c.joint.position.copy(c.rest).multiplyScalar(len);
+  }
+
+  // ---------- веса морфов из клипов (TWIN-3D 2, «Скиннинг и морфы») ----------
+
+  /**
+   * Дорожки `.morphTargetInfluences` клипа → дорожки целей тела (`<имя тела>.morphTargetInfluences[<цель>]`), только
+   * анимируемые. `names` — цели узла, на котором лежали веса (тело или носитель body_morphs); null — веса клипа
+   * отбрасываются.
+   */
+  private morphClip(clip: THREE.AnimationClip, names: string[] | null) {
+    const weights: WeightTrack[] = [];
+    const rest: THREE.KeyframeTrack[] = [];
+    for (const t of clip.tracks) {
+      if (t.name.endsWith('.morphTargetInfluences')) {
+        weights.push({ times: t.times, values: t.values, interpolation: t.getInterpolation() === THREE.InterpolateDiscrete ? 'STEP' : 'LINEAR' });
+      } else rest.push(t);
     }
-    const len = widen ? 1 + CLAVICLE_GAIN * (shape.shoulders - 1) : 1;
-    for (const c of this.clavicles) {
-      c.joint.position.copy(c.rest).multiplyScalar(len);
-      if (len !== 1) at(c.clavicle).y *= len;
-    }
+    const split: TargetTrack[] = names ? weights.flatMap((w) => splitWeights(w, names, this.animated)) : [];
+    clip.tracks = [...rest, ...split.map((tt) => {
+      const tr = new THREE.NumberKeyframeTrack(`${this.twin.name}.morphTargetInfluences[${tt.target}]`, tt.times, tt.values);
+      tr.setInterpolation(tt.interpolation === 'STEP' ? THREE.InterpolateDiscrete : THREE.InterpolateLinear);
+      return tr;
+    })];
+  }
+
+  /** Все анимируемые цели в 0: следующий клип ставит свои (у клипа может не быть кистей или fix_*). */
+  private resetMorphs() {
+    const inf = this.twin.morphTargetInfluences!, dict = this.twin.morphTargetDictionary!;
+    for (const n of this.animated) inf[dict[n]!] = 0;
+  }
+
+  /** Веса всех целей тела (имя → вес) — для хука __twin. */
+  private morphs(): Record<string, number> {
+    const inf = this.twin.morphTargetInfluences!;
+    return Object.fromEntries(targetNames(this.twin.morphTargetDictionary!).map((n, i) => [n, Math.round(inf[i]! * 1e4) / 1e4]));
   }
 
   // ---------- хосты ----------
@@ -526,10 +633,16 @@ int zoneId(float c) {
       for (const o of doomed) o.removeFromParent();
       const clip = THREE.AnimationClip.findByName(gltf.animations, id) ?? gltf.animations[0];
       if (!clip) throw new Error(`${entry.file}: нет клипа`);
+      // веса кистей и fix_* — на узле-носителе (тела в файле нет): дорожками по именам на тело, носитель — из сцены
+      const carrier = exScene.getObjectByName(MORPH_CARRIER) as THREE.Mesh | undefined;
+      this.morphClip(clip, carrier?.morphTargetDictionary ? targetNames(carrier.morphTargetDictionary) : null);
+      if (carrier) { carrier.removeFromParent(); disposeTree(carrier); }
       this.unloadExercise();
       this.stage.add(exScene);
+      this.resetMorphs();
       const action = this.mixer.clipAction(clip, this.stage);
       action.setLoop(THREE.LoopRepeat, Infinity).reset().play();
+      this.mixer.update(0);               // первая поза и веса морфов видны и на паузе
       this.ex = { id, scene: exScene, action, entry };
       this.exLoading = null;
       const top = this.top();
@@ -582,8 +695,10 @@ int zoneId(float c) {
     this.stage.remove(this.ex.scene);
     disposeTree(this.ex.scene);
     this.ex = null;
+    this.resetMorphs();
     this.idleAction.enabled = true;
     this.idleAction.play();
+    this.mixer.update(0);                 // кисти idle (0,5) — сразу, и на паузе фигур
   }
 
   // ---------- камера ----------
@@ -701,14 +816,17 @@ int zoneId(float c) {
       this.fpsTime = 0;
       for (const l of this.fpsListeners) l(this.fps);
     }
-    (window as unknown as { __twin?: object }).__twin = { fps: this.fps, kind: c.kind, exercise: this.ex?.id ?? null, ready: true, yaw: this.yaw, shape: this.shape };
+    (window as unknown as { __twin?: object }).__twin = {
+      fps: this.fps, kind: c.kind, exercise: this.ex?.id ?? null, ready: true, yaw: this.yaw, shape: this.shape,
+      morphs: this.morphs(), skin: SKIN,
+    };
   }
 
   private renderOne() {
     const w = this.renderer.domElement.width, hh = this.renderer.domElement.height;
     this.renderer.setScissorTest(false);
     this.renderer.setViewport(0, 0, w / this.renderer.getPixelRatio(), hh / this.renderer.getPixelRatio());
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
   }
 
   private renderFigures(figs: Figure[]) {
@@ -725,7 +843,7 @@ int zoneId(float c) {
       if (f.zones) { this.setZoneWeights(f.zones); this.uniforms.uHighlight.value = 1; } else this.uniforms.uHighlight.value = 0;
       this.renderer.setViewport(i * cw, 0, cw, H);
       this.renderer.setScissor(i * cw, 0, cw, H);
-      this.renderer.render(this.scene, this.camera);
+      this.draw();
     });
     this.renderer.setScissorTest(false);
   }
